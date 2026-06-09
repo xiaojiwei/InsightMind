@@ -1,0 +1,1 @@
+Concatenate(Format(Calculate([MEAS_d93e71a5fde84f968e3e2e6696297f6c]), '%,.2f'), '%')

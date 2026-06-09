@@ -1,0 +1,46 @@
+<html>
+<head>
+  <script src="docmee-ui-sdk-iframe.min.js"></script>
+  <head></head>
+</head>
+<body>
+<div id="container"></div>
+
+<script>
+  const docmeeUI = new DocmeeUI({
+    token: 'sk_s_8RICssE3555hv7rX',
+    container: document.querySelector('#container'),
+    page: 'creator', // 'dashboard' ppt列表; 'creator' 创建页面
+    themeColor: '#004080', // 主题色
+    background: '#004080', // 背景色，支持颜色与图片url地址
+    padding: '40px', // 内边距（也就是css的padding，语法相同）
+    onMessage(message) {
+      console.log(message)
+
+      if (message.type === 'invalid-token') {
+        console.log('token 认证错误') // 在token失效时触发
+      }
+      if (message.type === 'beforeGenerate') {
+        const { subtype, fields } = message.data
+        if (subtype === 'outline') {
+          // 生成大纲前触发
+          console.log('即将生成ppt大纲', fields)
+          return true
+        } else if (subtype === 'ppt') {
+          // 生成ppt前触发
+          console.log('即将生成ppt', fields)
+          docmeeUI.sendMessage({
+            type: 'success',
+            content: '继续生成PPT',
+          })
+          return true
+        }
+      }
+      if (message.type === 'beforeDownload') {
+        return `PPT_${new Date().getTime()}.pptx`
+      }
+    }
+  })
+</script>
+</body>
+</html>

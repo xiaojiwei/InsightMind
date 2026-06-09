@@ -1,0 +1,1 @@
+([MEAS_mmm],fixed:([DIM_aab],[DIM_aaa]), filters:(([DIM_bbb] in '北京'),([DIM_ddd] in '北京')))*([MEAS_mmm],fixed:([DIM_aab],[DIM_aaa]))-([MEAS_ci3])

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.graphinsight.indicator.auto.mapper.WordValuesMapper">
+    <insert id="insertAliase">
+        INSERT INTO word_values (`key`,`value`)
+        VALUES
+        <foreach collection="valueList" item="valueAlias" separator=",">
+            (#{valueKey}, #{valueAlias})
+        </foreach>
+    </insert>
+    <delete id="delAliase">
+        delete
+        from word_values
+        where `key` =
+              #{valueKey}
+    </delete>
+
+    <select id="selectKeyList" resultType="com.graphinsight.indicator.auto.entity.WordValues">
+        select `key`,`value`
+        from word_values where `value` in
+        <foreach item="id" collection="valueList" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <select id="selectValueList" resultType="com.graphinsight.indicator.auto.entity.WordValues">
+        select `key`,`value`
+        from word_values where `key` in
+        <foreach item="id" collection="valueList" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+
+    <select id="selectInfoList" resultType="com.graphinsight.indicator.auto.entity.WordValues">
+        select `key`, `value`,`type`
+        from word_values
+    </select>
+
+    <select id="selectKeyWordPageInfo" resultType="com.graphinsight.indicator.model.vo.AiBusinessListVo">
+        select `key` as keyWord
+        from word_values
+        <if test="(searchVo.keyWord != null and searchVo.keyWord != '') or (searchVo.keyValue != null and searchVo.keyValue != '')">
+            where
+        </if>
+        <if test="searchVo.keyWord != null and searchVo.keyWord != ''">
+            `key` like concat('%',#{searchVo.keyWord},'%')
+        </if>
+        <if test="(searchVo.keyWord != null and searchVo.keyWord != '') and (searchVo.keyValue != null and searchVo.keyValue != '')">
+            and
+        </if>
+        <if test="searchVo.keyValue != null and searchVo.keyValue != ''">
+            `value` like concat('%',#{searchVo.keyValue},'%')
+        </if>
+        group by keyWord
+    </select>
+
+    <select id="selectPageInfo" resultType="com.graphinsight.indicator.model.vo.AiBusinessListVo">
+        select `key` as keyWord,GROUP_CONCAT(`value`) as keyValue,GROUP_CONCAT(`id`) as ids,creator,updater,create_date as createDate,update_date as updateDate
+        from word_values
+        <if test="(searchVo.keyWord != null and searchVo.keyWord != '') or (searchVo.keyValue != null and searchVo.keyValue != '')">
+            where
+        </if>
+        <if test="searchVo.keyWord != null and searchVo.keyWord != ''">
+            `key` like concat('%',#{searchVo.keyWord},'%')
+        </if>
+        <if test="(searchVo.keyWord != null and searchVo.keyWord != '') and (searchVo.keyValue != null and searchVo.keyValue != '')">
+            and
+        </if>
+        <if test="searchVo.keyValue != null and searchVo.keyValue != ''">
+            `value` like concat('%',#{searchVo.keyValue},'%')
+        </if>
+        group by `keyWord`,updater,updateDate,creator,createDate
+        ORDER BY  updateDate DESC
+    </select>
+
+    <insert id="insertBatch">
+        INSERT INTO word_values (`key`,`value`,create_date,creator,update_date,updater)
+        VALUES
+        <foreach collection="valueList" item="item" separator=",">
+            (#{item.key},#{item.value},#{item.createDate},#{item.creator},#{item.updateDate},#{item.updater})
+        </foreach>
+    </insert>
+</mapper>

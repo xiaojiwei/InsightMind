@@ -1,0 +1,17 @@
+# 手动声明逻辑外键（数据库中无约束，但业务上存在引用关系）
+#
+# 格式：
+#   - from_table:  来源表名（原始名，大小写不敏感）
+#     from_column: 来源列名（原始名）
+#     to_table:    目标表名
+#     to_column:   目标列名（通常是主键）
+#     label:       可选，关系说明（中文）
+#
+# 示例：
+#   measure_application.meas_id → measure.id
+
+- from_table:  measure_application
+  from_column: meas_id
+  to_table:    measure
+  to_column:   id
+  label:       指标申请关联指标

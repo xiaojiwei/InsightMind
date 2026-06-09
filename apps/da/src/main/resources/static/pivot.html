@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>线上用例回滚</title>
+    <script src="https://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+</head>
+<script type = "text/javascript">
+
+
+</script>
+<body>
+<div id="measureDiv" style="position:absolute; top: 10px; left: 10px; width: 260px; border: 1px solid green;">
+</div>
+
+<div id="dimDiv" style="position:absolute; top: 10px; left: 280px; width: 260px; border: 1px solid green;">
+</div>
+
+<div id="search" style="text-align: center;background: #ff0000; position:absolute; top: 10px; left: 560px; width: 260px; height: 20px; border: 1px solid green;">
+    查询
+</div>
+
+<div id="tools" style="text-align: center; position:absolute; top: 35px; left: 560px; width: 260px; height: 20px; border: 1px solid green;">
+    小记：<input id="isum" type="checkbox" value=""/> 别名：<input id="iasname" type="checkbox" value=""/>
+</div>
+
+<div id="axisRow" style="position:absolute; top: 60px; left: 560px; width: 260px; height: 260px; border: 1px solid green;">
+
+</div>
+
+<div id="axisColumn" style="position:absolute; top: 380px; left: 560px; width: 260px; height: 260px; border: 1px solid green;">
+</div>
+
+<div id="moveTemp" style="position:absolute; top: 0px; left: 860px; width: 260px;  visibility:hidden;">
+</div>
+
+<div id="resdata" style="position:absolute; top: 0px; left: 1060px; width: 260px; height: 260px; background: rebeccapurple">
+</div>
+
+<script>
+
+    var tempElementChick = null;
+    var choiceCode = null;
+
+    function createSonAxis(rootDiv) {
+
+        let sonDiv = document.createElement("div");
+        let moveTempDiv = document.getElementById("moveTemp");
+        sonDiv.innerText = moveTempDiv.innerText.replaceAll("-", "");
+        sonDiv.code = moveTempDiv.code;
+        sonDiv.elcId = moveTempDiv.elcId;
+        sonDiv.biType = moveTempDiv.biType;
+
+        let removeDiv = document.createElement("span");
+        removeDiv.innerText = " [X]";
+        removeDiv.onclick = function () {
+            rootDiv.removeChild(sonDiv);
+            reloadMeasAndDim();
+        }
+        sonDiv.appendChild(removeDiv);
+        rootDiv.appendChild(sonDiv);
+
+        return sonDiv;
+    }
+
+    function addAxis() {
+
+        if (tempElementChick == 0) {
+
+            let axisRowDiv = document.getElementById("axisRow");
+            createSonAxis(axisRowDiv);
+
+        } else if (tempElementChick == 1) {
+
+            let axisColumnDiv = document.getElementById("axisColumn");
+            createSonAxis(axisColumnDiv);
+        }
+
+    }
+
+    function forEachEle(rootDiv, eleSet, nstr, biType) {
+        for (let idx in eleSet) {
+
+            var element = eleSet[idx];
+            let sonDiv = document.createElement("div");
+            var eleData = element.data;
+            var type = eleData.type;
+            sonDiv.innerText = nstr + eleData.cnName;
+
+            if (type == 'category') {
+                sonDiv.style.background = "#4169E1";
+            } else {
+                sonDiv.code = eleData.code;
+                sonDiv.elcId = eleData.id;
+                sonDiv.biType = biType;
+                sonDiv.style.background = "#6495ED";
+                sonDiv.onmouseover = function(event) {
+                    sonDiv.style.background = "red";
+                    event.stopPropagation();
+                }
+                sonDiv.onmouseout = function(event) {
+                    sonDiv.style.background = "#6495ED";
+                    event.stopPropagation();
+                }
+                sonDiv.onmousedown = function(event){
+
+                    var axisRowDiv = document.getElementById("axisRow");
+                    axisRowDiv.onmousemove = function (event) {
+                        tempElementChick = 0;
+                        console.log(tempElementChick);
+                    }
+
+                    axisRowDiv.onmouseout = function (event) {
+                        tempElementChick = 2;
+                        console.log(tempElementChick);
+                    }
+
+                    var axisColumnDiv = document.getElementById("axisColumn");
+
+                    axisColumnDiv.onmousemove = function (event) {
+                        tempElementChick = 1;
+                        console.log(tempElementChick);
+                    }
+
+                    axisColumnDiv.onmouseout = function (event) {
+                        tempElementChick = 2;
+                        console.log(tempElementChick);
+                    }
+
+                    var moveTempDiv = document.getElementById("moveTemp");
+                    moveTempDiv.style.visibility = "visible";
+                    moveTempDiv.innerText = sonDiv.innerText;
+                    moveTempDiv.code = sonDiv.code;
+                    moveTempDiv.biType = sonDiv.biType;
+                    moveTempDiv.elcId = sonDiv.elcId;
+                    event = event || window.event;
+                    var left = event.clientX;
+                    var top = event.clientY;
+
+                    moveTempDiv.style.left = (left + 10) +"px";
+                    moveTempDiv.style.top = (top + 10) +"px";
+
+                    document.onmousemove = function(event){
+                        event = event || window.event;
+                        var left = event.clientX;
+                        var top = event.clientY;
+
+                        moveTempDiv.style.left = (left + 10) +"px";
+                        moveTempDiv.style.top = (top + 10) +"px";
+
+                        document.onmouseup = function(){
+                            document.onmousemove = null;
+                            document.onmouseup = null;
+                            addAxis();
+                            moveTempDiv.style.visibility = "hidden";
+                            axisColumnDiv.onmousemove = null;
+                            axisColumnDiv.onmouseout = null;
+                            axisRowDiv.onmousemove = null;
+                            axisRowDiv.onmouseout = null;
+                            moveTempDiv.innerText = "";
+
+                            reloadMeasAndDim();
+
+                        };
+                    };
+                };
+            }
+
+            rootDiv.appendChild(sonDiv);
+
+            let sstr = "-" + nstr;
+            forEachEle(rootDiv, element.children, sstr, biType);
+
+        }
+    }
+
+    function reloadMeasAndDim() {
+        let measures = [];
+        let dimensions = [];
+        let rowDiv = document.getElementById("axisRow");
+        let columnDiv = document.getElementById("axisColumn");
+
+        forEachEleAxis(rowDiv, measures, dimensions);
+        forEachEleAxis(columnDiv, measures, dimensions);
+
+        let sendData = {"dimensionSet":[],"measureSet":[],"traceId":"9-5JZYuqhFC2-XRyS_kTA"};
+
+        for (let key in measures) {
+            sendData.measureSet.push(measures[key]);
+        }
+
+        for (let key in dimensions) {
+            sendData.dimensionSet.push(dimensions[key]);
+        }
+
+        $.ajax({
+            type: "POST",
+            url: 'https://da-indicator.test.k8s.chehejia.com/relation/list',
+            data: JSON.stringify(sendData),
+            contentType: 'application/json;charset=utf-8',
+            success: function (data) {
+                visibleEle(data);
+            }
+        });
+    }
+
+    function visibleEle(data) {
+
+
+        var measureDiv = document.getElementById("measureDiv");
+        var dimDiv = document.getElementById("dimDiv");
+
+        forVisibleDiv(measureDiv, data);
+        forVisibleDiv(dimDiv, data);
+
+    }
+
+    $.get("https://da-indicator.test.k8s.chehejia.com/relation/tree/measure",function(data, status) {
+        var measureDiv = document.getElementById("measureDiv");
+        var measureSet = data.data;
+        forEachEle(measureDiv, measureSet, "", 0);
+    });
+
+    $.get("https://da-indicator.test.k8s.chehejia.com/relation/tree/dimension",function(data, status) {
+        var dimDiv = document.getElementById("dimDiv");
+        var dimSet = data.data;
+        forEachEle(dimDiv, dimSet, "", 1);
+    });
+
+
+    var search = document.getElementById("search");
+    search.onclick = function () {
+
+        var axisRowDiv = document.getElementById("axisRow");
+        var axisColumnDiv = document.getElementById("axisColumn");
+
+        var rowCodes = forEachAxis(axisRowDiv);
+        var columnCodes = forEachAxis(axisColumnDiv);
+
+        console.log(rowCodes);
+
+        var sendData = {"chartType":8,"sourceType":0,"operaType":1,"cacheStrategy":1,"filterList":[],"configureList":[],"pageNo":1,"pageSize":20,"queryCountId":null,"traceId":"n8OOGoScl8CPxJqVBxy0Q"};
+        let isumCheckbox = document.getElementById("isum");
+        let iasnameCheckbox = document.getElementById("iasname");
+
+        let isumCheck = isumCheckbox.checked || false;
+        let iasnameCheck = iasnameCheckbox.checked || false;
+
+        for (let idx in rowCodes) {
+
+            let code = rowCodes[idx];
+            let baseConfig = {"code" : code, "axisType": 1};
+            baseConfig.order = {
+                "sortType": 1,
+                "valueList": []
+            }
+
+            if (code.includes('DIM') && isumCheck) {
+                baseConfig.hasSubtotal = true;
+                if (iasnameCheck) {
+                    baseConfig.subtotalAlias = '维度别名汇总';
+                }
+            } else {
+                // baseConfig.ratioList = [
+                //     {
+                //         "ratioType": 1,
+                //         "sortType": 0
+                //     },
+                //     {
+                //         "ratioType": 2,
+                //         "sortType": 0
+                //     }
+                // ];
+            }
+
+            sendData.configureList.push(baseConfig)
+        }
+
+        for (let idx in columnCodes) {
+            let code = columnCodes[idx];
+            let baseConfig = {"code" : code, "axisType": 0};
+            baseConfig.order = {
+                "sortType": 1,
+                "valueList": []
+            }
+
+            if (code.includes('DIM') && isumCheck) {
+                baseConfig.hasSubtotal = true;
+                if (iasnameCheck) {
+                    baseConfig.subtotalAlias = '维度别名汇总';
+                }
+            } else {
+                // baseConfig.ratioList = [
+                //     {
+                //         "ratioType": 1,
+                //         "sortType": 0
+                //     },
+                //     {
+                //         "ratioType": 2,
+                //         "sortType": 0
+                //     }
+                // ];
+            }
+
+            sendData.configureList.push(baseConfig)
+        }
+
+        $.ajax({
+            type: "POST",
+            //url: 'http://127.0.0.1:8080/bi/v1/datasource/query',
+            url: '../bi/v1/datasource/query',
+            data: JSON.stringify(sendData),
+            contentType: 'application/json;charset=utf-8',
+            success: function (data) {
+
+                var resdata = document.getElementById("resdata");
+                var str = JSON.stringify(data);
+                resdata.innerText = str;
+
+            }
+        });
+
+    }
+
+    function targetInArray(target, arrs) {
+        let has = false;
+        if (arrs) {
+            for (let key in arrs) {
+                if (target == arrs[key]) {
+                    has = true;
+                    break;
+                }
+            }
+        }
+        return has;
+    }
+
+    function forVisibleDiv(axisDiv, data) {
+
+        data = data.data;
+        var measures = data.measureSet;
+        var dimensions = data.dimensionSet;
+
+        for (var i = 0; i < axisDiv.children.length; i++){
+            let sonDiv = axisDiv.children[i];
+            //sonDiv.style.visibility = "hidden";
+            sonDiv.style.display = "none";
+            let id = sonDiv.elcId;
+            let code = sonDiv.code;
+
+            if (!id) {
+                // sonDiv.style.visibility = "visible";
+                sonDiv.style.display = "block";
+                continue;
+            }
+
+            if (sonDiv.biType == 0) {
+                if (targetInArray(id, measures)) {
+                    // sonDiv.style.visibility = "visible";
+                    sonDiv.style.display = "block";
+                } else {
+
+                }
+                console.log(id + "  " + targetInArray(id, measures));
+            } else {
+                if (targetInArray(id, dimensions)) {
+                    // sonDiv.style.visibility = "visible";
+                    sonDiv.style.display = "block";
+                } else {
+
+                }
+                console.log(id + "  " + targetInArray(id, dimensions));
+            }
+        }
+    }
+
+    function forEachEleAxis(axisDiv, measures, dimensions) {
+
+        var codes = [];
+        for (var i = 0; i < axisDiv.children.length; i++){
+            var sonDiv = axisDiv.children[i];
+            if (sonDiv.biType == 0) {
+                measures.push(sonDiv.elcId);
+            } else {
+                dimensions.push(sonDiv.elcId);
+            }
+            codes.push(sonDiv.code);
+            console.log(sonDiv);
+        }
+
+        return codes;
+
+    }
+
+    function forEachAxis(axisDiv) {
+
+        var codes = [];
+        for (var i = 0; i < axisDiv.children.length; i++){
+            var sonDiv = axisDiv.children[i];
+            codes.push(sonDiv.code);
+            console.log(sonDiv);
+        }
+
+        return codes;
+
+    }
+
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.graphinsight.indicator.auto.mapper.AiQuestionInfoMapper">
+
+    <select id="selectPageInfo" resultType="com.graphinsight.indicator.model.vo.AiQuestionInfoVO">
+        select * from ai_question_info where is_del = 0
+
+        <if test="(searchVo.startTime != null  and searchVo.endTime != null )">
+            and create_time between #{searchVo.startTime} and #{searchVo.endTime}
+        </if>
+        <if test="(searchVo.keyWord != null and searchVo.keyWord != '')">
+            and `content` like concat('%',#{searchVo.keyWord},'%')
+        </if>
+        <if test="(searchVo.replyType != null and searchVo.replyType != '')">
+            and `reply_type`  = #{searchVo.replyType}
+        </if>
+        order by `create_time` desc
+    </select>
+    <select id="selectCountInfo" resultType="com.graphinsight.indicator.model.vo.AiQuestionCountVO">
+        select count(*) as total,reply_type  from ai_question_info  where is_del = 0
+        <if test="(searchVo.startTime != null  and searchVo.endTime != null )">
+            and create_time between #{searchVo.startTime} and #{searchVo.endTime}
+        </if>
+         group by reply_type
+    </select>
+</mapper>

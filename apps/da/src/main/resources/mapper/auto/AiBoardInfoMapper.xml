@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.graphinsight.indicator.auto.mapper.AiBoardInfoMapper">
+
+    <select id="selectPageInfo" resultType="com.graphinsight.indicator.model.vo.AiBoardInfoVO">
+            select * from ai_board_info where is_del = 0
+            <if test="(searchVo.keyWord != null and searchVo.keyWord != '')">
+                and `board_name` like concat('%',#{searchVo.keyWord},'%')
+            </if>
+            order by update_date desc
+    </select>
+    <select id="selectLikeListByName" resultType="com.graphinsight.indicator.auto.entity.AiBoardInfo">
+        SELECT board_name, board_url
+        FROM ai_board_info where is_del = 0
+        <if test="valueList != null and valueList.size > 0">
+            and   (
+            <foreach collection="valueList" item="item" separator="OR">
+                board_name LIKE CONCAT('%', #{item}, '%')
+            </foreach>
+            )
+        </if>
+
+    </select>
+
+    <select id="selectListByName" resultType="com.graphinsight.indicator.auto.entity.AiBoardInfo">
+        SELECT board_name, board_url
+        FROM ai_board_info where is_del = 0
+        <if test="valueList != null and valueList.size > 0">
+            and board_name in
+            <foreach item="name" collection="valueList" open="(" separator="," close=")">
+                #{name}
+            </foreach>
+        </if>
+
+    </select>
+
+
+
+
+</mapper>

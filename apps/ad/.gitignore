@@ -1,0 +1,43 @@
+# 环境与密钥（绝对不能提交）
+.env
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.cache/
+
+# 输出文件（体积大）
+output/
+*.ttl
+*.log
+server.log
+
+# 备份
+backups/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# Claude内部文件
+.claude/
+PROJECT_ANALYSIS.md
+
+# 临时文件
+=0.14
+*.err
+.playwright-cli/
+.playwright-mcp/

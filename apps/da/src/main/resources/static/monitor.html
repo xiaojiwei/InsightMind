@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>监控地址</title>
+    <script src="https://cdn.staticfile.org/vue/2.4.2/vue.min.js"></script>
+    <script src="https://cdn.staticfile.org/vue-resource/1.5.1/vue-resource.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<script type="text/javascript">
+
+    function getData(url, data) {
+
+        fetch(url, {
+            method: 'GET', // *GET, POST, PUT, DELETE, etc.
+            mode: 'cors', // no-cors, *cors, same-origin
+            cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+            credentials: 'same-origin', // include, *same-origin, omit
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(res => res.json()).then((res) => {
+
+            var infoDiv = document.getElementById("info");
+            infoDiv.innerText = "------------------------------"
+            infoDiv.innerText += JSON.stringify(res, null, 2);
+            infoDiv.innerText += "------------------------------"
+            document.body.style.backgroundColor = 'DodgerBlue';
+
+
+            var endDiv = document.createElement('div');
+            endDiv.setAttribute("id", "end");
+            document.body.appendChild(endDiv);
+
+        });
+    }
+
+    var url = '/bi/v1/current';
+    var data = {
+        "request": {
+            "header": {
+                "factoryCode": "1229",
+                "count": "1",
+                "transactionId": "CHJ_SIP_193_20250509154453259484719",
+                "customer": "SIP"
+            },
+            "list": {
+                "DNVAL": "JIT250515S00462"
+            }
+        }
+    };
+
+    getData(url, data);
+
+
+</script>
+<body>
+
+<div id="info"></div>
+
+
+</body>
+</html>

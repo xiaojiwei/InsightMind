@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.graphinsight.indicator.auto.mapper.DimensionMapper">
+
+    <select id="selectListByName" resultType="com.graphinsight.indicator.auto.entity.Dimension">
+        select  cn_name,`code`,weight,view_type
+        from dimension_bak where
+        <if test="nameList != null and nameList.size > 0">
+            (
+            <foreach collection="nameList" item="item" separator="OR">
+                cn_name LIKE CONCAT('%', #{item}, '%')
+            </foreach>
+            )
+        </if>
+        <if test="dimList != null and dimList.size > 0">
+            and `code` in
+        <foreach collection="dimList" index="index" item="itemD" open="(" separator="," close=")">
+            #{itemD}
+        </foreach>
+        </if>
+        order by weight desc
+    </select>
+
+    <select id="selectListInfoByLikeName" resultType="com.graphinsight.indicator.auto.entity.Dimension">
+    select  cn_name,`code`,weight,view_type,id
+    from dimension_bak
+    <if test="nameList != null and nameList.size > 0">
+        where (
+        <foreach collection="nameList" item="item" separator="OR">
+            cn_name LIKE CONCAT('%', #{item}, '%')
+        </foreach>
+        )
+
+    </if>
+    </select>
+    <select id="selectListInfoByName" resultType="com.graphinsight.indicator.auto.entity.Dimension">
+        select cn_name,`code`,weight,view_type,id
+        from dimension_bak
+        <if test="nameList != null and nameList.size > 0">
+            where `cn_name` in
+            <foreach collection="nameList" index="index" item="itemD" open="(" separator="," close=")">
+                #{itemD}
+            </foreach>
+        </if>
+    </select>
+
+    <select id="selectRealInfoByName" resultType="com.graphinsight.indicator.auto.entity.Dimension">
+        select cn_name,`code`,view_type,id
+        from dimension
+        <if test="nameList != null and nameList.size > 0">
+            where `cn_name` in
+            <foreach collection="nameList" index="index" item="itemD" open="(" separator="," close=")">
+                #{itemD}
+            </foreach>
+        </if>
+        <if test="dimensionId != null and dimensionId.size > 0">
+            and `id` in
+            <foreach collection="dimensionId" index="index" item="itemD" open="(" separator="," close=")">
+                #{itemD}
+            </foreach>
+
+        </if>
+    </select>
+
+    <select id="selectRealInfoByLikeName" resultType="com.graphinsight.indicator.auto.entity.Dimension">
+        select  cn_name,`code`,view_type,id
+        from dimension
+        <if test="nameList != null and nameList.size > 0">
+            where (
+            <foreach collection="nameList" item="item" separator="OR">
+                cn_name LIKE CONCAT('%', #{item}, '%')
+            </foreach>
+            )
+
+        </if>
+        <if test="dimensionId != null and dimensionId.size > 0">
+            and `id` in
+            <foreach collection="dimensionId" index="index" item="itemD" open="(" separator="," close=")">
+                #{itemD}
+            </foreach>
+
+        </if>
+    </select>
+</mapper>

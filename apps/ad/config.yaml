@@ -1,0 +1,34 @@
+datasources:
+  - name: mysql_local
+    type: mysql
+    host: localhost
+    port: 3306
+    database: "tpcds"
+    schema: "tpcds"
+    username: root
+    password: "root"
+    sample_limit: 1000
+    exclude_tables:
+      - tmp_*
+      - bak_*
+      - "#*"
+
+
+
+  # ── Oracle example (uncomment to use) ────────────────────────────── #
+  # - name: prod_oracle
+  #   type: oracle
+  #   host: oracledb.local
+  #   port: 1521
+  #   service_name: ORCL
+  #   username: scott
+  #   password: tiger
+  #   sample_limit: 200
+
+settings:
+  enable_sampling: true
+  enable_implicit_relations: false
+  enable_owl_reasoning: false        # set true to run owlrl (slow on large graphs)
+  similarity_threshold: 0.85         # cosine threshold for similarTo relation
+  synonyms_path: synonyms.yaml
+  sentence_transformer_model: paraphrase-multilingual-MiniLM-L12-v2

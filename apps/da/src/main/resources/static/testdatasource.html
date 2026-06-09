@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>线上用例回滚</title>
+    <script src="https://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+</head>
+<script type = "text/javascript">
+
+
+</script>
+<body>
+    <input type="button" onclick="test()" value="test">
+    <div id="dataSourceDiv">
+    </div>
+
+
+
+
+
+    <script>
+
+        function test() {
+            $.ajax({
+                type: "GET",
+                url: 'http://127.0.0.1:8080/bi/v1/all/datasource',
+                contentType: 'application/json;charset=utf-8',
+                success: function (data) {
+
+                    let rootDiv = document.getElementById("dataSourceDiv");
+                    for (let idx in data.data) {
+
+                        var dataSource = data.data[idx];
+                        let sonDiv = document.createElement("div");
+                        sonDiv.id = dataSource.id;
+                        sonDiv.innerText = dataSource.name;
+
+                        rootDiv.appendChild(sonDiv);
+
+                    }
+
+                    for (let idx in data.data) {
+
+                        let dataSource = data.data[idx];
+                        let dataCode = dataSource.id;
+                        let dataName = dataSource.name;
+                        action(dataName, dataCode);
+                        /*
+                        $.ajax({
+                            type: "GET",
+                            url: 'http://127.0.0.1:8080/bi/v1/query/datasource?id=' + dataCode,
+                            contentType: 'application/json;charset=utf-8',
+                            success: function (data) {
+                                let sonDiv = document.getElementById(dataCode);
+                                let newMeas = dataCode + " code " + dataName + " 错误信息 " + JSON.stringify(data.message);
+                                sonDiv.innerText = newMeas;
+                            }
+                        });
+                        */
+
+
+                    }
+
+                    alert("共" + data.data.length);
+
+                }
+            });
+        }
+
+        function action(dataName, dataCode) {
+            $.ajax({
+                type: "GET",
+                url: 'http://127.0.0.1:8080/bi/v1/query/datasource?id=' + dataCode,
+                contentType: 'application/json;charset=utf-8',
+                success: function (data) {
+                    let sonDiv = document.getElementById(dataCode);
+                    let newMeas = dataCode + " code " + dataName + " 错误信息 " + JSON.stringify(data.message);
+                    sonDiv.innerText = newMeas;
+
+                    let button = document.createElement("div");
+                    button.innerText = "重试";
+                    button.onclick = function () {
+                      action(dataName, dataCode);
+                    };
+
+                    sonDiv.appendChild(button);
+                }
+            });
+        }
+
+    </script>
+</body>

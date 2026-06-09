@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Reveal.js教程</title>
+    <link
+            href="https://cdn.bootcss.com/reveal.js/3.8.0/css/reveal.min.css"
+            rel="stylesheet"
+    />
+    <!--[if lt IE 9]>
+    <script src="https://cdn.bootcss.com/reveal.js/3.8.0/lib/js/html5shiv.js"></script>
+    <![endif]-->
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!-- 内容 start -->
+        <!-- 页 -->
+        <section>
+            <h1>
+                第一页
+            </h1>
+            <p>这是第一页的内容，按键盘的 右箭头(→) 可以切换第二页</p>
+        </section>
+        <!-- 页 -->
+        <section>
+            <h1>
+                第二页
+            </h1>
+            <p>这是第二页的内容，按键盘的 左箭头(←) 可以切换第一页</p>
+        </section>
+        <!-- 内容 end -->
+    </div>
+</div>
+​
+<script src="https://cdn.bootcss.com/reveal.js/3.8.0/js/reveal.js"></script>
+​
+<script>
+    Reveal.initialize({
+        controls: true,
+        progress: true,
+        autoSlide: 5,
+        center: true,
+        transition: "zoom" // none/fade/slide/convex/concave/zoom
+    });
+</script>
+</body>
+</html>

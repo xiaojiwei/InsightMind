@@ -1,0 +1,1 @@
+Calculate([MEAS_ci3])/(if (1>10, Ttest(Calculate([MEAS_ci3]), Calculate([MEAS_mmm],fixed:([DIM_aab],[DIM_aaa]), filters:(([DIM_bbb] in '北京'),([DIM_ddd] in '北京')))) + Calculate([MEAS_ci3]), Ttest(Calculate([MEAS_ci3]), Calculate([MEAS_mmm],fixed:([DIM_aab],[DIM_aaa]), filters:(([DIM_bbb] in '北京'),([DIM_ddd] in '北京'))))*Calculate([MEAS_ci3])))+9

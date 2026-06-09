@@ -1,0 +1,569 @@
+# =============================================================================
+# Indicator Platform — OWL Ontology + Example ABox data
+# File: indicator-data.ttl
+#
+# Namespace conventions:
+#   ind:  — TBox (classes, properties)
+#   inst: — ABox (instance URIs)
+#
+# Instance URI patterns:
+#   inst:meas_<code>     — Measure
+#   inst:dim_<code>      — Dimension
+#   inst:tbl_<schema>__<table>  — DwTable
+#   inst:ma_<code>_<suffix>     — MeasureApp
+#   inst:da_<code>_<suffix>     — DimensionApp
+#   inst:cat_<code>      — Category
+# =============================================================================
+
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix ind:  <http://indicator.graphinsight.com/ontology#> .
+@prefix inst: <http://indicator.graphinsight.com/instance/> .
+
+# =============================================================================
+# Ontology declaration
+# =============================================================================
+
+<http://indicator.graphinsight.com/ontology>
+    a owl:Ontology ;
+    rdfs:label "Indicator Platform Ontology"@zh ;
+    owl:versionInfo "1.0.0" .
+
+# =============================================================================
+# TBox — Classes
+# =============================================================================
+
+ind:Measure
+    a owl:Class ;
+    rdfs:label "指标"@zh .
+
+ind:Dimension
+    a owl:Class ;
+    rdfs:label "维度"@zh .
+
+ind:DwTable
+    a owl:Class ;
+    rdfs:label "数据仓库表"@zh .
+
+ind:Category
+    a owl:Class ;
+    rdfs:label "指标分类"@zh .
+
+ind:MeasureApp
+    a owl:Class ;
+    rdfs:label "指标应用"@zh .
+
+ind:DimensionApp
+    a owl:Class ;
+    rdfs:label "维度应用"@zh .
+
+ind:TableHistogram
+    a owl:Class ;
+    rdfs:label "表统计信息"@zh .
+
+ind:DimHistogram
+    a owl:Class ;
+    rdfs:label "维度统计信息"@zh .
+
+# =============================================================================
+# TBox — Datatype Properties
+# =============================================================================
+
+ind:code            a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:cnName          a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:enName          a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:caption         a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:definition      a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:description     a owl:DatatypeProperty ; rdfs:range xsd:string .
+
+# Measure-specific
+ind:measTypeCode    a owl:DatatypeProperty ; rdfs:range xsd:integer .
+ind:viewTypeCode    a owl:DatatypeProperty ; rdfs:range xsd:integer .
+
+# MeasureApp-specific
+ind:applyTypeCode   a owl:DatatypeProperty ; rdfs:range xsd:integer .
+ind:expression      a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:factColumn      a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:whereCondition  a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:hasColumnDT     a owl:DatatypeProperty ; rdfs:range xsd:boolean .
+
+# DimensionApp-specific
+ind:dimTypeCode     a owl:DatatypeProperty ; rdfs:range xsd:integer .
+ind:dimFactColumn   a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:dimPrimaryKey   a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:dimColumn       a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:masterPrimaryKey a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:isMasterApp     a owl:DatatypeProperty ; rdfs:range xsd:boolean .
+ind:isRootJoin      a owl:DatatypeProperty ; rdfs:range xsd:boolean .
+ind:hierarchyCode   a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:levelSequence   a owl:DatatypeProperty ; rdfs:range xsd:integer .
+ind:levelCode       a owl:DatatypeProperty ; rdfs:range xsd:string .
+
+# DwTable-specific
+ind:schemaName      a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:tableName       a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:sourceTypeCode  a owl:DatatypeProperty ; rdfs:range xsd:integer .
+
+# Category-specific
+ind:id              a owl:DatatypeProperty ; rdfs:range xsd:long .
+ind:name            a owl:DatatypeProperty ; rdfs:range xsd:string .
+
+# Histogram-specific
+ind:tableRowNum     a owl:DatatypeProperty ; rdfs:range xsd:long .
+ind:dimensionRowNum a owl:DatatypeProperty ; rdfs:range xsd:long .
+ind:maxScanNum      a owl:DatatypeProperty ; rdfs:range xsd:long .
+ind:histDimCode     a owl:DatatypeProperty ; rdfs:range xsd:string .
+ind:histTableName   a owl:DatatypeProperty ; rdfs:range xsd:string .
+
+# =============================================================================
+# TBox — Object Properties
+# =============================================================================
+
+ind:hasMeasureApp
+    a owl:ObjectProperty ;
+    rdfs:domain ind:Measure ;
+    rdfs:range  ind:MeasureApp .
+
+ind:appliesToTable
+    a owl:ObjectProperty ;
+    rdfs:domain ind:MeasureApp ;
+    rdfs:range  ind:DwTable .
+
+ind:dependsOnMeasApp
+    a owl:ObjectProperty ;
+    rdfs:domain ind:MeasureApp ;
+    rdfs:range  ind:MeasureApp ;
+    rdfs:comment "Direct dependency from a DERIVED/EXTENDED MeasureApp to a child MeasureApp. SPARQL+ traversal gives the full closure."@en .
+
+ind:hasDimApp
+    a owl:ObjectProperty ;
+    rdfs:domain ind:Dimension ;
+    rdfs:range  ind:DimensionApp .
+
+ind:dimFactTable
+    a owl:ObjectProperty ;
+    rdfs:domain ind:DimensionApp ;
+    rdfs:range  ind:DwTable ;
+    rdfs:comment "Fact table where this dimension column resides."@en .
+
+ind:dimTable
+    a owl:ObjectProperty ;
+    rdfs:domain ind:DimensionApp ;
+    rdfs:range  ind:DwTable ;
+    rdfs:comment "Dedicated dimension table (only for STD_WITH_TABLE dimensions)."@en .
+
+ind:belongsToCategory
+    a owl:ObjectProperty ;
+    rdfs:domain ind:Measure ;
+    rdfs:range  ind:Category .
+
+ind:categoryParent
+    a owl:ObjectProperty ;
+    rdfs:domain ind:Category ;
+    rdfs:range  ind:Category ;
+    rdfs:comment "Parent category link. Walk with (ind:categoryParent*) in SPARQL for full hierarchy."@en .
+
+ind:hasTableHistogram
+    a owl:ObjectProperty ;
+    rdfs:domain ind:DwTable ;
+    rdfs:range  ind:TableHistogram .
+
+# =============================================================================
+# ABox — DwTables
+# =============================================================================
+
+inst:tbl_dw_sales__fact_order
+    a ind:DwTable ;
+    ind:schemaName    "dw_sales" ;
+    ind:tableName     "fact_order" ;
+    ind:sourceTypeCode 0 ;            # 0 = MYSQL
+    ind:hasTableHistogram inst:hist_tbl_fact_order .
+
+inst:hist_tbl_fact_order
+    a ind:TableHistogram ;
+    ind:tableRowNum    100000000 ;
+    ind:maxScanNum     5000000 .
+
+inst:tbl_dw_sales__dim_region
+    a ind:DwTable ;
+    ind:schemaName    "dw_sales" ;
+    ind:tableName     "dim_region" ;
+    ind:sourceTypeCode 0 .
+
+inst:tbl_indicator__measure
+    a ind:DwTable ;
+    ind:schemaName    "indicator" ;
+    ind:tableName     "measure" ;
+    ind:sourceTypeCode 0 .          # local MySQL, no dt partition
+
+inst:tbl_dw_sales__fact_return
+    a ind:DwTable ;
+    ind:schemaName    "dw_sales" ;
+    ind:tableName     "fact_return" ;
+    ind:sourceTypeCode 0 .
+
+inst:tbl_dw_product__dim_product
+    a ind:DwTable ;
+    ind:schemaName    "dw_product" ;
+    ind:tableName     "dim_product" ;
+    ind:sourceTypeCode 0 .
+
+# =============================================================================
+# ABox — Categories
+# =============================================================================
+
+inst:cat_ROOT
+    a ind:Category ;
+    ind:code "CAT_ROOT" ;
+    ind:id   1 ;
+    ind:name "全部指标" .
+
+inst:cat_SALES
+    a ind:Category ;
+    ind:code          "CAT_SALES" ;
+    ind:id            2 ;
+    ind:name          "销售类" ;
+    ind:categoryParent inst:cat_ROOT .
+
+inst:cat_ORDER
+    a ind:Category ;
+    ind:code          "CAT_ORDER" ;
+    ind:id            3 ;
+    ind:name          "订单类" ;
+    ind:categoryParent inst:cat_SALES .
+
+inst:cat_RETURN
+    a ind:Category ;
+    ind:code          "CAT_RETURN" ;
+    ind:id            4 ;
+    ind:name          "退货类" ;
+    ind:categoryParent inst:cat_SALES .
+
+# =============================================================================
+# ABox — ORIGIN Measures  (measTypeCode=0, applyTypeCode=0)
+# =============================================================================
+
+# ── total_cnt : 指标总数 ───────────────────────────────────────────────────────
+
+inst:meas_total_cnt
+    a ind:Measure ;
+    ind:code         "MEAS_total_cnt" ;
+    ind:cnName       "指标总数" ;
+    ind:enName       "MEAS_total_cnt" ;
+    ind:measTypeCode 0 ;
+    ind:definition   "统计周期内的全部订单总数（不含异常状态）" ;
+    ind:description  "COUNT(order_id)，含所有非0/9状态订单" ;
+    ind:belongsToCategory inst:cat_ORDER ;
+    ind:hasMeasureApp     inst:ma_total_cnt_origin .
+
+inst:ma_total_cnt_origin
+    a ind:MeasureApp ;
+    ind:applyTypeCode  0 ;
+    ind:factColumn     "order_id" ;
+    ind:expression     "COUNT(order_id)" ;
+    ind:hasColumnDT    true ;
+    ind:whereCondition "order_status NOT IN (0,9)" ;
+    ind:appliesToTable inst:tbl_dw_sales__fact_order .
+
+# ── order_cnt : 订单数 ────────────────────────────────────────────────────────
+
+inst:meas_order_cnt
+    a ind:Measure ;
+    ind:code         "MEAS_order_cnt" ;
+    ind:cnName       "订单数" ;
+    ind:enName       "MEAS_order_cnt" ;
+    ind:measTypeCode 0 ;
+    ind:definition   "统计周期内产生的有效订单总数" ;
+    ind:description  "以order_id去重计数" ;
+    ind:belongsToCategory inst:cat_ORDER ;
+    ind:hasMeasureApp     inst:ma_order_cnt_origin .
+
+inst:ma_order_cnt_origin
+    a ind:MeasureApp ;
+    ind:applyTypeCode  0 ;
+    ind:factColumn     "order_id" ;
+    ind:expression     "COUNT(DISTINCT order_id)" ;
+    ind:hasColumnDT    true ;
+    ind:whereCondition "order_status NOT IN (0,9)" ;
+    ind:appliesToTable inst:tbl_dw_sales__fact_order .
+
+# ── order_amt : 订单金额 ──────────────────────────────────────────────────────
+
+inst:meas_order_amt
+    a ind:Measure ;
+    ind:code         "MEAS_order_amt" ;
+    ind:cnName       "订单金额" ;
+    ind:enName       "MEAS_order_amt" ;
+    ind:measTypeCode 0 ;
+    ind:definition   "统计周期内有效订单的总付款金额（元）" ;
+    ind:belongsToCategory inst:cat_ORDER ;
+    ind:hasMeasureApp     inst:ma_order_amt_origin .
+
+inst:ma_order_amt_origin
+    a ind:MeasureApp ;
+    ind:applyTypeCode  0 ;
+    ind:factColumn     "pay_amount" ;
+    ind:expression     "SUM(pay_amount)" ;
+    ind:hasColumnDT    true ;
+    ind:whereCondition "order_status NOT IN (0,9)" ;
+    ind:appliesToTable inst:tbl_dw_sales__fact_order .
+
+# ── return_cnt : 退货订单数 ───────────────────────────────────────────────────
+
+inst:meas_return_cnt
+    a ind:Measure ;
+    ind:code         "MEAS_return_cnt" ;
+    ind:cnName       "退货订单数" ;
+    ind:enName       "MEAS_return_cnt" ;
+    ind:measTypeCode 0 ;
+    ind:belongsToCategory inst:cat_RETURN ;
+    ind:hasMeasureApp     inst:ma_return_cnt_origin .
+
+inst:ma_return_cnt_origin
+    a ind:MeasureApp ;
+    ind:applyTypeCode  0 ;
+    ind:factColumn     "return_id" ;
+    ind:expression     "COUNT(DISTINCT return_id)" ;
+    ind:hasColumnDT    true ;
+    ind:appliesToTable inst:tbl_dw_sales__fact_return .
+
+# =============================================================================
+# ABox — DERIVED Measure  (measTypeCode=1, applyTypeCode=1)
+# A DERIVED measure references two ORIGIN measure apps via ind:dependsOnMeasApp
+# =============================================================================
+
+# ── return_rate : 退货率 = return_cnt / order_cnt ────────────────────────────
+
+inst:meas_return_rate
+    a ind:Measure ;
+    ind:code         "MEAS_return_rate" ;
+    ind:cnName       "退货率" ;
+    ind:enName       "MEAS_return_rate" ;
+    ind:measTypeCode 1 ;
+    ind:definition   "退货订单数 / 订单数" ;
+    ind:belongsToCategory inst:cat_RETURN ;
+    ind:hasMeasureApp     inst:ma_return_rate_derived .
+
+inst:ma_return_rate_derived
+    a ind:MeasureApp ;
+    ind:applyTypeCode    1 ;
+    ind:expression       "return_cnt / order_cnt" ;
+    # Dependencies: both ORIGIN apps that power this formula
+    ind:dependsOnMeasApp inst:ma_return_cnt_origin ;
+    ind:dependsOnMeasApp inst:ma_order_cnt_origin .
+
+# =============================================================================
+# ABox — EXTENDED Measure  (measTypeCode=2, applyTypeCode=2)
+# An EXTENDED measure adds filter conditions on top of a base ORIGIN measure.
+# =============================================================================
+
+# ── new_order_cnt : 新车订单数 (order_cnt WHERE car_type='new') ───────────────
+
+inst:meas_new_order_cnt
+    a ind:Measure ;
+    ind:code         "MEAS_new_order_cnt" ;
+    ind:cnName       "新车订单数" ;
+    ind:enName       "MEAS_new_order_cnt" ;
+    ind:measTypeCode 2 ;
+    ind:definition   "统计周期内新车有效订单数" ;
+    ind:belongsToCategory inst:cat_ORDER ;
+    ind:hasMeasureApp     inst:ma_new_order_cnt_extended .
+
+inst:ma_new_order_cnt_extended
+    a ind:MeasureApp ;
+    ind:applyTypeCode    2 ;
+    ind:expression       "COUNT(DISTINCT order_id)" ;
+    ind:whereCondition   "car_type = 'new'" ;
+    ind:hasColumnDT      true ;
+    # Inherits from the ORIGIN order_cnt app
+    ind:dependsOnMeasApp inst:ma_order_cnt_origin .
+
+# =============================================================================
+# ABox — Dimensions
+#
+# dimTypeCode values:
+#   0 = DEGENERATE_DIM   (column lives in fact table only, no dim table)
+#   1 = STD_WITHOUT_TABLE (standard dim, no separate dim table)
+#   2 = STD_WITH_TABLE    (standard dim with dedicated dim table)
+#   4 = CUSTOM
+# =============================================================================
+
+# ── dim_dt : 日期维度 (DEGENERATE, viewTypeCode=1=DAY) ──────────────────────
+
+inst:dim_dim_dt
+    a ind:Dimension ;
+    ind:code        "DIM_dim_dt" ;
+    ind:cnName      "日期" ;
+    ind:enName      "DIM_dim_dt" ;
+    ind:dimTypeCode 0 ;
+    ind:viewTypeCode 1 ;
+    ind:definition  "订单日期（yyyyMMdd）" ;
+    ind:hasDimApp   inst:da_dim_dt_fact_order .
+
+inst:da_dim_dt_fact_order
+    a ind:DimensionApp ;
+    ind:dimFactColumn  "order_date" ;
+    ind:masterPrimaryKey "order_date" ;
+    ind:isMasterApp    true ;
+    ind:isRootJoin     false ;
+    ind:dimFactTable   inst:tbl_dw_sales__fact_order .
+
+# ── dim_month : 月份维度 (DEGENERATE, viewTypeCode=3=MONTH) ─────────────────
+
+inst:dim_dim_month
+    a ind:Dimension ;
+    ind:code        "DIM_dim_month" ;
+    ind:cnName      "月份" ;
+    ind:enName      "DIM_dim_month" ;
+    ind:dimTypeCode 0 ;
+    ind:viewTypeCode 3 ;
+    ind:definition  "订单月份（yyyyMM）" ;
+    ind:hasDimApp   inst:da_dim_month_fact_order .
+
+inst:da_dim_month_fact_order
+    a ind:DimensionApp ;
+    ind:dimFactColumn  "order_month" ;
+    ind:masterPrimaryKey "order_month" ;
+    ind:isMasterApp    true ;
+    ind:isRootJoin     false ;
+    ind:dimFactTable   inst:tbl_dw_sales__fact_order .
+
+# ── dim_region_city : 城市维度 (STD_WITH_TABLE) ──────────────────────────────
+#  city is a "slave" of province; they share the dim_region table.
+#  The city app's masterPrimaryKey points to the province PK.
+
+inst:dim_dim_region_city
+    a ind:Dimension ;
+    ind:code        "DIM_dim_region_city" ;
+    ind:cnName      "城市" ;
+    ind:enName      "DIM_dim_region_city" ;
+    ind:dimTypeCode 2 ;
+    ind:viewTypeCode 0 ;
+    ind:definition  "城市维度（关联dim_region维表）" ;
+    ind:hasDimApp   inst:da_dim_region_city_main .
+
+inst:da_dim_region_city_main
+    a ind:DimensionApp ;
+    ind:dimFactColumn    "city_id" ;          # column in fact_order
+    ind:dimPrimaryKey    "city_id" ;          # PK in dim_region
+    ind:dimColumn        "city_name" ;        # display column
+    ind:masterPrimaryKey "province_id" ;      # parent dimension PK
+    ind:isMasterApp      false ;              # this is a slave app
+    ind:isRootJoin       false ;
+    ind:hierarchyCode    "HIER_REGION" ;
+    ind:levelSequence    2 ;
+    ind:levelCode        "LEVEL_CITY" ;
+    ind:dimFactTable     inst:tbl_dw_sales__fact_order ;
+    ind:dimTable         inst:tbl_dw_sales__dim_region .
+
+# ── dim_region_province : 省份维度 (STD_WITH_TABLE, master) ─────────────────
+
+inst:dim_dim_region_province
+    a ind:Dimension ;
+    ind:code        "DIM_dim_region_province" ;
+    ind:cnName      "省份" ;
+    ind:enName      "DIM_dim_region_province" ;
+    ind:dimTypeCode 2 ;
+    ind:viewTypeCode 0 ;
+    ind:definition  "省份维度（关联dim_region维表）" ;
+    ind:hasDimApp   inst:da_dim_region_province_main .
+
+inst:da_dim_region_province_main
+    a ind:DimensionApp ;
+    ind:dimFactColumn    "province_id" ;
+    ind:dimPrimaryKey    "province_id" ;
+    ind:dimColumn        "province_name" ;
+    ind:isMasterApp      true ;
+    ind:isRootJoin       true ;
+    ind:hierarchyCode    "HIER_REGION" ;
+    ind:levelSequence    1 ;
+    ind:levelCode        "LEVEL_PROVINCE" ;
+    ind:dimFactTable     inst:tbl_dw_sales__fact_order ;
+    ind:dimTable         inst:tbl_dw_sales__dim_region .
+
+# ── dim_product : 商品维度 (STD_WITH_TABLE, master) ─────────────────────────
+
+inst:dim_dim_product
+    a ind:Dimension ;
+    ind:code        "DIM_dim_product" ;
+    ind:cnName      "商品" ;
+    ind:enName      "DIM_dim_product" ;
+    ind:dimTypeCode 2 ;
+    ind:viewTypeCode 0 ;
+    ind:definition  "商品维度（关联dim_product维表）" ;
+    ind:hasDimApp   inst:da_dim_product_main .
+
+inst:da_dim_product_main
+    a ind:DimensionApp ;
+    ind:dimFactColumn    "product_id" ;
+    ind:dimPrimaryKey    "product_id" ;
+    ind:dimColumn        "product_name" ;
+    ind:isMasterApp      true ;
+    ind:isRootJoin       false ;
+    ind:dimFactTable     inst:tbl_dw_sales__fact_order ;
+    ind:dimTable         inst:tbl_dw_product__dim_product .
+
+# =============================================================================
+# ABox — Dimension Histograms
+# =============================================================================
+
+inst:dimhist_dim_region_city__fact_order
+    a ind:DimHistogram ;
+    ind:histDimCode     "DIM_dim_region_city" ;
+    ind:histTableName   "fact_order" ;
+    ind:dimensionRowNum 300 ;
+    ind:tableRowNum     100000000 .
+
+inst:dimhist_dim_product__fact_order
+    a ind:DimHistogram ;
+    ind:histDimCode     "DIM_dim_product" ;
+    ind:histTableName   "fact_order" ;
+    ind:dimensionRowNum 5000 ;
+    ind:tableRowNum     100000000 .
+
+# =============================================================================
+# ABox — 指标总数 Measure (queries indicator.measure — local MySQL)
+# =============================================================================
+
+inst:meas_total_cnt_meas
+    a ind:Measure ;
+    ind:code         "MEAS_total_cnt_meas" ;
+    ind:cnName       "指标总数" ;
+    ind:enName       "MEAS_total_cnt_meas" ;
+    ind:measTypeCode 0 ;
+    ind:definition   "本平台已创建的指标总数（COUNT DISTINCT id）" ;
+    ind:description  "COUNT(DISTINCT id) on indicator.measure, no dt filter" ;
+    ind:belongsToCategory inst:cat_ROOT ;
+    ind:hasMeasureApp     inst:ma_total_cnt_meas_origin .
+
+inst:ma_total_cnt_meas_origin
+    a ind:MeasureApp ;
+    ind:applyTypeCode  0 ;
+    ind:factColumn     "id" ;
+    ind:expression     "[{\"operatingType\":\"operator\",\"operator\":\"distinct_count\"}]" ;
+    ind:hasColumnDT    false ;
+    ind:appliesToTable inst:tbl_indicator__measure .
+
+# =============================================================================
+# ABox — 创建月份 Dimension (based on create_month generated column)
+# =============================================================================
+
+inst:dim_create_month
+    a ind:Dimension ;
+    ind:code         "DIM_dim_create_month" ;
+    ind:cnName       "创建月份" ;
+    ind:enName       "DIM_dim_create_month" ;
+    ind:dimTypeCode  0 ;
+    ind:viewTypeCode 3 ;
+    ind:definition   "指标创建月份（yyyyMM），基于 create_month 生成列" ;
+    ind:hasDimApp    inst:da_dim_create_month_measure .
+
+inst:da_dim_create_month_measure
+    a ind:DimensionApp ;
+    ind:dimFactColumn    "create_month" ;
+    ind:masterPrimaryKey "create_month" ;
+    ind:isMasterApp      true ;
+    ind:isRootJoin       false ;
+    ind:dimFactTable     inst:tbl_indicator__measure .

@@ -1,0 +1,57 @@
+# Business term synonym mapping
+# Format: canonical_term: [alias1, alias2, ...]
+# Supports: English names, abbreviations, Chinese characters
+
+customer:
+  - cust
+  - client
+  - kh
+  - 客户
+  - 顾客
+
+order:
+  - ord
+  - 订单
+  - 单据
+
+user:
+  - usr
+  - member
+  - 用户
+  - 会员
+
+product:
+  - prod
+  - item
+  - goods
+  - 商品
+  - 产品
+
+amount:
+  - amt
+  - total
+  - 金额
+  - 总额
+
+status:
+  - stat
+  - state
+  - 状态
+
+created_at:
+  - create_time
+  - create_date
+  - gmt_create
+  - 创建时间
+
+updated_at:
+  - update_time
+  - modify_time
+  - gmt_modified
+  - 更新时间
+
+deleted:
+  - is_deleted
+  - del_flag
+  - is_del
+  - 删除标志

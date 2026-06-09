@@ -1,0 +1,40 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+
+# Java / Maven
+target/classes/
+target/generated-sources/
+target/generated-test-sources/
+target/maven-archiver/
+target/maven-status/
+target/test-classes/
+apps/da/ignite/work/
+
+# Logs and runtime output
+*.log
+*.err
+*.pid
+logs/
+
+# Local service configuration with credentials
+apps/ad/config.local.yaml
+apps/da/src/main/resources/application*.yml
+apps/da/src/main/java/com/graphinsight/indicator/controller/TestSend.java
+apps/da/src/test/java/com/graphinsight/indicator/TestSend.java
+apps/da/src/test/java/com/graphinsight/indicator/img/TestImg.java
+
+# Browser/test scratch
+.cache/
+.playwright-cli/
+.playwright-mcp/

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.graphinsight.indicator.auto.mapper.DimAllValuesMapper">
+    <insert id="insertBatch">
+        insert into dim_all_values_info(dim_code,dim_name,value_key,value_text,dim_id,value_format_text)
+        values
+        <foreach collection="valueList" item="item" separator=",">
+            (#{item.dimCode},#{item.dimName},#{item.valueKey},#{item.valueText},#{item.dimId},#{item.valueFormatText})
+        </foreach>
+
+    </insert>
+    <select id="selectDimList" resultType="com.graphinsight.indicator.auto.entity.DimAllValuesInfo">
+        select distinct dim_code,dim_name,value_key,value_text
+        from dim_all_values where `value_text` like CONCAT('%', #{valueText}, '%') and `dim_code` in
+        <foreach item="id" collection="dimCode" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        order by dim_code asc
+    </select>
+
+    <select id="selectListByLike" parameterType="map" resultType="com.graphinsight.indicator.auto.entity.DimAllValuesInfo">
+        SELECT value_text,group_concat( DISTINCT weight,'~', dim_code,'~',value_key, '~',weight order by weight desc) AS dimFilters
+        FROM dim_all_values_info where
+        <if test="valueList != null and valueList.size > 0">
+            (
+            <foreach collection="valueList" item="item" separator="OR">
+                value_text LIKE CONCAT('%', #{item}, '%')
+            </foreach>
+            <if test="dictList != null and dictList.size > 0">
+                or value_text in
+                <foreach collection="dictList" index="indexDict" item="itemDict" open="(" separator="," close=")">
+                    #{itemDict}
+                </foreach>
+            </if>
+            )
+            and
+        </if>
+        dim_code in
+        <foreach collection="dimList" index="index" item="itemD" open="(" separator="," close=")">
+            #{itemD}
+        </foreach>
+        group by value_text ORDER BY dimFilters DESC;
+    </select>
+    <select id="selectListByLikeName" resultType="com.graphinsight.indicator.auto.entity.DimAllValuesInfo">
+        SELECT value_text,dim_code,value_key,id
+        FROM dim_all_values_info where
+
+        <if test="valueList != null and valueList.size > 0">
+            (
+            <foreach collection="valueList" item="item" separator="OR">
+                value_text LIKE CONCAT('%', #{item}, '%')
+            </foreach>
+            )
+        </if>
+    </select>
+    <select id="selectListByName" resultType="com.graphinsight.indicator.auto.entity.DimAllValuesInfo">
+        SELECT  value_text,dim_code,value_key,id
+        FROM dim_all_values_info where value_format_text in
+        <if test="valueList != null and valueList.size > 0">
+            <foreach collection="valueList" index="index" item="itemD" open="(" separator="," close=")">
+                #{itemD}
+            </foreach>
+        </if>
+    </select>
+    <select id="selectAllDimList" resultType="com.graphinsight.indicator.auto.entity.DimAllValuesInfo">
+        SELECT  value_text,dim_code,value_key,id,dim_name,value_format_text
+        FROM dim_all_values_info
+    </select>
+    <select id="selectInfoByDimAndValue" resultType="com.graphinsight.indicator.auto.entity.DimAllValuesInfo">
+        SELECT  value_text,dim_code,value_key,id,dim_name
+        FROM dim_all_values_info WHERE dim_code = #{dimCode} AND value_format_text = #{valueText}
+    </select>
+
+    <select id="selectRealListByName" resultType="com.graphinsight.indicator.auto.entity.DimAllValuesInfo">
+        SELECT  value_text,dim_code,value_key,id,dim_id,value_format_text
+        FROM dim_all_values_info
+        <if test="valueList != null and valueList.size > 0">
+            where value_format_text in  <foreach collection="valueList" index="index" item="itemD" open="(" separator="," close=")">
+                #{itemD}
+            </foreach>
+
+            <if test="dimId != null and dimId.size > 0">
+                and dim_id in
+                <foreach collection="dimId" index="index" item="itemD" open="(" separator="," close=")">
+                    #{itemD}
+                </foreach>
+            </if>
+        </if>
+    </select>
+    <select id="selectRealByLikeName" resultType="com.graphinsight.indicator.auto.entity.DimAllValuesInfo">
+        SELECT value_text,dim_code,value_key,id,dim_id
+        FROM dim_all_values_info
+        <if test="valueList != null and valueList.size > 0">
+            where   (
+            <foreach collection="valueList" item="item" separator="OR">
+                value_format_text LIKE CONCAT('%', #{item}, '%')
+            </foreach>
+            )
+        </if>
+
+        <if test="dimId != null and dimId.size > 0">
+            and dim_id in
+            <foreach collection="dimId" index="index" item="itemD" open="(" separator="," close=")">
+                #{itemD}
+            </foreach>
+        </if>
+    </select>
+
+    <select id="selectInfoByDimCode" resultType="com.graphinsight.indicator.auto.entity.DimAllValuesInfo">
+        SELECT  value_text,dim_code,value_key,id,dim_name,value_format_text
+        FROM dim_all_values_info WHERE dim_code = #{dimCode}
+    </select>
+</mapper>
+
+

@@ -1,0 +1,33 @@
+package com.graphinsight.indicator.enums;
+
+import com.fasterxml.jackson.annotation.JsonValue;
+
+/**
+ * @Author: lixiaolong
+ * @Description: 主次维标识
+ * @Date: 2021/11/18
+ */
+public enum DimMasterType {
+    /**
+     * 數據源類型
+     */
+    MASTER(0, "主维"),
+    SLAVE(1, "次维");
+    private Integer code;
+
+    private String desc;
+
+    DimMasterType(int code, String desc) {
+        this.code = code;
+        this.desc = desc;
+    }
+
+    @JsonValue
+    public Integer getCode() {
+        return code;
+    }
+
+    public String getDesc() {
+        return desc;
+    }
+}

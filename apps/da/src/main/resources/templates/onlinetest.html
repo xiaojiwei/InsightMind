@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>线上用例回滚</title>
+    <script src="https://cdn.staticfile.org/vue/2.4.2/vue.min.js"></script>
+    <script src="https://cdn.staticfile.org/vue-resource/1.5.1/vue-resource.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body>
+<div id="box">
+    维度查询：<input type="button" @click="dimValues()" value="dimension/values"><br/>
+    查询数据：<input type="button" @click="sendData()" value="sendData"><br/>
+    分页KEY：<input type="text" id="countId"/><br/>
+    获取分页：<input type="button" @click="sendCount()" value="sendCount"><br/>
+    展现Sql：<input type="button" @click="onlySql()" value="onlySql"><br/>
+    同步下载：<input type="button" @click="downloadFile()" value="downloadFile"><br/>
+    异步下载：<input type="button" @click="downloadid()" value="downloadid"><br/>
+    文件下载Id：<input type="text" id="downloadId"/><br/>
+    异步状态：<input type="button" @click="filestatus()" value="filestatus"><br/>
+    文件名称：<input type="text" id="filename"/><br/>
+    文件下载：<input type="button" @click="dFile()" value="file"><br/>
+</div>
+<pre id="info"></pre>
+<script type = "text/javascript">
+
+    function getData(url, data, method) {
+        fetch(url, {
+            method: 'POST', // *GET, POST, PUT, DELETE, etc.
+            mode: 'cors', // no-cors, *cors, same-origin
+            cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+            credentials: 'same-origin', // include, *same-origin, omit
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: typeof data === 'string' ? data : JSON.stringify(data)
+        }).then(res=>res.json()).then( (res) => {
+
+            var infoDiv = document.getElementById("info");
+            infoDiv.innerText = "------------------------------"
+            infoDiv.innerText +=  JSON.stringify(res, null, 2);
+            infoDiv.innerText += "------------------------------"
+
+            if (res && res.data && res.data.pageInfo && res.data.pageInfo.queryCountId) {
+                document.getElementById("countId").value = res.data.pageInfo.queryCountId;
+            }
+
+            if (method && method == "downId" && res && res.data) {
+                document.getElementById("downloadId").value = res.data;
+            }
+
+            if (method && method == "filestatus" && res && res.data.fileName && '' != res.data.fileName) {
+                document.getElementById("filename").value = res.data.fileName;
+            }
+
+        });
+    }
+
+    var _BASE_PARAM_JSON_1 = {
+        "configureList": [
+            {
+                "code": "DIM_218e36f76fed40d58544185d49f141c7",
+                "order": {
+                    "sortType": "DESC",
+                    "value": []
+                }
+            },
+            {
+                "code": "MEAS_fb7a5fc896b14df3824bac2bbc0bce7a"
+            },
+            {
+                "code": "MEAS_98139d249204473b92072d6cdc08abbe",
+                "order": {
+                    "sortType": "DESC",
+                    "value": []
+                }
+            },
+            {
+                "code": "MEAS_986c09b980f7461ebe0899bd18bdc901",
+                "order": {
+                    "sortType": "DESC",
+                    "value": []
+                }
+            },
+            {
+                "code": "MEAS_b0362e5dd2ab470b88706042697a0a9a",
+                "order": {
+                    "sortType": "DESC",
+                    "value": []
+                }
+            },
+            {
+                "code": "DIM_30d16cce010e4d848c0b6da87cfbc0ed",
+                "order": {
+                    "sortType": "DESC",
+                    "value": []
+                }
+            }
+        ],
+        "sourceType": "INDICATOR",
+        "operaType": "AGGREGATION_TABLE_OPERATION",
+        "chartType": "0",
+        "pageNo": 1,
+        "pageSize": 10,
+        "cacheStrategy": "OVERWRITE",
+        "filterList": [
+            {
+                "code": "DIM_30d16cce010e4d848c0b6da87cfbc0ed",
+                "operatorList": [
+                    {
+                        "sqlLogicalType": 1,
+                        "sqlOprType": 10,
+                        "dataList": ["90"]
+                    },
+                    {
+                        "sqlLogicalType": 1,
+                        "sqlOprType": 10,
+                        "dataList": ["90"]
+                    }
+
+                ]
+            },
+            {
+                "code": "MEAS_98139d249204473b92072d6cdc08abbe",
+                "operatorList": [
+                    {
+                        "sqlOprType": 3,
+                        "dataList": [1]
+                    }
+
+                ]
+            },
+            {
+                "code": "MEAS_b0362e5dd2ab470b88706042697a0a9a",
+                "operatorList": [
+                    {
+                        "sqlLogicalType": 1,
+                        "sqlOprType": 2,
+                        "begin":0,
+                        "end":1000000
+                    },
+                    {
+                        "sqlLogicalType": 1,
+                        "sqlOprType": 8,
+                        "begin":0,
+                        "end":1000000,
+                        "dataList": [1]
+                    }
+                ]
+            }
+
+        ]
+
+    };
+
+    var _BASE_PARAM_JSON = {
+        "filterList": [{
+            "code": "DIM_11c1273035434cc9ae65f6819403d05e",
+            "operatorList": [{
+                "sqlOprType": 5,
+                "dataList": ["2021-08-08"],
+                "timeRange": "DATE"
+            }]
+        }],
+        "configureList": [{
+            "code": "DIM_11c1273035434cc9ae65f6819403d05e"
+        }, {
+            "code": "MEAS_e5b062729d3d45d986b342162cc44267"
+        }, {
+            "code": "MEAS_ef6c9cff0e5145929c57ed0f0cf197b7"
+        }],
+        "pageNo": 1,
+        "pageSize": 20,
+        "queryCountId": null,
+        "chartType": 0,
+        "sourceType": "INDICATOR",
+        "operaType": "AGGREGATION_TABLE_OPERATION",
+        "cacheStrategy": "OVERWRITE",
+        "traceId": "NBo7lt6CNURpsmxzvyzCT"
+    };
+
+    function downloadFile() {
+        axios.post('http://127.0.0.1:8080/bi/v1/datasource/download', _BASE_PARAM_JSON, {
+            responseType: 'blob'
+        }).then(function(res){
+            var blob = res.data;
+            // FileReader主要用于将文件内容读入内存
+            var reader = new FileReader();
+            reader.readAsDataURL(blob);
+            // onload当读取操作成功完成时调用
+            reader.onload = function(e) {
+                var a = document.createElement('a');
+                // 获取文件名fileName
+                var fileName = "temp";
+                var contentTypes = res.headers["content-type"].split(";");
+                var len = contentTypes.length;
+                for (var i = 0; i <len; i++) {
+                    var v = contentTypes[i];
+                    if (v.indexOf("filename") > -1) {
+                        var vf = v.split("=");
+                        fileName = vf[1];
+                    }
+                }
+
+                fileName = fileName.replace(/"/g, "");
+                a.download = fileName;
+                a.href = e.target.result;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+        });
+    }
+
+
+    function dFile() {
+        var downloadId = document.getElementById("downloadId").value;
+        if (downloadId && '' != downloadId) {
+            axios.post('/bi/v1/datasource/file?downloadid=' + downloadId, {}, {
+                responseType: 'blob'
+            }).then(function(res){
+                var blob = res.data;
+                // FileReader主要用于将文件内容读入内存
+                var reader = new FileReader();
+                reader.readAsDataURL(blob);
+                // onload当读取操作成功完成时调用
+                reader.onload = function(e) {
+                    var a = document.createElement('a');
+
+                    var fileName = "temp";
+                    var contentTypes = res.headers["content-type"].split(";");
+                    var len = contentTypes.length;
+                    for (var i = 0; i <len; i++) {
+                        var v = contentTypes[i];
+                        if (v.indexOf("filename") > -1) {
+                            var vf = v.split("=");
+                            fileName = vf[1];
+                        }
+                    }
+
+                    fileName = fileName.replace(/"/g, "");
+                    a.download = fileName;
+                    a.href = e.target.result;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }
+            });
+        } else {
+            alert("fileName is Null.");
+        }
+
+    }
+
+    window.onload = function() {
+        var vm = new Vue({
+            el:'#box',
+            data:{
+                msg:'Hello World!'
+            },
+            methods:{
+                downloadid: function () {
+                    getData('/bi/v1/datasource/downloadid', _BASE_PARAM_JSON, "downId");
+                },
+                filestatus: function () {
+                    var downloadId = document.getElementById("downloadId").value;
+                    getData('/bi/v1/datasource/filestatus?downloadid=' + downloadId, {}, "filestatus");
+                },
+                dimValues:function() {
+                    getData('/bi/v1/dimension/values', {
+                            "traceId": "请求唯一标识",
+                            "code": "DIM_30d16cce010e4d848c0b6da87cfbc0ed",
+                            "filterList": [
+                                {
+                                    "code": "DIM_30d16cce010e4d848c0b6da87cfbc0ed",
+                                    "operatorList": [
+                                        {
+                                            "sqlOprType": 8,
+                                            "dataList": []
+                                        }
+
+                                    ]
+                                }
+                            ]
+                    });
+                },
+                sendData: function () {
+                    getData('https://da-indicator.test.k8s.chehejia.com/bi/v1/graph/data', _BASE_PARAM_JSON);
+                },
+                sendCount:function() {
+                    var countId = document.getElementById("countId").value;
+                    getData('/bi/v1/graph/count', {
+                        "traceId": "请求唯一标识",
+                        "queryCountId": countId
+                    });
+                },
+                onlySql:function () {
+                    getData('/bi/v1/graph/sql', _BASE_PARAM_JSON);
+                }
+            }
+        });
+    }
+</script>
+</body>
+</html>

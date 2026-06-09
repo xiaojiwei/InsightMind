@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>线上用例回滚</title>
+    <script src="https://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+</head>
+<script type = "text/javascript">
+
+
+</script>
+<body>
+    <input type="button" onclick="test()" value="test">
+    <div id="measureDiv">
+    </div>
+
+
+
+
+
+    <script>
+
+        function test() {
+            $.ajax({
+                type: "GET",
+                url: 'http://127.0.0.1:8080/bi/v1/all/measure',
+                contentType: 'application/json;charset=utf-8',
+                success: function (data) {
+
+                    let rootDiv = document.getElementById("measureDiv");
+                    for (let idx in data.data) {
+
+                        var measure = data.data[idx];
+                        let sonDiv = document.createElement("div");
+                        sonDiv.id = measure.code;
+                        sonDiv.innerText = measure.name;
+
+                        rootDiv.appendChild(sonDiv);
+
+                    }
+
+                    for (let idx in data.data) {
+
+                        let measure = data.data[idx];
+                        let measCode = measure.code;
+                        let measName = measure.name;
+                        $.ajax({
+                            type: "GET",
+                            url: 'http://127.0.0.1:8080/bi/v1/query/measure?code=' + measCode,
+                            contentType: 'application/json;charset=utf-8',
+                            success: function (data) {
+                                let sonDiv = document.getElementById(measCode);
+                                let newMeas = measName + " code " + measCode + " 错误信息 " + JSON.stringify(data.data);
+                                sonDiv.innerText = newMeas;
+                            }
+                        });
+
+                    }
+
+                    alert("共" + data.data.length);
+
+                }
+            });
+        }
+
+    </script>
+</body>

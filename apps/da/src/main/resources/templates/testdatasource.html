@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>线上用例回滚</title>
+    <script src="https://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+</head>
+<script type = "text/javascript">
+
+
+</script>
+<body>
+    <input type="button" onclick="test()" value="test">
+    <div id="dataSourceDiv">
+    </div>
+
+
+
+
+
+    <script>
+
+        function againTest(dataCode) {
+            $.ajax({
+                type: "GET",
+                url: 'http://127.0.0.1:8080/bi/v1/query/datasource?id=' + dataCode,
+                contentType: 'application/json;charset=utf-8',
+                success: function (data) {
+                }
+            });
+        }
+
+        function test() {
+            $.ajax({
+                type: "GET",
+                url: 'http://127.0.0.1:8080/bi/v1/all/datasource',
+                contentType: 'application/json;charset=utf-8',
+                success: function (data) {
+
+                    let rootDiv = document.getElementById("dataSourceDiv");
+
+                    let countDiv = document.createElement("div");
+                    countDiv.id = 'count';
+                    countDiv.innerText = data.data.length;
+
+                    rootDiv.appendChild(countDiv);
+
+                    for (let idx in data.data) {
+
+                        var dataSource = data.data[idx];
+                        let sonDiv = document.createElement("div");
+                        sonDiv.id = dataSource.id;
+                        sonDiv.innerText = dataSource.name;
+
+                        rootDiv.appendChild(sonDiv);
+
+                        let buttonDiv = document.createElement("div");
+                        buttonDiv.innerHTML += '<input type="button" onClick="againTest(' + dataSource.id + ')" value="again" />';
+                        rootDiv.appendChild(buttonDiv);
+
+                    }
+
+                    for (let idx in data.data) {
+
+                        let dataSource = data.data[idx];
+                        let dataCode = dataSource.id;
+                        let dataName = dataSource.name;
+                        if (dataCode == 'DataSource_4fc1fef3a3f4464ea73edbf25697865b') {
+                            continue;
+                        }
+                        $.ajax({
+                            type: "GET",
+                            url: 'http://127.0.0.1:8080/bi/v1/query/datasource?id=' + dataCode,
+                            contentType: 'application/json;charset=utf-8',
+                            success: function (data) {
+                                let sonDiv = document.getElementById(dataCode);
+                                let mesaage = JSON.stringify(data.message);
+                                let newMeas = dataCode + " code " + dataName;
+                                if (mesaage == '"查询成功"') {
+                                    newMeas += "   成功";
+                                    sonDiv.innerText = newMeas;
+                                } else {
+                                    newMeas += '&nbsp;<p style="color:#ff0000;">失败</p>';
+                                    sonDiv.innerHTML = newMeas;
+                                }
+
+                            }
+                        });
+
+                    }
+
+                }
+            });
+        }
+
+    </script>
+</body>

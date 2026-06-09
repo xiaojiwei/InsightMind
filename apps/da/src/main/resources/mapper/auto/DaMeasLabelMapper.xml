@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.graphinsight.indicator.auto.mapper.DaMeasLabelMapper">
+  <resultMap id="BaseResultMap" type="com.graphinsight.indicator.auto.entity.DaMeasLabel">
+    <!-- @mbg.generated: generated automatically, do not modify! -->
+    <id column="id" jdbcType="INTEGER" property="id" />
+    <result column="meas_id" jdbcType="INTEGER" property="measId" />
+    <result column="label_id" jdbcType="BIGINT" property="labelId" />
+    <result column="isDel" jdbcType="INTEGER" property="is_del" />
+  </resultMap>
+
+  <select id="getRelateMeasGroupLabel" resultType="com.graphinsight.indicator.model.dto.MeasLabelGroupDTO">
+      SELECT label_id as labelId,
+      SUBSTRING_INDEX(GROUP_CONCAT( DISTINCT meas_id ),',',6) as measIds
+      FROM da_meas_label where is_del = 0
+      <if test="measIds != null and measIds.size()>0">
+          and meas_id in
+          <foreach collection="measIds" item="item" open="(" separator="," close=")">
+              #{item}
+          </foreach>
+      </if>
+      GROUP BY label_id
+  </select>
+    <select id="getRelateMeasByLabel" resultType="com.graphinsight.indicator.model.dto.MeasLabelGroupDTO">
+        SELECT label_id as labelId,
+        SUBSTRING_INDEX(GROUP_CONCAT( DISTINCT meas_id ),',',6) as measIds
+        FROM da_meas_label where is_del = 0
+        <if test="labelIds != null and labelIds.size()>0">
+            and label_id in
+            <foreach collection="labelIds" item="item" open="(" separator="," close=")">
+                #{item}
+            </foreach>
+        </if>
+        GROUP BY label_id
+    </select>
+
+</mapper>

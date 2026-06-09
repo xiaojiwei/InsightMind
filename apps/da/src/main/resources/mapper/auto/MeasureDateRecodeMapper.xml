@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.graphinsight.indicator.auto.mapper.MeasureDateRecodeMapper">
+  <resultMap id="BaseResultMap" type="com.graphinsight.indicator.auto.entity.MeasureDateRecode">
+    <!-- @mbg.generated: generated automatically, do not modify! -->
+    <id column="id" jdbcType="BIGINT" property="id" />
+    <result column="m_code" jdbcType="VARCHAR" property="mCode" />
+    <result column="m_name" jdbcType="VARCHAR" property="mName" />
+    <result column="m_data" jdbcType="VARCHAR" property="mData" />
+    <result column="date_type" jdbcType="VARCHAR" property="dateType" />
+    <result column="date_desc" jdbcType="VARCHAR" property="dateDesc" />
+    <result column="create_date" jdbcType="TIMESTAMP" property="createDate" />
+    <result column="creator" jdbcType="VARCHAR" property="creator" />
+    <result column="update_date" jdbcType="TIMESTAMP" property="updateDate" />
+    <result column="updater" jdbcType="VARCHAR" property="updater" />
+  </resultMap>
+  <insert id="saveBatch">
+insert into  measure_date_recode (m_code,m_name,m_data,date_type,date_desc) values
+    <foreach item="item" collection="list" separator=",">
+      (#{item.mCode},#{item.mName},#{item.mData},#{item.dateType},#{item.dateDesc})
+    </foreach>
+  </insert>
+    <select id="selectAllInfo" resultType="com.graphinsight.indicator.auto.entity.MeasureDateRecode">
+      SELECT m_code,m_name,REPLACE(m_data,',','') as m_data,date_desc FROM measure_date_recode
+      where date_desc != '-' and m_data != '-' and date_desc >= "2023-11" and  date_desc &lt;= "2024-05"
+      ORDER BY m_code ASC, date_desc ASC
+
+    </select>
+
+
+</mapper>

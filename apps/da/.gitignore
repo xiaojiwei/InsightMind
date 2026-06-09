@@ -1,0 +1,16 @@
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+*.err
+.DS_Store
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+bin/
+build/
+out/

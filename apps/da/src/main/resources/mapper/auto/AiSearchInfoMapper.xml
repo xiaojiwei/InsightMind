@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.graphinsight.indicator.auto.mapper.AiSearchInfoMapper">
+    <resultMap id="BaseResultMap" type="com.graphinsight.indicator.auto.entity.AiSearchInfo">
+        <!-- @mbg.generated: generated automatically, do not modify! -->
+        <id column="id" jdbcType="BIGINT" property="id"/>
+        <result column="user_id" jdbcType="VARCHAR" property="userId"/>
+        <result column="content" jdbcType="VARCHAR" property="content"/>
+        <result column="content_code" jdbcType="VARCHAR" property="contentCode"/>
+        <result column="content_gpt" jdbcType="VARCHAR" property="contentGpt"/>
+        <result column="analysis_content" jdbcType="VARCHAR" property="analysisContent"/>
+        <result column="analysis_type" jdbcType="TINYINT" property="analysisType"/>
+        <result column="is_del" jdbcType="TINYINT" property="isDel"/>
+        <result column="create_time" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="update_time" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+    <select id="getListByUserId" resultType="com.graphinsight.indicator.auto.entity.AiSearchInfo">
+        select *
+        from ai_search_info
+        where is_del = 0
+          and user_id = #{userId}
+        order by create_time desc
+    </select>
+    <select id="getHotListByUserId" resultType="com.graphinsight.indicator.auto.entity.AiSearchInfo">
+        select * from ai_search_info where is_del = 0
+        and user_id = #{userId}
+        <if test="viewType != null and viewType !=0 and viewType !=1">
+            and analysis_type =#{viewType}
+        </if>
+        order by create_time desc
+    </select>
+    <select id="gerRecommend" resultType="com.graphinsight.indicator.auto.entity.AiSearchInfo">
+
+        SELECT COUNT(*) as tt, content
+        FROM ai_search_info
+        WHERE is_del = 0
+          and content NOT IN (SELECT content FROM ai_search_info WHERE user_id != #{userId})
+        GROUP BY content
+        ORDER BY tt DESC LIMIT 10
+    </select>
+
+    <select id="gerHotInterpret" resultType="com.graphinsight.indicator.auto.entity.AiSearchInfo">
+        SELECT COUNT(*) as tt, content, content_code, SUBSTRING_INDEX(GROUP_CONCAT(id), ',', 1) as id
+        FROM ai_search_info
+        WHERE is_del = 0
+        GROUP BY content, content_code
+        ORDER BY tt DESC
+    </select>
+    <select id="getListByUser" resultType="com.graphinsight.indicator.auto.entity.AiSearchInfo">
+        select *
+        from ai_search_info
+        where is_del = 0
+          and user = #{user}
+        order by create_time desc
+    </select>
+
+
+</mapper>

@@ -1,0 +1,20 @@
+package com.graphinsight.indicator.auto.controller;
+
+
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * <p>
+ * 菜单表 前端控制器
+ * </p>
+ *
+ * @author lixiaolong5
+ * @since 2022-10-24
+ */
+@RestController
+@RequestMapping("/auto/portal-menu")
+public class PortalMenuController {
+
+}

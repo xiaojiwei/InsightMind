@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.graphinsight.indicator.auto.mapper.MeasureMapper">
+
+    <select id="selectListByCode" resultType="com.graphinsight.indicator.auto.entity.Measure">
+        <choose>
+            <when test="codeSet != null and codeSet.size() > 0">
+                select `code` from measure where `code` in
+                <foreach item="id" collection="codeSet" open="(" separator="," close=")">
+                    #{id.code}
+                </foreach>
+                and online = 0
+            </when>
+            <otherwise>
+                select `code` from measure where 1=0
+            </otherwise>
+        </choose>
+    </select>
+</mapper>
