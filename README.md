@@ -133,3 +133,4 @@ InsightMind/
     insightmind.sh
 ```
 
+# InsightMind
