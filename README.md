@@ -92,11 +92,13 @@ DA: http://localhost:8091/
 
 ### 环境要求
 
-- macOS（服务管理脚本基于 `launchctl`）
+- macOS / Linux / Windows
 - Python 3.9+ 和 JDK 8/11
 - Maven 3.6+
 - MySQL 5.7/8.0（用于 DA 元数据库）
 - 可选：Redis、OpenAI 兼容 LLM 网关
+
+> `scripts/insightmind.sh` 在 macOS 上使用 `launchctl` 管理后台服务。Linux 和 Windows 用户请参考下方「跨平台启动」方式。
 
 ### 给 Claude Code 的一键提示词
 
@@ -172,19 +174,21 @@ cd /path/to/InsightMind
 # 安装 AD
 cd apps/ad
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # 构建 DA
 cd ../da
 mvn -DskipTests package
 
-# 启动
+# 启动（macOS）
 cd ../..
 ./scripts/insightmind.sh start
+
+# 启动（Linux / Windows：开两个终端分别启动，见下方「跨平台启动」）
 ```
 
-### 服务管理
+### 服务管理（macOS）
 
 ```bash
 ./scripts/insightmind.sh start          # 启动全部服务
@@ -193,6 +197,24 @@ cd ../..
 ./scripts/insightmind.sh status         # 查看运行状态
 ./scripts/insightmind.sh restart ad     # 仅重启 AD
 ./scripts/insightmind.sh restart da     # 仅重启 DA
+```
+
+### 跨平台启动（Linux / Windows）
+
+不使用 `insightmind.sh` 时，直接启动两个服务即可：
+
+```bash
+# 终端 1：启动 AD（端口 8080）
+cd apps/ad
+source venv/bin/activate      # Windows: venv\Scripts\activate
+python web_app.py
+
+# 终端 2：启动 DA（端口 8091）
+cd apps/da
+java -jar target/da-indicator-0.0.1-SNAPSHOT.jar \
+  --spring.profiles.active=dev \
+  --server.port=8091 \
+  --indicator.graph.data-path=../ad/output/business_kg/indicator-data.ttl
 ```
 
 日志位置：
