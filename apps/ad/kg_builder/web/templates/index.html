@@ -1798,6 +1798,31 @@
             </div>
           </div>
 
+          <!-- 提示词调整：基于已激活的源/业务图谱做增量修订 -->
+          <div class="card mb-3">
+            <div class="card-header py-2">
+              <i class="bi bi-pencil-square me-1 text-success"></i>提示词调整
+              <span class="text-muted small">（基于当前激活的图谱）</span>
+            </div>
+            <div class="card-body">
+              <div class="mb-2">
+                <textarea id="bkg-refine-prompt" class="form-control form-control-sm" rows="3"
+                  placeholder="例如：把 ai_user_collect 上的「收藏总数」单位改为人次；新增『活跃用户数』指标；删除分类 cat_other…"></textarea>
+                <div class="form-text">让 LLM 输出 SPARQL UPDATE，对当前业务图谱做增量增/改/删，自动归档旧版本</div>
+              </div>
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="bkg-refine-auto-empty-dim">
+                <label class="form-check-label small" for="bkg-refine-auto-empty-dim">
+                  快捷模式：自动补全所有「关联维度为空」的指标
+                  <span class="text-muted">（绕过 LLM 识别，直接按结构匹配）</span>
+                </label>
+              </div>
+              <button class="btn btn-success w-100" onclick="refineBizKG(this)">
+                <i class="bi bi-magic me-1"></i>应用调整
+              </button>
+            </div>
+          </div>
+
           <!-- 构建日志 -->
           <div class="card">
             <div class="card-header py-2 d-flex justify-content-between align-items-center">
@@ -8067,6 +8092,117 @@ async function buildBizKG(btn) {
         es.close();
         if (btn) btnRestore(btn);
       }
+    }).catch(()=>{});
+  };
+}
+
+async function refineBizKG(btn) {
+  const promptEl = document.getElementById('bkg-refine-prompt');
+  const userPrompt = (promptEl?.value || '').trim();
+  const autoEmptyDim = document.getElementById('bkg-refine-auto-empty-dim')?.checked || false;
+  if (!userPrompt && !autoEmptyDim) {
+    showToast('请输入调整提示词，或勾选快捷模式', 'warning');
+    return;
+  }
+  const logDiv      = document.getElementById('bkg-log');
+  const stepsDiv    = document.getElementById('bkg-steps');
+  const progressWrap= document.getElementById('bkg-progress-wrap');
+  const progressBar = document.getElementById('bkg-progress-bar');
+  const progressLbl = document.getElementById('bkg-progress-label');
+  const progressPct = document.getElementById('bkg-progress-pct');
+  const badge       = document.getElementById('bkg-status-badge');
+
+  logDiv.innerHTML   = '';
+  stepsDiv.innerHTML = '';
+  stepsDiv.style.display   = 'none';
+  progressWrap.style.display = 'none';
+  badge.className  = 'badge bg-warning text-dark';
+  badge.textContent= '调整中…';
+
+  let _steps = [];
+  let _doneCount = 0;
+  function renderSteps() {
+    stepsDiv.innerHTML = _steps.map((s, i) => {
+      const done = i < _doneCount, active = i === _doneCount;
+      const icon = done ? '✅' : active ? '⏳' : '⬜';
+      const color = done ? '#526d60' : active ? '#5f7f9f' : '#8f9aaa';
+      return `<div style="font-size:12px;color:${color};margin-bottom:4px">${icon} ${i+1}. ${s.label}${done && s.detail ? `  <span style="color:#64707d;font-size:11px">(${s.detail})</span>` : ''}</div>`;
+    }).join('');
+  }
+  function updateProgress() {
+    if (!_steps.length) return;
+    const pct = Math.round((_doneCount / _steps.length) * 100);
+    progressBar.style.width = pct + '%';
+    progressLbl.textContent = `${_doneCount} / ${_steps.length} 步`;
+    progressPct.textContent = pct + '%';
+  }
+  function handleMessage(msg) {
+    if (msg.startsWith('__PLAN__:')) {
+      _steps = msg.slice(9).split('|').map(l => ({label: l, detail: ''}));
+      _doneCount = 0;
+      stepsDiv.style.display = ''; progressWrap.style.display = '';
+      renderSteps(); updateProgress();
+      return;
+    }
+    if (msg.startsWith('__STEP__:')) {
+      const parts = msg.slice(9).split(':');
+      const n = parseInt(parts[0]);
+      const detail = parts.slice(1).join(':');
+      if (n >= 1 && n <= _steps.length) {
+        _steps[n - 1].detail = detail;
+        _doneCount = n;
+        renderSteps(); updateProgress();
+      }
+      return;
+    }
+    const line = document.createElement('div');
+    line.textContent = msg;
+    if(msg.startsWith('[错误]'))  line.style.color='#7f5656';
+    else if(msg.startsWith('✅')) line.style.color='#526d60';
+    else line.style.color='#526071';
+    logDiv.appendChild(line);
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+
+  if (btn) btnLoading(btn, '调整中…');
+  const resp = await fetch('/api/business-kg/refine', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({prompt: userPrompt, auto_empty_dim: autoEmptyDim}),
+  });
+  if (!resp.ok) {
+    const e = await resp.json().catch(()=>({error:resp.statusText}));
+    handleMessage('[错误] ' + (e.error||resp.statusText));
+    badge.className='badge bg-danger'; badge.textContent='失败';
+    if (btn) btnRestore(btn);
+    return;
+  }
+
+  const es = new EventSource('/api/business-kg/log');
+  es.onmessage = function(ev) {
+    if (ev.data === '__DONE__') {
+      es.close();
+      fetch('/api/business-kg/status').then(r=>r.json()).then(s=>{
+        if (s.status==='done') {
+          badge.className='badge bg-success'; badge.textContent='完成';
+          loadBizKGGraph();
+          loadBizTurtle();
+          loadBzStats('');
+          loadMeasureList();
+          refreshBzFiles();
+          refreshBkgMeta();
+          if (btn) { btnRestore(btn); showToast('业务图谱已应用调整', 'success'); }
+        } else {
+          badge.className='badge bg-danger'; badge.textContent='失败';
+          if (btn) { btnRestore(btn); showToast('调整失败：' + (s.message||''), 'error'); }
+        }
+      });
+      return;
+    }
+    handleMessage(ev.data);
+  };
+  es.onerror = function() {
+    fetch('/api/business-kg/status').then(r=>r.json()).then(s=>{
+      if (s.status !== 'running') { es.close(); if (btn) btnRestore(btn); }
     }).catch(()=>{});
   };
 }

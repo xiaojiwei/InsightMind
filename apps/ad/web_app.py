@@ -1882,6 +1882,423 @@ async def business_kg_activate(req: ActivateRequest):
     return {"ok": True, "active": target.name, "archived_from": src.name}
 
 
+class RefineRequest(BaseModel):
+    prompt: str = ""
+    target: str = ""  # business KG file to refine; defaults to active
+    auto_empty_dim: bool = False  # quick mode: target all measures with empty dimensions
+
+@app.post("/api/business-kg/refine")
+async def business_kg_refine(req: RefineRequest):
+    """根据用户提示词，对当前业务图谱做增量修订（LLM 输出 SPARQL UPDATE patch）。"""
+    prompt = (req.prompt or "").strip()
+    if not prompt and not req.auto_empty_dim:
+        return JSONResponse(status_code=400, content={"error": "缺少 prompt 或选择快捷模式"})
+    if _bkg_state.get("status") == "running":
+        return {"ok": True, "already_running": True}
+    while not _bkg_log_queue.empty():
+        try:
+            _bkg_log_queue.get_nowait()
+        except Exception:
+            break
+    t = threading.Thread(
+        target=_bkg_refine_worker,
+        args=(prompt, (req.target or "").strip(), bool(req.auto_empty_dim)),
+        daemon=True,
+    )
+    t.start()
+    return {"ok": True}
+
+
+def _bkg_refine_worker(user_prompt: str, target_file: str, auto_empty_dim: bool = False) -> None:
+    global _bkg_state, _bkg_turtle, _bkg_graph, _current_bkg_path
+    import time as _time
+    import os as _os
+    import urllib.request, urllib.error, json as _json
+    import re as _re
+    from rdflib import Graph
+    from kg_builder.utils.llm_config import llm_config_from_env, validate_llm_config
+
+    def blog(msg: str) -> None:
+        _bkg_log_queue.put(msg)
+
+    def call_llm(messages: list, label: str, max_tokens: int = 4096) -> Optional[str]:
+        """POST to /chat/completions and return content, or None on failure (logs included)."""
+        cfg = call_llm._cfg
+        body = _json.dumps({
+            "model": cfg["model"],
+            "max_tokens": max_tokens,
+            "temperature": 0.1,
+            "messages": messages,
+        }).encode("utf-8")
+        blog(f"  → {label}（请求体 {len(body):,} 字节）")
+        req2 = urllib.request.Request(
+            cfg["base_url"].rstrip("/") + "/chat/completions",
+            data=body, method="POST",
+            headers={"Content-Type": "application/json",
+                     "Authorization": f"Bearer {cfg['api_key']}"},
+        )
+        t0 = _time.time()
+        try:
+            with urllib.request.urlopen(req2, timeout=1200) as resp:
+                data = _json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as he:
+            err_body = he.read().decode("utf-8", errors="replace")[:600]
+            blog(f"  [错误] {label} HTTP {he.code}: {err_body}")
+            return None
+        except Exception as he:
+            blog(f"  [错误] {label} 异常: {he}")
+            return None
+        elapsed = int(_time.time() - t0)
+        msg = (data.get("choices") or [{}])[0].get("message") or {}
+        content = (msg.get("content") or "").strip()
+        if not content:
+            content = (msg.get("reasoning_content") or "").strip()
+        blog(f"  ← {label} 完成（{elapsed}s，{len(content)} 字符）")
+        return content or None
+
+    try:
+        _bkg_state.update({"status": "running", "message": "提示词调整中…"})
+        STEPS = ["加载业务图谱", "LLM 识别待调整目标", "逐个修复", "校验并保存", "激活新版本"]
+        blog("__PLAN__:" + "|".join(STEPS))
+        blog(f"── 提示词调整 共 {len(STEPS)} 步 ──")
+        for i, s in enumerate(STEPS, 1):
+            blog(f"  {i:2d}. {s}")
+        blog("─" * 30)
+
+        # ── Step 1: load business KG ─────────────────────────────────────── #
+        blog("__STEP__:1")
+        if target_file:
+            biz_path = (BKG_DIR / Path(target_file).name).resolve()
+            if not str(biz_path).startswith(str(BKG_DIR.resolve())) or not biz_path.exists():
+                blog(f"[错误] 业务图谱不存在: {target_file}")
+                _bkg_state.update({"status": "error", "message": "业务图谱不存在"})
+                return
+        else:
+            biz_path = BKG_DIR / "indicator-data.ttl"
+            if not biz_path.exists():
+                blog("[错误] 当前没有激活的业务图谱，请先生成")
+                _bkg_state.update({"status": "error", "message": "尚未生成业务图谱"})
+                return
+        biz_ttl = biz_path.read_text(encoding="utf-8")
+        blog(f"  当前业务图谱: {biz_path.name}（{len(biz_ttl):,} 字符）")
+
+        g = Graph()
+        try:
+            g.parse(data=biz_ttl, format="turtle")
+        except Exception as e:
+            blog(f"[错误] 业务图谱解析失败: {e}")
+            _bkg_state.update({"status": "error", "message": "业务图谱解析失败"})
+            return
+        triples_before = len(g)
+
+        # Build a structured measure summary so the identifier LLM gets clean
+        # facts instead of 200KB of Turtle.
+        from rdflib import URIRef as _URIRef, RDF as _RDF
+        IND_NS = "http://indicator.lixiang.com/ontology#"
+        def _u(n): return _URIRef(IND_NS + n)
+        def _val(s, p):
+            v = g.value(s, _u(p))
+            return str(v) if v is not None else ""
+
+        # Pre-index DimensionApp → fact table → dim labels (mirrors measures API).
+        tbl_dims: dict[str, list[str]] = {}
+        for dapp in g.subjects(_RDF.type, _u("DimensionApp")):
+            tbl = g.value(dapp, _u("dimFactTable"))
+            dim = g.value(predicate=_u("hasDimApp"), object=dapp)
+            if not tbl or not dim:
+                continue
+            lbl = _val(dim, "cnName") or _val(dim, "code") or str(dim).rsplit("/", 1)[-1]
+            tbl_dims.setdefault(str(tbl), [])
+            if lbl not in tbl_dims[str(tbl)]:
+                tbl_dims[str(tbl)].append(lbl)
+
+        tbl_name: dict[str, str] = {}
+        for tbl in g.subjects(_RDF.type, _u("DwTable")):
+            tbl_name[str(tbl)] = _val(tbl, "tableName") or str(tbl).rsplit("/", 1)[-1]
+
+        measure_summaries: list[dict] = []
+        for meas in g.subjects(_RDF.type, _u("Measure")):
+            code = _val(meas, "code")
+            cn   = _val(meas, "cnName")
+            unit = _val(meas, "unit")
+            cali = _val(meas, "caliber") or _val(meas, "definition")
+            facts: list[str] = []
+            dims: list[str] = []
+            for mapp in g.objects(meas, _u("hasMeasureApp")):
+                tbl = g.value(mapp, _u("appliesToTable"))
+                if not tbl:
+                    continue
+                tn = tbl_name.get(str(tbl), str(tbl).rsplit("/", 1)[-1])
+                if tn and tn not in facts:
+                    facts.append(tn)
+                for d in tbl_dims.get(str(tbl), []):
+                    if d not in dims:
+                        dims.append(d)
+            measure_summaries.append({
+                "subject": str(meas),
+                "code":    code,
+                "cnName":  cn,
+                "unit":    unit,
+                "caliber": cali,
+                "factTables": facts,
+                "dimensions": dims,
+            })
+        measure_summaries.sort(key=lambda x: x.get("code") or "")
+        blog(f"  共 {len(measure_summaries)} 个指标已构建结构化摘要")
+
+        # Pre-compute structural candidates for quick-mode and LLM fallback.
+        empty_dim_codes  = [m["code"] for m in measure_summaries if not m.get("dimensions")]
+        empty_fact_codes = [m["code"] for m in measure_summaries if not m.get("factTables")]
+        if empty_dim_codes:
+            preview = ", ".join(empty_dim_codes[:8]) + ("…" if len(empty_dim_codes) > 8 else "")
+            blog(f"  结构性发现: {len(empty_dim_codes)} 个指标维度为空 ({preview})")
+        if empty_fact_codes:
+            blog(f"  结构性发现: {len(empty_fact_codes)} 个指标无事实表")
+
+        # Set up LLM config
+        cfg = llm_config_from_env(
+            model_override=_os.environ.get("BUSINESS_KG_MODEL", "").strip(),
+        )
+        validate_llm_config(cfg, purpose="Business KG refinement")
+        call_llm._cfg = cfg
+        blog(f"  调用模型: {cfg['model']}（{cfg['base_url']}）")
+
+        # ── Step 2: identify candidate measures ──────────────────────────── #
+        blog("__STEP__:2")
+
+        # Quick mode: bypass LLM identification entirely.
+        if auto_empty_dim:
+            if not empty_dim_codes:
+                blog("✅ 快捷模式：当前没有维度为空的指标，无需调整")
+                _bkg_state.update({"status": "done", "message": "无需调整"})
+                return
+            blog(f"  快捷模式：直接使用结构性发现的 {len(empty_dim_codes)} 个空维度指标作为目标")
+            targets = [
+                {"subject": m["subject"], "code": m["code"], "cnName": m["cnName"],
+                 "issue": "dimensions 数组为空（快捷模式）"}
+                for m in measure_summaries if not m.get("dimensions")
+            ]
+            if not user_prompt:
+                user_prompt = "对关联维度为空的指标补充合适的维度。"
+        else:
+            identify_sys = (
+                "你是知识图谱审核助手。给定一份指标摘要 JSON 列表 + 用户的修订意图，"
+                "请找出所有需要按用户意图调整的指标，并以 JSON 数组形式输出。\n"
+                "严格要求：\n"
+                "1. 只输出一段被 ```json ... ``` 包裹的 JSON 数组，不要解释。\n"
+                "2. 数组中每个对象包含 subject、code、cnName、issue 四个字段。\n"
+                "3. 如果某个指标已经满足要求，不要列出。\n"
+                "4. 若用户问 '关联维度为空的指标'，请返回所有 dimensions 数组为空 [] 的指标。\n"
+                "5. 若用户问 '没有事实表的指标'，请返回 factTables 为空的指标。\n"
+                "6. 数组按 code 升序。无目标时输出 `[]`。"
+            )
+            identify_user = (
+                f"## 用户修订意图\n{user_prompt}\n\n"
+                f"## 指标摘要（共 {len(measure_summaries)} 个）\n"
+                f"```json\n{_json.dumps(measure_summaries, ensure_ascii=False, indent=2)}\n```\n"
+            )
+
+            identify_resp = call_llm(
+                [{"role": "system", "content": identify_sys},
+                 {"role": "user", "content": identify_user}],
+                label="识别待调整目标",
+                max_tokens=4096,
+            )
+            if identify_resp is None:
+                _bkg_state.update({"status": "error", "message": "识别阶段 LLM 失败"})
+                return
+
+            snippet = identify_resp.replace("\n", " ⏎ ")[:400]
+            blog(f"  LLM 原始响应: {snippet}{'…' if len(identify_resp) > 400 else ''}")
+
+            m = _re.search(r"```json\s*(.+?)```", identify_resp, _re.DOTALL | _re.IGNORECASE)
+            json_text = (m.group(1) if m else identify_resp).strip()
+            try:
+                targets = _json.loads(json_text)
+                if not isinstance(targets, list):
+                    raise ValueError("expected JSON array")
+            except Exception as e:
+                blog(f"[错误] 识别结果不是合法 JSON: {e}")
+                blog(f"--- 原始响应（前 800 字）---\n{identify_resp[:800]}")
+                _bkg_state.update({"status": "error", "message": "识别结果格式错误"})
+                return
+
+            # Fallback: keyword-based override when LLM misjudges empty-dim cases.
+            norm = _re.sub(r"[\"'`「」『』《》【】（）()]", "", user_prompt)
+            norm_lc = norm.lower()
+            mentions_dim = ("维度" in norm) or ("dimension" in norm_lc)
+            mentions_empty = any(k in norm for k in (
+                "为空", "为null", "为 null", "缺", "无", "没有", "补充", "完整", "添加",
+            )) or any(k in norm_lc for k in ("null", "empty", "missing"))
+            wants_empty_dim = mentions_dim and mentions_empty
+            if not targets and wants_empty_dim and empty_dim_codes:
+                blog(f"  ⚠️ LLM 返回 []，但结构上检测到 {len(empty_dim_codes)} 个空维度指标 — 启用兜底列表")
+                targets = [
+                    {"subject": m["subject"], "code": m["code"], "cnName": m["cnName"],
+                     "issue": "dimensions 数组为空（结构兜底）"}
+                    for m in measure_summaries if not m.get("dimensions")
+                ]
+
+        if not targets:
+            blog("✅ 当前业务图谱已满足要求，无待调整目标")
+            _bkg_state.update({"status": "done", "message": "无需调整"})
+            return
+
+        blog(f"  共识别出 {len(targets)} 个待调整指标:")
+        for i, tgt in enumerate(targets, 1):
+            code   = (tgt.get("code") or "").strip() or "?"
+            cnName = (tgt.get("cnName") or "").strip()
+            issue  = (tgt.get("issue") or "").strip()
+            blog(f"    {i:2d}. {code} {cnName}  — {issue}")
+
+        # ── Step 3: fix each target one by one ───────────────────────────── #
+        blog("__STEP__:3")
+        fix_sys = (
+            "你是知识图谱编辑助手。给定业务 KG（Turtle）以及一个待调整的 Measure 目标，"
+            "请输出一段 SPARQL 1.1 UPDATE 来修复该目标。严格要求：\n"
+            "1. 只输出一段被 ```sparql ... ``` 包裹的 SPARQL UPDATE，不要解释。\n"
+            "2. 必须重新声明前缀：\n"
+            "   PREFIX ind:  <http://indicator.lixiang.com/ontology#>\n"
+            "   PREFIX inst: <http://indicator.lixiang.com/instance/>\n"
+            "   PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n"
+            "   PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>\n"
+            "3. 仅围绕给定 subject 修订；不要重写整张图。\n"
+            "4. 新增 Dimension/DimensionApp 时复用现有 inst:tbl_xxx / inst:col_xxx URI。\n"
+            "5. 优先 INSERT DATA / DELETE DATA；批量条件删除用 DELETE WHERE。\n"
+            "6. 若需要为某个 Measure 补维度：给该 Measure 对应的事实表（DwTable）"
+            "新增 DimensionApp 三元组，并通过 ind:hasDimApp 把已有 Dimension 关联到该 DimensionApp，"
+            "DimensionApp 必须设置 ind:dimFactTable（事实表 URI）和 ind:dimFactColumn（事实表中的关联列名）。"
+        )
+
+        def _dims_for_measure(meas_uri: str) -> list[str]:
+            """Re-derive the dimension labels of a Measure from the current graph state."""
+            subj = _URIRef(meas_uri)
+            facts = []
+            for mapp in g.objects(subj, _u("hasMeasureApp")):
+                tbl = g.value(mapp, _u("appliesToTable"))
+                if tbl:
+                    facts.append(str(tbl))
+            # Dynamically rebuild tbl→dims since the graph may have new DimensionApps.
+            dims: list[str] = []
+            for tbl_uri in facts:
+                tbl_ref = _URIRef(tbl_uri)
+                for dapp in g.subjects(_u("dimFactTable"), tbl_ref):
+                    dim = g.value(predicate=_u("hasDimApp"), object=dapp)
+                    if dim:
+                        lbl = _val(dim, "cnName") or _val(dim, "code") or str(dim).rsplit("/", 1)[-1]
+                        if lbl not in dims:
+                            dims.append(lbl)
+            return dims
+
+        def _attempt_fix(subject: str, code: str, retry_hint: str = "") -> tuple[bool, list[str]]:
+            """Run one LLM→SPARQL apply cycle. Returns (sparql_applied_ok, dims_after)."""
+            label = f"修复 {code}" + (" (重试)" if retry_hint else "")
+            user_extra = f"\n\n## 上一次失败原因\n{retry_hint}\n请针对此问题重新生成 SPARQL。" if retry_hint else ""
+            fix_user = (
+                f"## 用户原始意图\n{user_prompt}\n\n"
+                f"## 待修复目标\nsubject: {subject}\ncode: {code}\ncnName: {tgt.get('cnName','')}\n"
+                f"issue: {tgt.get('issue','')}\n\n"
+                f"## 业务 KG\n```turtle\n{biz_ttl}\n```{user_extra}\n"
+            )
+            fix_resp = call_llm(
+                [{"role": "system", "content": fix_sys},
+                 {"role": "user", "content": fix_user}],
+                label=label,
+                max_tokens=4096,
+            )
+            if not fix_resp:
+                blog(f"  [跳过] {code} LLM 未返回内容")
+                return False, []
+            mm = _re.search(r"```sparql\s*(.+?)```", fix_resp, _re.DOTALL | _re.IGNORECASE)
+            sparql = (mm.group(1) if mm else fix_resp).strip()
+            if not sparql:
+                blog(f"  [跳过] {code} 未解析到 SPARQL")
+                return False, []
+            tb = len(g)
+            try:
+                g.update(sparql)
+            except Exception as e:
+                blog(f"  [失败] {code} SPARQL UPDATE 出错: {e}")
+                blog(f"    --- SPARQL ---\n{sparql[:600]}")
+                return False, _dims_for_measure(subject)
+            ta = len(g)
+            blog(f"  · {code} 三元组 {tb} → {ta}（净 {'+' if ta >= tb else ''}{ta - tb}）")
+            return True, _dims_for_measure(subject)
+
+        ok_count = 0
+        fail_count = 0
+        for i, tgt in enumerate(targets, 1):
+            subject = (tgt.get("subject") or "").strip() or (tgt.get("uri") or "").strip()
+            code    = (tgt.get("code") or "").strip() or "?"
+            cnName  = (tgt.get("cnName") or "").strip()
+            issue   = (tgt.get("issue") or "").strip()
+            blog(f"  ── 修复 {i}/{len(targets)}: {code} {cnName} ──")
+            blog(f"     问题: {issue}")
+            dims_before = _dims_for_measure(subject) if subject else []
+            blog(f"     修复前维度: {len(dims_before)} 个" + (f" ({', '.join(dims_before[:5])})" if dims_before else ""))
+
+            applied, dims_after = _attempt_fix(subject, code)
+            if applied and len(dims_after) > len(dims_before):
+                added = [d for d in dims_after if d not in dims_before]
+                blog(f"  ✅ {code} 修复完成，维度 {len(dims_before)} → {len(dims_after)}（新增: {', '.join(added) or '无名称'}）")
+                ok_count += 1
+                continue
+
+            # No improvement → diagnose and retry once
+            if not applied:
+                reason = "LLM 未生成可执行 SPARQL"
+            elif len(dims_after) == len(dims_before) == 0:
+                reason = ("SPARQL 已执行但目标 Measure 关联的事实表上仍没有 DimensionApp。"
+                          "可能 LLM 漏写 ind:dimFactTable，或挂在了错误的事实表上。")
+            else:
+                reason = f"SPARQL 已执行但维度数未增加（仍 {len(dims_after)} 个）"
+            blog(f"  ⚠️ {code} 修复后仍不达标，原因: {reason}")
+            blog(f"     重试一次…")
+
+            applied2, dims_after2 = _attempt_fix(subject, code, retry_hint=reason)
+            if applied2 and len(dims_after2) > len(dims_before):
+                added = [d for d in dims_after2 if d not in dims_before]
+                blog(f"  ✅ {code} 重试成功，维度 {len(dims_before)} → {len(dims_after2)}（新增: {', '.join(added) or '无名称'}）")
+                ok_count += 1
+            else:
+                blog(f"  ❌ {code} 重试后仍未达标（维度 {len(dims_before)} → {len(dims_after2)}）")
+                fail_count += 1
+
+        blog(f"  汇总: 成功 {ok_count} / 失败 {fail_count} / 共 {len(targets)}")
+        if ok_count == 0:
+            blog("[错误] 没有任何指标修复成功")
+            _bkg_state.update({"status": "error", "message": "没有指标修复成功"})
+            return
+
+        # ── Step 4: validate and save ────────────────────────────────────── #
+        blog("__STEP__:4")
+        new_ttl = g.serialize(format="turtle")
+        try:
+            Graph().parse(data=new_ttl, format="turtle")
+        except Exception as e:
+            blog(f"[错误] 修订后 Turtle 校验失败: {e}")
+            _bkg_state.update({"status": "error", "message": "修订后 Turtle 校验失败"})
+            return
+        archive = _archive_bkg()
+        if archive:
+            blog(f"  归档原版本: {archive.name}")
+        out = BKG_DIR / "indicator-data.ttl"
+        out.write_text(new_ttl, encoding="utf-8")
+        triples_after = len(g)
+        blog(f"  写入新版本: {out.name}（{len(new_ttl):,} 字符，三元组 {triples_before} → {triples_after}）")
+
+        # ── Step 5: activate ─────────────────────────────────────────────── #
+        blog("__STEP__:5")
+        _current_bkg_path = out
+        _bkg_turtle = new_ttl
+        _bkg_graph = g
+        _bkg_state.update({"status": "done", "message": f"调整完成（{ok_count}/{len(targets)}）"})
+        blog(f"✅ 提示词调整完成，成功 {ok_count}/{len(targets)} 个指标")
+    except Exception as e:
+        blog(f"[错误] {e}")
+        _bkg_state.update({"status": "error", "message": str(e)})
+
+
 @app.get("/api/business-kg/stats")
 async def business_kg_stats(file: str = ""):
     """Return instance counts by ind: class for a given TTL file."""

@@ -1190,7 +1190,9 @@ class BusinessKGBuilder:
     @classmethod
     def from_env(cls, base_dir: Optional[Path] = None,
                  log_cb: Optional[Callable[[str], None]] = None) -> "BusinessKGBuilder":
-        cfg = llm_config_from_env(base_dir)
+        import os
+        model_override = os.environ.get("BUSINESS_KG_MODEL", "").strip()
+        cfg = llm_config_from_env(base_dir, model_override=model_override)
         validate_llm_config(cfg, purpose="Business KG generation")
         return cls(
             api_key  = cfg["api_key"],
@@ -1303,7 +1305,13 @@ class BusinessKGBuilder:
             progress_cb(4, f"{len(chunks)} 个批次")
 
         instance_parts: list[str] = []
+        build_start = time.time()
         for i, chunk in enumerate(chunks, 1):
+            tbl_label = ", ".join(chunk.table_names[:3]) or "无表名"
+            if len(chunk.table_names) > 3:
+                tbl_label += f" 等{len(chunk.table_names)}表"
+            self._log(f"[分批] ▶ 开始第 {i}/{len(chunks)} 批（表: {tbl_label}）")
+            batch_start = time.time()
             instances = self._generate_chunk(
                 chunk=chunk,
                 chunk_no=i,
@@ -1341,6 +1349,15 @@ class BusinessKGBuilder:
             if instances is None:
                 self._log(f"[错误] 第 {i}/{len(chunks)} 批 LLM 生成失败")
                 return "", False
+
+            counts = self._count_instances_by_type(instances)
+            elapsed = int(time.time() - batch_start)
+            total_elapsed = int(time.time() - build_start)
+            summary_pairs = ", ".join(f"{k}={v}" for k, v in counts.items()) or "无新实例"
+            self._log(
+                f"[分批] ✅ 第 {i}/{len(chunks)} 批完成（表: {tbl_label}） "
+                f"耗时 {elapsed}s / 累计 {total_elapsed}s | {summary_pairs}"
+            )
 
             instance_parts.append(
                 f"# ═══ LLM 分批实例 {i}/{len(chunks)} ═══\n{instances.strip()}"
@@ -1413,21 +1430,9 @@ class BusinessKGBuilder:
         if not sections:
             return [_SummaryChunk(text=summary, table_sections=[], table_names=[])]
 
-        chunks: list[_SummaryChunk] = []
-        current: list[str] = []
-        current_len = len(self._chunk_text_from_sections([]))
-
-        for section in sections:
-            section_len = len(section) + 2
-            if current and current_len + section_len > self._CHUNK_MAX_CHARS:
-                chunks.append(self._make_chunk(current))
-                current = []
-                current_len = len(self._chunk_text_from_sections([]))
-            current.append(section)
-            current_len += section_len
-
-        if current:
-            chunks.append(self._make_chunk(current))
+        # One table per chunk — improves reliability with reasoning models that
+        # otherwise omit Measure/MeasureApp on long multi-table prompts.
+        chunks: list[_SummaryChunk] = [self._make_chunk([section]) for section in sections]
 
         if not chunks:
             return [_SummaryChunk(text=summary, table_sections=[], table_names=[])]
@@ -1554,7 +1559,7 @@ class BusinessKGBuilder:
         raw_response = self._call_api(
             payload,
             request_label=f"业务本体批次 {label}/{total}",
-            timeout=240,
+            timeout=1200,
             max_retries=3,
         )
         if raw_response is None:
@@ -1579,6 +1584,25 @@ class BusinessKGBuilder:
             f"[分批] ✓ 批次 {label}/{total} 完成，实例 {len(instances):,} 字符"
         )
         return instances
+
+    @staticmethod
+    def _count_instances_by_type(turtle_str: str) -> dict[str, int]:
+        """Count `a ind:Type` declarations in a Turtle fragment, ordered by interest."""
+        import re
+        counts: dict[str, int] = {}
+        for m in re.finditer(r"\ba\s+ind:([A-Z][A-Za-z]+)\b", turtle_str):
+            t = m.group(1)
+            counts[t] = counts.get(t, 0) + 1
+        order = ["Measure", "MeasureApp", "Dimension", "DimensionApp",
+                 "Category", "DwTable", "DwColumn", "TableHistogram",
+                 "DataConnection", "NaturalDimMapping"]
+        ordered: dict[str, int] = {}
+        for k in order:
+            if k in counts:
+                ordered[k] = counts.pop(k)
+        for k, v in counts.items():
+            ordered[k] = v
+        return ordered
 
     @staticmethod
     def _extract_generated_instances(turtle_str: str) -> str:
