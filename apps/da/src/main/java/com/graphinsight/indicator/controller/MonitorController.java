@@ -283,7 +283,7 @@ public class MonitorController {
 
                 if (!isRun) {
                     isRun = true;
-                    TestSend.start(null);
+                    // TestSend.start(null); // removed: class missing in repo
                     isRun = false;
                 }
 //                try {

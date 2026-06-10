@@ -94,7 +94,7 @@ public class PostManager {
 
     private PostEmp httpPostInfo(String userNo) {
         HttpHeaders headers = new HttpHeaders();
-        headers.add("X-CHJ-GWToken", TOKEN);
+        headers.add("X-CHJ-GWToken", postGatewayToken);
 
         Map<String,Object> param = new HashMap<>();
         param.put("employeeNo", userNo);
@@ -122,7 +122,7 @@ public class PostManager {
     private List<Post> httpListPost() {
         HttpHeaders headers = new HttpHeaders();
         headers.add("Content-Type", "application/json");
-        headers.add("X-CHJ-GWToken", TOKEN);
+        headers.add("X-CHJ-GWToken", postGatewayToken);
 
         Map<String,Object> param = new HashMap<>();
         param.put("pageNo", 1);
@@ -149,7 +149,7 @@ public class PostManager {
 
     private List<PostEmp> httpListEmpByPostCode(String postCode) {
         HttpHeaders headers = new HttpHeaders();
-        headers.add("X-CHJ-GWToken", TOKEN);
+        headers.add("X-CHJ-GWToken", postGatewayToken);
 
         JSONObject body = new JSONObject();
         body.put("pageNo", 1);

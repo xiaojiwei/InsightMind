@@ -286,7 +286,13 @@ class LLMTranslator:
         client = Anthropic(**kwargs)
         msg = client.messages.create(
             model=cfg["model"],
-            max_tokens=2048,
+            max_tokens=8192,
+            thinking={"type": "disabled"},
             messages=[{"role": "user", "content": prompt}],
         )
-        return msg.content[0].text
+        for block in msg.content:
+            if getattr(block, "type", None) == "text" or hasattr(block, "text"):
+                text = getattr(block, "text", None)
+                if text:
+                    return text
+        raise RuntimeError(f"Anthropic response had no text block: {msg.content!r}")
