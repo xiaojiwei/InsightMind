@@ -1748,77 +1748,82 @@
 
         <!-- 左列：配置 + 日志 -->
         <div class="col-lg-4">
-          <!-- 生成配置 -->
+          <!-- 生成 / 调整 配置（合并） -->
           <div class="card mb-3">
             <div class="card-header py-2">
-              <i class="bi bi-cpu-fill me-1 text-warning"></i>生成配置
+              <i class="bi bi-cpu-fill me-1 text-warning"></i>业务图谱配置
             </div>
             <div class="card-body">
+              <!-- 模式单选 -->
+              <div class="btn-group w-100 mb-3" role="group" aria-label="模式选择">
+                <input type="radio" class="btn-check" name="bkg-mode" id="bkg-mode-build" value="build" checked
+                       onchange="onBkgModeChange()">
+                <label class="btn btn-sm btn-outline-warning" for="bkg-mode-build">
+                  <i class="bi bi-magic me-1"></i>生成业务图谱
+                </label>
+                <input type="radio" class="btn-check" name="bkg-mode" id="bkg-mode-refine" value="refine"
+                       onchange="onBkgModeChange()">
+                <label class="btn btn-sm btn-outline-success" for="bkg-mode-refine">
+                  <i class="bi bi-pencil-square me-1"></i>应用调整
+                </label>
+              </div>
+
+              <!-- 共用文本框 -->
               <div class="mb-3">
-                <label class="form-label small fw-semibold">业务领域提示 <span class="text-muted">(可选)</span>
+                <label class="form-label small fw-semibold">业务领域提示 / 调整意图 <span class="text-muted">(可选)</span>
                   <button class="btn btn-sm btn-outline-info ms-2 py-0 px-2" onclick="generateBkgHint(this)" title="根据数据源图谱自动生成领域提示词">
                     <i class="bi bi-magic me-1"></i>一键LLM提示词
                   </button>
                 </label>
                 <textarea id="bkg-domain-hint" class="form-control form-control-sm" rows="3"
-                  placeholder="例如：这是一个指标管理系统，主要涉及指标申请、审批、发布等业务流程…">这是一个销售系统，需要分析销售指标，请结合数据源kg图谱，构建业务图谱。</textarea>
-                <div class="form-text">提示 LLM 理解业务上下文，生成更准确的本体</div>
+                  placeholder="生成时填入业务领域上下文；调整时填入修订意图，如「把销售金额单位改为元」「为活跃用户数补充维度」…">这是一个销售系统，需要分析销售指标，请结合数据源kg图谱，构建业务图谱。</textarea>
+                <div class="form-text" id="bkg-mode-hint">填入业务领域上下文，提示 LLM 生成更准确的本体</div>
               </div>
 
-              <div class="mb-3">
-                <label class="form-label small fw-semibold">源业务库 / schema</label>
-                <input id="bkg-source-schema" class="form-control form-control-sm" value="tpcds" placeholder="例如：tpcds">
-                <div class="form-text">多库图谱中只使用该 schema 的表；留空则使用全部 schema</div>
-              </div>
+              <!-- 「生成业务图谱」专属配置 -->
+              <div id="bkg-build-config">
+                <div class="mb-3">
+                  <label class="form-label small fw-semibold">源业务库 / schema</label>
+                  <input id="bkg-source-schema" class="form-control form-control-sm" value="tpcds" placeholder="例如：tpcds">
+                  <div class="form-text">多库图谱中只使用该 schema 的表；留空则使用全部 schema</div>
+                </div>
 
-              <!-- ETL 连接 -->
-              <div class="mb-3">
-                <div class="d-flex align-items-center gap-2 mb-2">
-                  <label class="form-label small fw-semibold mb-0">指标平台数据库 <span class="text-muted">（配置后直接 ETL 导出，不调用 LLM）</span></label>
-                  <div class="form-check form-switch mb-0 ms-auto">
-                    <input class="form-check-input" type="checkbox" id="bkg-etl-enable" onchange="toggleBkgEtl(this.checked)">
+                <div class="mb-3">
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <label class="form-label small fw-semibold mb-0">指标平台数据库 <span class="text-muted">（配置后直接 ETL 导出，不调用 LLM）</span></label>
+                    <div class="form-check form-switch mb-0 ms-auto">
+                      <input class="form-check-input" type="checkbox" id="bkg-etl-enable" onchange="toggleBkgEtl(this.checked)">
+                    </div>
+                  </div>
+                  <div id="bkg-etl-fields" style="display:none">
+                    <div class="row g-1 mb-1">
+                      <div class="col-8"><input id="bkg-etl-host" class="form-control form-control-sm" placeholder="Host" value="127.0.0.1"></div>
+                      <div class="col-4"><input id="bkg-etl-port" class="form-control form-control-sm" type="number" placeholder="Port" value="3306"></div>
+                    </div>
+                    <div class="mb-1"><input id="bkg-etl-db" class="form-control form-control-sm" placeholder="数据库名"></div>
+                    <div class="row g-1">
+                      <div class="col-6"><input id="bkg-etl-user" class="form-control form-control-sm" placeholder="用户名"></div>
+                      <div class="col-6"><input id="bkg-etl-pass" class="form-control form-control-sm" type="password" placeholder="密码"></div>
+                    </div>
                   </div>
                 </div>
-                <div id="bkg-etl-fields" style="display:none">
-                  <div class="row g-1 mb-1">
-                    <div class="col-8"><input id="bkg-etl-host" class="form-control form-control-sm" placeholder="Host" value="127.0.0.1"></div>
-                    <div class="col-4"><input id="bkg-etl-port" class="form-control form-control-sm" type="number" placeholder="Port" value="3306"></div>
-                  </div>
-                  <div class="mb-1"><input id="bkg-etl-db" class="form-control form-control-sm" placeholder="数据库名"></div>
-                  <div class="row g-1">
-                    <div class="col-6"><input id="bkg-etl-user" class="form-control form-control-sm" placeholder="用户名"></div>
-                    <div class="col-6"><input id="bkg-etl-pass" class="form-control form-control-sm" type="password" placeholder="密码"></div>
-                  </div>
-                </div>
               </div>
 
-              <button class="btn btn-warning w-100" onclick="buildBizKG(this)">
+              <!-- 「应用调整」专属配置 -->
+              <div id="bkg-refine-config" style="display:none">
+                <div class="form-check form-switch mb-3">
+                  <input class="form-check-input" type="checkbox" id="bkg-refine-auto-empty-dim">
+                  <label class="form-check-label small" for="bkg-refine-auto-empty-dim">
+                    快捷模式：自动补全所有「关联维度为空」的指标
+                    <span class="text-muted">（绕过 LLM 识别，直接按结构匹配）</span>
+                  </label>
+                </div>
+                <div class="form-text mb-3">基于当前激活的业务图谱做增量增/改/删，自动归档旧版本</div>
+              </div>
+
+              <!-- 单一动作按钮 -->
+              <button id="bkg-action-btn" class="btn btn-warning w-100" onclick="bkgRunAction(this)">
                 <i class="bi bi-magic me-1"></i>生成业务图谱
-              </button>
-            </div>
-          </div>
-
-          <!-- 提示词调整：基于已激活的源/业务图谱做增量修订 -->
-          <div class="card mb-3">
-            <div class="card-header py-2">
-              <i class="bi bi-pencil-square me-1 text-success"></i>提示词调整
-              <span class="text-muted small">（基于当前激活的图谱）</span>
-            </div>
-            <div class="card-body">
-              <div class="mb-2">
-                <textarea id="bkg-refine-prompt" class="form-control form-control-sm" rows="3"
-                  placeholder="例如：把 ai_user_collect 上的「收藏总数」单位改为人次；新增『活跃用户数』指标；删除分类 cat_other…"></textarea>
-                <div class="form-text">让 LLM 输出 SPARQL UPDATE，对当前业务图谱做增量增/改/删，自动归档旧版本</div>
-              </div>
-              <div class="form-check form-switch mb-2">
-                <input class="form-check-input" type="checkbox" id="bkg-refine-auto-empty-dim">
-                <label class="form-check-label small" for="bkg-refine-auto-empty-dim">
-                  快捷模式：自动补全所有「关联维度为空」的指标
-                  <span class="text-muted">（绕过 LLM 识别，直接按结构匹配）</span>
-                </label>
-              </div>
-              <button class="btn btn-success w-100" onclick="refineBizKG(this)">
-                <i class="bi bi-magic me-1"></i>应用调整
               </button>
             </div>
           </div>
@@ -8096,12 +8101,43 @@ async function buildBizKG(btn) {
   };
 }
 
+function onBkgModeChange() {
+  const mode = document.querySelector('input[name="bkg-mode"]:checked')?.value || 'build';
+  const buildCfg  = document.getElementById('bkg-build-config');
+  const refineCfg = document.getElementById('bkg-refine-config');
+  const btn       = document.getElementById('bkg-action-btn');
+  const hint      = document.getElementById('bkg-mode-hint');
+  if (mode === 'build') {
+    if (buildCfg)  buildCfg.style.display = '';
+    if (refineCfg) refineCfg.style.display = 'none';
+    if (btn) {
+      btn.className = 'btn btn-warning w-100';
+      btn.innerHTML = '<i class="bi bi-magic me-1"></i>生成业务图谱';
+    }
+    if (hint) hint.textContent = '填入业务领域上下文，提示 LLM 生成更准确的本体';
+  } else {
+    if (buildCfg)  buildCfg.style.display = 'none';
+    if (refineCfg) refineCfg.style.display = '';
+    if (btn) {
+      btn.className = 'btn btn-success w-100';
+      btn.innerHTML = '<i class="bi bi-magic me-1"></i>应用调整';
+    }
+    if (hint) hint.textContent = '填入修订意图，对当前激活业务图谱做增量增/改/删';
+  }
+}
+
+function bkgRunAction(btn) {
+  const mode = document.querySelector('input[name="bkg-mode"]:checked')?.value || 'build';
+  if (mode === 'refine') return refineBizKG(btn);
+  return buildBizKG(btn);
+}
+
 async function refineBizKG(btn) {
-  const promptEl = document.getElementById('bkg-refine-prompt');
+  const promptEl = document.getElementById('bkg-domain-hint');
   const userPrompt = (promptEl?.value || '').trim();
   const autoEmptyDim = document.getElementById('bkg-refine-auto-empty-dim')?.checked || false;
   if (!userPrompt && !autoEmptyDim) {
-    showToast('请输入调整提示词，或勾选快捷模式', 'warning');
+    showToast('请输入调整意图，或勾选快捷模式', 'warning');
     return;
   }
   const logDiv      = document.getElementById('bkg-log');
