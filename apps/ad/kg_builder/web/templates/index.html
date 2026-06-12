@@ -1770,8 +1770,10 @@
 
               <!-- 共用文本框 -->
               <div class="mb-3">
-                <label class="form-label small fw-semibold">业务领域提示 / 调整意图 <span class="text-muted">(可选)</span>
-                  <button class="btn btn-sm btn-outline-info ms-2 py-0 px-2" onclick="generateBkgHint(this)" title="根据数据源图谱自动生成领域提示词">
+                <label class="form-label small fw-semibold">
+                  <span id="bkg-prompt-label-text">业务领域提示</span>
+                  <span id="bkg-prompt-label-suffix" class="text-muted">(可选)</span>
+                  <button id="bkg-hint-llm-btn" class="btn btn-sm btn-outline-info ms-2 py-0 px-2" onclick="generateBkgHint(this)" title="根据数据源图谱自动生成领域提示词">
                     <i class="bi bi-magic me-1"></i>一键LLM提示词
                   </button>
                 </label>
@@ -1828,10 +1830,10 @@
             </div>
           </div>
 
-          <!-- 构建日志 -->
+          <!-- 构建/调整日志 -->
           <div class="card">
             <div class="card-header py-2 d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-terminal me-1"></i>构建日志</span>
+              <span><i class="bi bi-terminal me-1"></i><span id="bkg-log-title">构建日志</span></span>
               <span id="bkg-status-badge" class="badge bg-secondary">空闲</span>
             </div>
             <div class="card-body p-0">
@@ -8107,6 +8109,12 @@ function onBkgModeChange() {
   const refineCfg = document.getElementById('bkg-refine-config');
   const btn       = document.getElementById('bkg-action-btn');
   const hint      = document.getElementById('bkg-mode-hint');
+  const lblText   = document.getElementById('bkg-prompt-label-text');
+  const lblSuffix = document.getElementById('bkg-prompt-label-suffix');
+  const llmBtn    = document.getElementById('bkg-hint-llm-btn');
+  const logTitle  = document.getElementById('bkg-log-title');
+  const ta        = document.getElementById('bkg-domain-hint');
+
   if (mode === 'build') {
     if (buildCfg)  buildCfg.style.display = '';
     if (refineCfg) refineCfg.style.display = 'none';
@@ -8114,7 +8122,12 @@ function onBkgModeChange() {
       btn.className = 'btn btn-warning w-100';
       btn.innerHTML = '<i class="bi bi-magic me-1"></i>生成业务图谱';
     }
-    if (hint) hint.textContent = '填入业务领域上下文，提示 LLM 生成更准确的本体';
+    if (hint)   hint.textContent     = '填入业务领域上下文，提示 LLM 生成更准确的本体';
+    if (lblText)   lblText.textContent   = '业务领域提示';
+    if (lblSuffix) lblSuffix.textContent = '(可选)';
+    if (llmBtn) llmBtn.style.display = '';
+    if (logTitle) logTitle.textContent = '构建日志';
+    if (ta) ta.placeholder = '例如：这是一个销售系统，需要分析销售指标…';
   } else {
     if (buildCfg)  buildCfg.style.display = 'none';
     if (refineCfg) refineCfg.style.display = '';
@@ -8122,7 +8135,12 @@ function onBkgModeChange() {
       btn.className = 'btn btn-success w-100';
       btn.innerHTML = '<i class="bi bi-magic me-1"></i>应用调整';
     }
-    if (hint) hint.textContent = '填入修订意图，对当前激活业务图谱做增量增/改/删';
+    if (hint)   hint.textContent = '填入修订意图，对当前激活业务图谱做增量增/改/删（勾选下方快捷模式时可留空）';
+    if (lblText)   lblText.textContent   = '调整意图';
+    if (lblSuffix) lblSuffix.textContent = '(可选，勾选快捷模式时可留空)';
+    if (llmBtn) llmBtn.style.display = 'none';
+    if (logTitle) logTitle.textContent = '调整日志';
+    if (ta) ta.placeholder = '例如：把销售金额单位改为元；为活跃用户数补充维度；删除分类 cat_other…';
   }
 }
 
@@ -8399,89 +8417,98 @@ async function runBkgValidate() {
   const sum = document.getElementById('bkv-summary');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>校验中…';
-  res.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div>正在逐个指标校验查询…</div>';
+  res.innerHTML = '<div class="text-muted small p-2"><span class="spinner-border spinner-border-sm me-1"></span>正在解析业务图谱…</div>';
   sum.textContent = '';
+  _bkvResults = [];
 
   try {
     const validateTab = document.querySelector('[href="#bkg-view-validate"]');
     if (validateTab) { new bootstrap.Tab(validateTab).show(); }
   } catch(e) {}
 
-  try {
-    const sel = document.getElementById('bkg-file-select');
-    const file = sel ? sel.value : '';
-    const r = await fetch('/api/business-kg/validate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file: file })
-    });
-    const d = await r.json();
-    if (!r.ok) { res.innerHTML = `<div class="alert alert-danger m-2 py-2 small">${d.error || '校验失败'}</div>`; return; }
+  const sel = document.getElementById('bkg-file-select');
+  const file = sel ? sel.value : '';
+  const url = '/api/business-kg/validate/stream' + (file ? `?file=${encodeURIComponent(file)}` : '');
 
-    sum.textContent = `${d.total}个指标，${d.passed}通过，${d.failed}失败`;
-
-    let html = '';
-    d.results.forEach((m, i) => {
-      const allOk = m.allOk;
-      const rowCls = allOk ? 'border-start border-3 border-success' : 'border-start border-3 border-danger';
-      html += `<div class="card mb-2" style="font-size:12px"><div class="card-header py-1 px-2 ${rowCls} d-flex justify-content-between align-items-center">`;
-      html += `<span><strong>${m.cnName || m.code}</strong> <code class="text-muted">${m.code}</code></span>`;
-      html += `<span>${allOk ? '<span class="badge bg-success">全部通过</span>' : '<span class="badge bg-danger">存在问题</span>'}</span>`;
-      html += `</div><div class="card-body p-2">`;
-
-      // 日期维表格
-      html += `<table class="table table-sm table-borderless mb-1" style="font-size:11px">`;
-      html += `<tr class="text-muted"><td style="width:80px" class="fw-semibold">日期维度</td>`;
-      m.dateDims.forEach(dd => {
-        const ok = dd.ok;
-        const ttl = ok ? `✓ ${dd.rows}行` : (dd.error || '✗');
-        if (dd.sample) {
-          const vals = Object.values(dd.sample).join(', ');
-          html += `<td style="text-align:center;cursor:help" title="${ttl} | 数据: ${vals}"><span style="color:${ok?'#6e9280':'#9b7c7c'}">${ok?'✓':'✗'}</span> ${dd.dim}: <span class="text-primary">${vals}</span></td>`;
-        } else {
-          html += `<td style="text-align:center;cursor:help" title="${ttl}"><span style="color:#9b7c7c">✗</span> ${dd.dim}`;
-          if (dd.dimCode) {
-            html += ` <button class="btn btn-sm btn-outline-warning py-0 px-1" style="font-size:10px" onclick="fixAndRetest('${m.code}','${dd.dimCode}','${(dd.error||'').replace(/'/g,"\\'")}',this)">修复并测试</button>`;
-          } else {
-            html += ` <button class="btn btn-sm btn-outline-warning py-0 px-1" style="font-size:10px" onclick="fixAndRetest('${m.code}','','${(dd.error||'').replace(/'/g,"\\'")}',this)">修复并测试</button>`;
-          }
-          html += `</td>`;
-        }
-      });
-      html += `</tr></table>`;
-
-      // 业务维表格
-      if (m.bizDims && m.bizDims.length > 0) {
-        html += `<table class="table table-sm mb-0" style="font-size:11px">`;
-        html += `<tr class="text-muted"><td style="width:80px" class="fw-semibold">业务维度</td>`;
-        m.bizDims.forEach(bd => {
-          const ok = bd.ok;
-          let ttl = ok ? `✓ ${bd.rows}行` : (bd.error || '✗');
-          let cell = '';
-          if (bd.sample) {
-            const vals = Object.values(bd.sample).join(', ');
-            ttl += ` | 数据: ${vals}`;
-            cell = `<td style="text-align:center;cursor:help" title="${ttl}"><span style="color:${ok?'#6e9280':'#9b7c7c'}">${ok?'✓':'✗'}</span> ${bd.dim}: ${vals}</td>`;
-          } else {
-            cell = `<td style="text-align:center" title="${ttl}"><span style="color:#9b7c7c">✗</span> ${bd.dim}`;
-            cell += ` <button class="btn btn-sm btn-outline-warning py-0 px-1" style="font-size:10px" onclick="fixAndRetest('${m.code}','${bd.dimCode}','${(bd.error||'').replace(/'/g,"\'")}',this)">修复并测试</button></td>`;
-          }
-          html += cell;
-        });
-        html += `</tr></table>`;
-      }
-
-      html += `</div></div>`;
-    });
-
-    res.innerHTML = html;
-    _bkvResults = d.results;
-  } catch(e) {
-    res.innerHTML = `<div class="alert alert-danger m-2 py-2 small">请求失败: ${e}</div>`;
-  } finally {
+  let total = 0;
+  let passed = 0, failed = 0;
+  const finalize = () => {
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>准确校验';
+  };
+
+  function buildMeasureCardHtml(m) {
+    const allOk = m.allOk;
+    const rowCls = allOk ? 'border-start border-3 border-success' : 'border-start border-3 border-danger';
+    let html = `<div class="card mb-2" style="font-size:12px"><div class="card-header py-1 px-2 ${rowCls} d-flex justify-content-between align-items-center">`;
+    html += `<span><strong>${m.cnName || m.code}</strong> <code class="text-muted">${m.code}</code></span>`;
+    html += `<span>${allOk ? '<span class="badge bg-success">全部通过</span>' : '<span class="badge bg-danger">存在问题</span>'}</span>`;
+    html += `</div><div class="card-body p-2">`;
+    html += `<table class="table table-sm table-borderless mb-1" style="font-size:11px">`;
+    html += `<tr class="text-muted"><td style="width:80px" class="fw-semibold">日期维度</td>`;
+    m.dateDims.forEach(dd => {
+      const ok = dd.ok;
+      const ttl = ok ? `✓ ${dd.rows}行` : (dd.error || '✗');
+      if (dd.sample) {
+        const vals = Object.values(dd.sample).join(', ');
+        html += `<td style="text-align:center;cursor:help" title="${ttl} | 数据: ${vals}"><span style="color:${ok?'#6e9280':'#9b7c7c'}">${ok?'✓':'✗'}</span> ${dd.dim}: <span class="text-primary">${vals}</span></td>`;
+      } else {
+        html += `<td style="text-align:center;cursor:help" title="${ttl}"><span style="color:#9b7c7c">✗</span> ${dd.dim}`;
+        html += ` <button class="btn btn-sm btn-outline-warning py-0 px-1" style="font-size:10px" onclick="fixAndRetest('${m.code}','${dd.dimCode||''}','${(dd.error||'').replace(/'/g,"\\'")}',this)">修复并测试</button>`;
+        html += `</td>`;
+      }
+    });
+    html += `</tr></table>`;
+    if (m.bizDims && m.bizDims.length > 0) {
+      html += `<table class="table table-sm mb-0" style="font-size:11px">`;
+      html += `<tr class="text-muted"><td style="width:80px" class="fw-semibold">业务维度</td>`;
+      m.bizDims.forEach(bd => {
+        const ok = bd.ok;
+        let ttl = ok ? `✓ ${bd.rows}行` : (bd.error || '✗');
+        let cell = '';
+        if (bd.sample) {
+          const vals = Object.values(bd.sample).join(', ');
+          ttl += ` | 数据: ${vals}`;
+          cell = `<td style="text-align:center;cursor:help" title="${ttl}"><span style="color:${ok?'#6e9280':'#9b7c7c'}">${ok?'✓':'✗'}</span> ${bd.dim}: ${vals}</td>`;
+        } else {
+          cell = `<td style="text-align:center" title="${ttl}"><span style="color:#9b7c7c">✗</span> ${bd.dim}`;
+          cell += ` <button class="btn btn-sm btn-outline-warning py-0 px-1" style="font-size:10px" onclick="fixAndRetest('${m.code}','${bd.dimCode}','${(bd.error||'').replace(/'/g,"\\'")}',this)">修复并测试</button></td>`;
+        }
+        html += cell;
+      });
+      html += `</tr></table>`;
+    }
+    html += `</div></div>`;
+    return html;
   }
+
+  let appendedAny = false;
+  const es = new EventSource(url);
+  es.onmessage = (ev) => {
+    if (ev.data === '__DONE__') { es.close(); finalize(); return; }
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch (_) { return; }
+    if (msg.type === 'init') {
+      total = msg.total;
+      sum.textContent = `${total} 个指标，校验中… 0/${total}`;
+      if (!appendedAny) res.innerHTML = '';
+    } else if (msg.type === 'measure') {
+      if (!appendedAny) { res.innerHTML = ''; appendedAny = true; }
+      const m = msg.result;
+      _bkvResults.push(m);
+      if (m.allOk) passed += 1; else failed += 1;
+      sum.textContent = `${total} 个指标，已完成 ${msg.index}/${total}（通过 ${passed} / 失败 ${failed}）`;
+      const wrap = document.createElement('div');
+      wrap.innerHTML = buildMeasureCardHtml(m);
+      res.appendChild(wrap.firstElementChild);
+      res.scrollTop = res.scrollHeight;
+    } else if (msg.type === 'summary') {
+      sum.textContent = `${msg.total} 个指标，${msg.passed} 通过，${msg.failed} 失败`;
+    } else if (msg.type === 'error') {
+      res.insertAdjacentHTML('beforeend', `<div class="alert alert-danger m-2 py-2 small">${msg.error}</div>`);
+    }
+  };
+  es.onerror = () => { es.close(); finalize(); };
 }
 
 let _bkvResults = [];

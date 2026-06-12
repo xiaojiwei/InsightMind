@@ -3247,30 +3247,64 @@ async def business_kg_nodes(file: str = ""):
 
 @app.post("/api/business-kg/validate")
 async def business_kg_validate(file: str = ""):
-    """校验业务图谱中每个指标+日期维度的查询有效性"""
+    """校验业务图谱中每个指标+日期维度的查询有效性（一次性返回完整结果）"""
+    ttl_path = _resolve_bkg_path(file)
+    if not ttl_path:
+        return JSONResponse(status_code=404, content={"error": "未找到业务图谱文件"})
+    results = []
+    total = 0
+    summary = {"passed": 0, "failed": 0}
+    for ev in _validate_bkg_iter(ttl_path):
+        if ev["type"] == "init":
+            total = ev["total"]
+        elif ev["type"] == "measure":
+            results.append(ev["result"])
+        elif ev["type"] == "summary":
+            summary = {"passed": ev["passed"], "failed": ev["failed"]}
+    return {"file": str(ttl_path.name), "total": total,
+            "passed": summary["passed"], "failed": summary["failed"], "results": results}
+
+
+@app.get("/api/business-kg/validate/stream")
+async def business_kg_validate_stream(file: str = ""):
+    """SSE 流式校验：每完成一个指标即推送一条事件。"""
+    ttl_path = _resolve_bkg_path(file)
+    if not ttl_path:
+        return JSONResponse(status_code=404, content={"error": "未找到业务图谱文件"})
+
+    def gen():
+        yield f"data: {json.dumps({'type': 'file', 'file': ttl_path.name})}\n\n"
+        try:
+            for ev in _validate_bkg_iter(ttl_path):
+                yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)[:300]}, ensure_ascii=False)}\n\n"
+        yield "data: __DONE__\n\n"
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+def _resolve_bkg_path(file: str) -> Optional[Path]:
+    if file:
+        p = (BKG_DIR / Path(file).name).resolve()
+        if str(p).startswith(str(BKG_DIR.resolve())) and p.exists():
+            return p
+        return None
+    if _current_bkg_path and _current_bkg_path.exists():
+        return _current_bkg_path
+    p = BKG_DIR / "indicator-data.ttl"
+    return p if p.exists() else None
+
+
+def _validate_bkg_iter(ttl_path: Path):
+    """逐指标校验生成器，先 yield init/measure/summary 事件。"""
     from rdflib import Graph, Namespace
     import urllib.request as _ureq
-
-    # 确定 TTL 文件
-    ttl_path = None
-    if file:
-        ttl_path = (BKG_DIR / file)
-    elif _current_bkg_path and _current_bkg_path.exists():
-        ttl_path = _current_bkg_path
-    else:
-        # fallback
-        existing = sorted(BKG_DIR.glob("indicator-data.ttl"))
-        if existing:
-            ttl_path = existing[-1]
-    if not ttl_path or not ttl_path.exists():
-        return JSONResponse(status_code=404, content={"error": "未找到业务图谱文件"})
 
     IND = Namespace("http://indicator.lixiang.com/ontology#")
     g = Graph()
     g.parse(str(ttl_path), format="turtle")
 
     # ── 从 TTL 动态推导每个指标的维度关联 ──────────────────────────────── #
-    # DimApp → Dimension code（通过 hasDimApp 逆向）
     dimapp_to_dim = {}
     for dim_inst, _, code_o in g.triples((None, IND.code, None)):
         code_s = str(code_o)
@@ -3279,7 +3313,6 @@ async def business_kg_validate(file: str = ""):
         for dapp in g.objects(dim_inst, IND.hasDimApp):
             dimapp_to_dim[str(dapp)] = code_s
 
-    # DimApp → table name（通过 dimFactTable）
     dimapp_to_table = {}
     for s, p, o in g.triples((None, IND.dimFactTable, None)):
         da_uri = str(s)
@@ -3288,7 +3321,6 @@ async def business_kg_validate(file: str = ""):
             if tbl_name:
                 dimapp_to_table[da_uri] = tbl_name
 
-    # 收集所有原子指标，同时推导其日期维和业务维
     seen = set()
     measures = []
     for inst in g.subjects(None, None):
@@ -3302,23 +3334,20 @@ async def business_kg_validate(file: str = ""):
         mtype = g.value(inst, IND.measTypeCode)
         is_derived = mtype and int(float(str(mtype))) == 1
 
-        # 收集该指标的关联表
         tables = set()
         for mapp in g.objects(inst, IND.hasMeasureApp):
             tbl = g.value(mapp, IND.appliesToTable)
             if tbl:
                 tables.add(str(g.value(tbl, IND.tableName) or ""))
 
-        # 从所有 DimApp 中找出关联 dimFactTable 属于这些表的维度
-        date_dims = []  # [(code, name, level)]
-        biz_dims = []   # [(code, name)]
+        date_dims = []
+        biz_dims = []
         seen_dim = set()
         for da_uri, tbl_name in dimapp_to_table.items():
             if tbl_name in tables:
                 dim_code = dimapp_to_dim.get(da_uri, "")
                 if dim_code and dim_code not in seen_dim:
                     seen_dim.add(dim_code)
-                    # 找到该 dim_code 对应的 Dimension 实例
                     dim_uri = None
                     for _di, _, _dc in g.triples((None, IND.code, None)):
                         if str(_dc) == dim_code:
@@ -3331,7 +3360,6 @@ async def business_kg_validate(file: str = ""):
                     else:
                         biz_dims.append((dim_code, dim_cn))
 
-        # 日期维按粒度排序
         lvl_order = {"day": 0, "week": 1, "month": 2, "quarter": 3, "year": 4}
         date_dims.sort(key=lambda x: lvl_order.get(x[2], 99))
 
@@ -3343,31 +3371,27 @@ async def business_kg_validate(file: str = ""):
             "isDerived": is_derived,
         })
 
-    # ── 辅助函数：格式化日期 ────────────────────────────────────────────── #
+    yield {"type": "init", "total": len(measures), "file": str(ttl_path.name)}
+
     def _fmt_date(val, level):
-        """将 yyyy-MM-dd 按周期级别格式化"""
         if not val or level not in ("day", "week", "month", "quarter", "year"):
             return val
         try:
             from datetime import datetime
             dt = datetime.strptime(str(val)[:10], "%Y-%m-%d")
-            if level == "day":
-                return dt.strftime("%Y-%m-%d")
-            elif level == "week":
+            if level == "day":    return dt.strftime("%Y-%m-%d")
+            if level == "week":
                 iso = dt.isocalendar()
                 return f"{iso[0]}{iso[1]:02d}"
-            elif level == "month":
-                return dt.strftime("%Y%m")
-            elif level == "quarter":
+            if level == "month":  return dt.strftime("%Y%m")
+            if level == "quarter":
                 q = (dt.month - 1) // 3 + 1
                 return f"{dt.year}{q}"
-            elif level == "year":
-                return dt.strftime("%Y")
+            if level == "year":   return dt.strftime("%Y")
         except Exception:
             return val
         return val
 
-    # ── 辅助函数：查询 DA ──────────────────────────────────────────────── #
     def _query_da(meas_code, dim_code):
         payload = json.dumps({
             "configureList": [
@@ -3391,29 +3415,19 @@ async def business_kg_validate(file: str = ""):
         except Exception as e:
             return {"ok": False, "error": str(e)[:200]}
 
-    # ── 逐指标校验 ─────────────────────────────────────────────────────── #
-    results = []
     passed_all = 0
     failed_any = 0
-
-    for m in measures:
-        # 衍生指标：同样做 DA 查询
-        pass
-
-        # A) 日期维校验（指标 + 每个日期维）
+    for idx, m in enumerate(measures, 1):
         date_results = []
         for dd in m["dateDims"]:
             r = _query_da(m["code"], dd["code"])
-            # DA 不返回 alias，sample key 是 dim/meas code；格式化日期维值
             if r.get("ok") and r.get("sample") and dd["code"] in r["sample"]:
                 r["sample"][dd["code"]] = _fmt_date(r["sample"][dd["code"]], dd["level"])
             date_results.append({"dim": dd["cnName"], "dimCode": dd["code"], "level": dd["level"], **r})
 
-        # B) 业务维 + 日期-日 联合校验
         biz_results = []
         day_code = next((dd["code"] for dd in m["dateDims"] if dd["level"] == "day"), "")
         for bd in m["bizDims"]:
-            # 多列查询：业务维 + 日期-日 + 指标
             payload = json.dumps({
                 "configureList": [
                     {"code": m["code"], "order": {"sortType": 0}, "ratioList": [], "alias": "v"},
@@ -3443,29 +3457,27 @@ async def business_kg_validate(file: str = ""):
             else:
                 biz_results.append({"dim": bd["cnName"], "dimCode": bd["code"], "ok": False, "error": "缺少日期-日维度"})
 
-        # 必须有至少一个日期维
         has_date_dim = len(date_results) > 0
         date_ok = has_date_dim and all(r["ok"] for r in date_results)
         biz_ok = all(r["ok"] for r in biz_results) if biz_results else True
         all_ok = date_ok and biz_ok
-        # 无日期维 — 记录错误
         if not has_date_dim:
             date_results.append({"dim": "(缺少日期维度)", "dimCode": "", "level": "", "ok": False,
                                  "error": "该指标在业务图谱中未关联任何日期维度，请检查 TTL"})
 
-        results.append({
+        result = {
             "code": m["code"], "cnName": m["cnName"],
             "dateDims": date_results,
             "bizDims": biz_results,
             "allOk": all_ok,
-        })
+        }
         if all_ok:
             passed_all += 1
         else:
             failed_any += 1
+        yield {"type": "measure", "index": idx, "total": len(measures), "result": result}
 
-    return {"file": str(ttl_path.name), "total": len(measures),
-            "passed": passed_all, "failed": failed_any, "results": results}
+    yield {"type": "summary", "total": len(measures), "passed": passed_all, "failed": failed_any}
 
 
 class BkgFixRequest(BaseModel):
