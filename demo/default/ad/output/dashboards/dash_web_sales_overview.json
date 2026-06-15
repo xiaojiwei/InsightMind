@@ -1,0 +1,327 @@
+{
+  "id": "dash_web_sales_overview",
+  "name": "Test我的看板",
+  "globalFilters": [],
+  "linkedFilter": null,
+  "widgets": [
+    {
+      "id": "w_kpi",
+      "adhocId": "adhoc_web_sales_kpi",
+      "name": "网络销售金额 KPI",
+      "spec": {
+        "id": "adhoc_web_sales_kpi",
+        "name": "网络销售金额 KPI",
+        "query": {
+          "measures": [
+            "ad.web_sales_amount"
+          ],
+          "dimensions": [],
+          "filters": [],
+          "order": {},
+          "limit": 1000
+        },
+        "view": {
+          "type": "chart",
+          "chartType": "kpi",
+          "encoding": {
+            "y": "ad.web_sales_amount"
+          }
+        },
+        "drill": {
+          "enabled": true,
+          "path": [
+            "ad.web_sales_date_year",
+            "ad.web_sales_date_month",
+            "ad.web_sales_date_day"
+          ],
+          "stack": []
+        }
+      },
+      "layout": {
+        "x": 6,
+        "y": 12,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "id": "w_trend",
+      "adhocId": "adhoc_web_sales_month_trend",
+      "name": "网络销售金额月度趋势",
+      "spec": {
+        "id": "adhoc_web_sales_month_trend",
+        "name": "网络销售金额月度趋势",
+        "query": {
+          "measures": [
+            "ad.web_sales_amount"
+          ],
+          "dimensions": [
+            "ad.web_sales_date_month"
+          ],
+          "filters": [],
+          "order": {
+            "ad.web_sales_date_month": "asc"
+          },
+          "limit": 1000
+        },
+        "view": {
+          "type": "chart",
+          "chartType": "line",
+          "encoding": {
+            "x": "ad.web_sales_date_month",
+            "y": "ad.web_sales_amount"
+          }
+        },
+        "drill": {
+          "enabled": true,
+          "path": [
+            "ad.web_sales_date_year",
+            "ad.web_sales_date_day"
+          ],
+          "stack": []
+        }
+      },
+      "layout": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 4
+      }
+    },
+    {
+      "id": "w_city",
+      "adhocId": "adhoc_web_sales_city_bar",
+      "name": "网络销售金额城市分布",
+      "spec": {
+        "id": "adhoc_web_sales_city_bar",
+        "name": "网络销售金额城市分布",
+        "query": {
+          "measures": [
+            "ad.web_sales_amount"
+          ],
+          "dimensions": [
+            "ad.warehouse_city"
+          ],
+          "filters": [],
+          "order": {
+            "ad.web_sales_amount": "desc"
+          },
+          "limit": 1000
+        },
+        "view": {
+          "type": "chart",
+          "chartType": "bar",
+          "encoding": {
+            "x": "ad.warehouse_city",
+            "y": "ad.web_sales_amount"
+          }
+        },
+        "drill": {
+          "enabled": true,
+          "path": [
+            "ad.warehouse"
+          ],
+          "stack": []
+        }
+      },
+      "layout": {
+        "x": 0,
+        "y": 20,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "id": "w_profit",
+      "adhocId": "adhoc_web_profit_city_bar",
+      "name": "网络净利润城市分布",
+      "spec": {
+        "id": "adhoc_web_profit_city_bar",
+        "name": "网络净利润城市分布",
+        "query": {
+          "measures": [
+            "ad.web_net_profit"
+          ],
+          "dimensions": [
+            "ad.warehouse_city"
+          ],
+          "filters": [],
+          "order": {
+            "ad.web_net_profit": "desc"
+          },
+          "limit": 1000
+        },
+        "view": {
+          "type": "chart",
+          "chartType": "bar",
+          "encoding": {
+            "x": "ad.warehouse_city",
+            "y": "ad.web_net_profit"
+          }
+        },
+        "drill": {
+          "enabled": true,
+          "path": [
+            "ad.warehouse"
+          ],
+          "stack": []
+        }
+      },
+      "layout": {
+        "x": 6,
+        "y": 20,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "id": "w_1780542521638",
+      "adhocId": "adhoc_web_sales_city_bar",
+      "name": "网络销售金额城市分布",
+      "spec": {
+        "id": "adhoc_web_sales_city_bar",
+        "name": "网络销售金额城市分布",
+        "query": {
+          "measures": [
+            "ad.web_sales_amount"
+          ],
+          "dimensions": [
+            "ad.warehouse_city"
+          ],
+          "filters": [],
+          "order": {
+            "ad.web_sales_amount": "desc"
+          },
+          "limit": 1000
+        },
+        "view": {
+          "type": "chart",
+          "chartType": "bar",
+          "encoding": {
+            "x": "ad.warehouse_city",
+            "y": "ad.web_sales_amount"
+          }
+        },
+        "drill": {
+          "enabled": true,
+          "path": [
+            "ad.warehouse"
+          ],
+          "stack": []
+        },
+        "summary": "按仓库城市对比网络销售金额",
+        "kind": "adhoc",
+        "updatedAt": "2026-06-04 07:12:17"
+      },
+      "layout": {
+        "x": 0,
+        "y": 12,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "id": "w_1780558248961",
+      "adhocId": "adhoc_web_sales_kpi",
+      "name": "网络销售金额 KPI222",
+      "spec": {
+        "id": "adhoc_web_sales_kpi",
+        "name": "网络销售金额 KPI222",
+        "query": {
+          "measures": [
+            "ad.web_sales_amount"
+          ],
+          "dimensions": [
+            "ad.date_month"
+          ],
+          "filters": [],
+          "order": {},
+          "limit": 1000
+        },
+        "view": {
+          "type": "pivot",
+          "chartType": "auto",
+          "encoding": {
+            "y": "ad.web_sales_amount",
+            "pivotColumns": [
+              "ad.date_week",
+              "ad.warehouse"
+            ]
+          }
+        },
+        "drill": {
+          "enabled": true,
+          "path": [
+            "ad.web_sales_date_year",
+            "ad.web_sales_date_month",
+            "ad.web_sales_date_day",
+            "ad.warehouse_city"
+          ],
+          "stack": []
+        },
+        "kind": "adhoc",
+        "updatedAt": "2026-06-04 15:30:44"
+      },
+      "layout": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": "w_1780724852698",
+      "adhocId": "adhoc_web_sales_kpi",
+      "name": "桑基图分析",
+      "spec": {
+        "id": "adhoc_web_sales_kpi",
+        "name": "桑基图分析",
+        "query": {
+          "measures": [
+            "ad.web_sales_amount",
+            "ad.web_net_profit",
+            "ad.web_order_cnt"
+          ],
+          "dimensions": [
+            "ad.date_month",
+            "ad.warehouse",
+            "ad.warehouse_city"
+          ],
+          "filters": [],
+          "order": {},
+          "limit": 1000
+        },
+        "view": {
+          "type": "chart",
+          "chartType": "sankey",
+          "encoding": {
+            "y": "ad.web_sales_amount",
+            "pivotColumns": [
+              "ad.date_week",
+              "ad.warehouse"
+            ]
+          }
+        },
+        "drill": {
+          "enabled": true,
+          "path": [
+            "ad.web_sales_date_year",
+            "ad.web_sales_date_month",
+            "ad.web_sales_date_day"
+          ],
+          "stack": []
+        },
+        "kind": "adhoc",
+        "updatedAt": "2026-06-06 13:47:15"
+      },
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 4
+      }
+    }
+  ],
+  "kind": "dashboard",
+  "updatedAt": "2026-06-06 13:47:52"
+}

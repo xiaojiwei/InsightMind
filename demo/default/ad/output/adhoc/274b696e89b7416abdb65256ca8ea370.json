@@ -1,0 +1,30 @@
+{
+  "id": "274b696e89b7416abdb65256ca8ea370",
+  "name": "测试透视组件",
+  "query": {
+    "measures": [
+      "ad.web_sales_amount"
+    ],
+    "dimensions": [
+      "ad.warehouse_city"
+    ],
+    "filters": [],
+    "order": {},
+    "limit": 1000
+  },
+  "view": {
+    "type": "pivot",
+    "chartType": "auto",
+    "encoding": {
+      "pivotColumns": [
+        "ad.date_week"
+      ]
+    }
+  },
+  "drill": {
+    "path": [],
+    "stack": []
+  },
+  "kind": "adhoc",
+  "updatedAt": "2026-06-04 14:06:02"
+}

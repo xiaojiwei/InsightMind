@@ -13,6 +13,7 @@ import functools
 import json
 import logging
 import queue
+import shutil
 import threading
 import time
 import uuid
@@ -42,8 +43,28 @@ ADHOC_DIR = OUTPUT_DIR / "adhoc"
 ADHOC_DIR.mkdir(exist_ok=True)
 DASHBOARD_DIR = OUTPUT_DIR / "dashboards"
 DASHBOARD_DIR.mkdir(exist_ok=True)
+DEMO_OUTPUT_DIR = BASE_DIR.parents[1] / "demo" / "default" / "ad" / "output"
 # KG files are named kg_YYYYMMDD_NNN.ttl; legacy kg.ttl is still auto-detected
 _current_kg_path: Optional[Path] = None
+
+
+def _seed_demo_assets() -> None:
+    """Restore the checked-in default demo into runtime output when missing."""
+    if not DEMO_OUTPUT_DIR.exists():
+        return
+
+    for src in DEMO_OUTPUT_DIR.rglob("*"):
+        if not src.is_file():
+            continue
+        rel = src.relative_to(DEMO_OUTPUT_DIR)
+        dst = OUTPUT_DIR / rel
+        if dst.exists():
+            continue
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+
+
+_seed_demo_assets()
 
 
 def _next_kg_path() -> Path:

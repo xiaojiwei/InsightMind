@@ -1,0 +1,36 @@
+{
+  "id": "adhoc_web_profit_city_bar",
+  "name": "网络净利润城市分布",
+  "query": {
+    "measures": [
+      "ad.web_net_profit"
+    ],
+    "dimensions": [
+      "ad.warehouse_city"
+    ],
+    "filters": [],
+    "order": {
+      "ad.web_net_profit": "desc"
+    },
+    "limit": 1000
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "bar",
+    "encoding": {
+      "x": "ad.warehouse_city",
+      "y": "ad.web_net_profit"
+    }
+  },
+  "drill": {
+    "enabled": true,
+    "path": [
+      "ad.warehouse_city",
+      "ad.warehouse"
+    ],
+    "stack": []
+  },
+  "summary": "按城市对比网络净利润",
+  "kind": "adhoc",
+  "updatedAt": "2026-06-04 07:12:18"
+}

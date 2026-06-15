@@ -30,7 +30,9 @@ The current workflow is usually:
 - Optional: an OpenAI-compatible LLM gateway for translation, NLQ fallback,
   or LLM business KG generation.
 
-For the TPC-DS demo used in local development, prepare a MySQL database named
+For the TPC-DS demo used in local development, the repository includes checked-in
+demo assets under `../../demo/default/ad/output`. AD restores them into
+`output/` automatically when they are missing. Prepare a MySQL database named
 `tpcds` and load `tpcds_schema.sql` plus sample data if you want real query
 results.
 
@@ -127,6 +129,24 @@ http://localhost:8080/
 The web UI can build the data-source KG, generate/load a business KG, and run
 Ad-Hoc queries. Generated artifacts are written under `output/`.
 
+## Default Demo Assets
+
+From the repository root:
+
+```bash
+./scripts/init-demo-assets.sh
+./scripts/init-demo-db.sh
+./scripts/insightmind.sh restart
+```
+
+This restores the default data-source KG, business KG, saved Ad-Hoc components,
+and dashboards from `demo/default/ad/output`. The default dashboard can be opened
+at:
+
+```text
+http://localhost:8080/?dashboard=dash_web_sales_overview#tab-dashboard
+```
+
 ## Run From CLI
 
 Build a KG:
@@ -214,7 +234,7 @@ Run PYTHONPATH=. pytest before committing code changes.
 
 ## Can A Fresh Clone Start?
 
-A fresh clone can install dependencies and start the web UI after Python
-dependencies are installed. It will not produce useful KG/query results until a
-local database is configured and populated. LLM-dependent features also require
-user-provided LLM environment variables.
+A fresh clone can install dependencies, restore the default demo assets, and
+start the web UI after Python dependencies are installed. Real query results
+require a local MySQL demo database initialized with `scripts/init-demo-db.sh`.
+LLM-dependent features require user-provided LLM environment variables.

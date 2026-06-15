@@ -1,22 +1,23 @@
 """Generate TPC-DS sample data locally — no network needed."""
+import os
 import random
 import mysql.connector
 from datetime import date, timedelta, datetime
 
 random.seed(42)
-conn = mysql.connector.connect(user='root', password='root', database='tpcds')
+conn = mysql.connector.connect(
+    host=os.getenv("TPCDS_DB_HOST", os.getenv("MYSQL_HOST", "127.0.0.1")),
+    port=int(os.getenv("TPCDS_DB_PORT", os.getenv("MYSQL_PORT", "3306"))),
+    user=os.getenv("TPCDS_DB_USER", os.getenv("MYSQL_USER", "root")),
+    password=os.getenv("TPCDS_DB_PASSWORD", os.getenv("MYSQL_PASSWORD", "root")),
+    database=os.getenv("TPCDS_DB_NAME", os.getenv("TPCDS_DB", "tpcds")),
+)
 cur = conn.cursor()
 
 # ── Helper ──
 def rand_date(start, end):
     delta = (end - start).days
     return start + timedelta(days=random.randint(0, delta))
-
-# ── Pre-fetch valid date_sk values for fact table use ──
-print("Fetching valid date_sk values...")
-cur.execute("SELECT d_date_sk FROM date_dim")
-valid_date_sks = [row[0] for row in cur.fetchall()]
-print(f"  → {len(valid_date_sks)} valid dates available")
 
 # ── date_dim: ~2 years ──
 print("Generating date_dim...")
@@ -46,6 +47,11 @@ for i, d in enumerate(range((end - start).days + 1)):
 cur.executemany("INSERT IGNORE INTO date_dim VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", data)
 conn.commit()
 print(f"  → {len(data)} rows")
+
+print("Fetching valid date_sk values...")
+cur.execute("SELECT d_date_sk FROM date_dim")
+valid_date_sks = [row[0] for row in cur.fetchall()]
+print(f"  → {len(valid_date_sks)} valid dates available")
 
 # ── time_dim ──
 print("Generating time_dim...")

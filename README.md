@@ -228,60 +228,73 @@ logs/da.log
 
 ## 默认演示环境：TPC-DS
 
-InsightMind 以 **TPC-DS**（零售决策支持基准）作为开箱即用的演示数据库。系统默认配置连接本地 MySQL 中的 `tpcds` 库，预置了 24 张表（17 张维度表 + 7 张事实表），包含门店、目录、网站三条销售渠道的完整数据模型。
+InsightMind 以 **TPC-DS**（零售决策支持基准）作为开箱即用的演示案例。仓库已经内置一套可直接恢复的默认资产：
 
-同时，系统预生成了一份 **默认业务知识图谱**（`indicator-data.ttl`），DA 服务启动时自动加载。安装完成后按以下步骤初始化即可跑通全流程。
+- 数据库脚本：`apps/ad/tpcds_schema.sql`、`apps/ad/tpcds_data.py`、`apps/da/schema.sql`
+- 数据源知识图谱：`demo/default/ad/output/kg_tpcds.ttl`
+- 业务知识图谱：`demo/default/ad/output/business_kg/indicator-data.ttl`
+- 已保存 Ad-Hoc 组件：`demo/default/ad/output/adhoc/*.json`
+- 已保存 dashboard：`demo/default/ad/output/dashboards/*.json`
 
-### 1. 创建 TPC-DS 数据库并导入表结构
+别人下载项目后，只要完成依赖安装、初始化 demo 数据库并启动服务，就可以直接看到：
 
-```bash
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS tpcds DEFAULT CHARACTER SET utf8mb4;"
-mysql -u root -p tpcds < apps/ad/tpcds_schema.sql
-```
+- **数据图谱**：TPC-DS 表、字段、主外键和关系网络。
+- **业务图谱**：预置指标、维度、数仓表和指标应用关系。
+- **Ad-Hoc 组件**：已经保存好的 KPI、趋势图、城市分布等组件。
+- **Dashboard**：默认销售分析看板 `dash_web_sales_overview`。
 
-### 2. 生成演示数据
+如果只启动 AD、不初始化数据库，也能看到图谱和 dashboard 配置；但 dashboard 要真正查询出数据，需要先初始化本地 MySQL 演示库。
 
-```bash
-cd apps/ad
-source venv/bin/activate
-python tpcds_data.py
-```
-
-> `tpcds_data.py` 使用固定随机种子（seed=42）在本地生成一致的演示数据，无需联网。生成约 5,000+ 行业务数据，覆盖 2025-2026 两年时间范围。
-
-### 3. 构建数据源知识图谱
-
-在 AD Web UI（http://localhost:8080/）中点击「构建」，或通过 API：
+AD 启动时会在运行目录缺失这些文件时自动恢复默认案例。也可以手动恢复：
 
 ```bash
-curl -X POST http://localhost:8080/api/build \
-  -H "Content-Type: application/json" \
-  -d '{"database": "tpcds", "rebuild": true}'
+./scripts/init-demo-assets.sh
 ```
 
-> 此步骤自动解析 TPC-DS 的表结构、采样数据、主外键和隐式关系，生成数据源知识图谱 `apps/ad/output/kg_tpcds.ttl`。
+### 一键初始化本地 demo 数据库
 
-### 4. 生成默认业务知识图谱
+默认使用本地 MySQL `root/root`，创建并写入：
+
+- `tpcds`：TPC-DS 演示业务库，约 5,000+ 行确定性样例数据，覆盖 2025-2026 年。
+- `indbtest`：DA 元数据库。
+
+```bash
+./scripts/init-demo-db.sh
+```
+
+如本机 MySQL 账号不同，通过环境变量覆盖：
+
+```bash
+MYSQL_USER=root MYSQL_PASSWORD=your_password ./scripts/init-demo-db.sh
+```
+
+> `init-demo-db.sh` 会重建 `tpcds` 演示库；不要把它指向已有生产或重要数据库。
+
+### 启动并打开默认 dashboard
+
+完整 demo 启动流程：
+
+```bash
+./scripts/init-demo-assets.sh
+./scripts/init-demo-db.sh
+./scripts/insightmind.sh restart
+```
+
+打开：
+
+```text
+http://localhost:8080/?dashboard=dash_web_sales_overview#tab-dashboard
+```
+
+这时可以在 AD 页面查看数据图谱、业务图谱、已保存组件和默认 dashboard；dashboard 中的图表会基于 `tpcds` 演示数据执行查询。
+
+这套默认案例不依赖 LLM。需要重新生成业务知识图谱时，再配置 LLM 环境变量并运行：
 
 ```bash
 cd apps/ad
 source venv/bin/activate
 python generate_tpcds_bkg.py
 ```
-
-> 该脚本分两阶段调用 LLM：先推断 30+ 指标和指标应用（销售额、退货率等跨渠道指标），再生成 15 张物理表、12+ 维度及维度应用。最终输出至 `apps/ad/output/business_kg/indicator-data.ttl`。
->
-> 需要提前配置 LLM 环境变量（参见下方「AD 配置」）。
-
-### 5. 上传业务图谱至 DA
-
-DA 默认监控 `indicator-data.ttl` 并热加载。第 4 步生成的文件已位于 DA 配置的默认路径下。如需手动触发加载，可在 DA Web UI（http://localhost:8091/）中操作，或重启 DA：
-
-```bash
-./scripts/insightmind.sh restart da
-```
-
-> 以上步骤完成后，DA 的 NLQ 查询、指标浏览、仪表盘等功能均可基于 TPC-DS 演示数据正常运行。
 
 ---
 

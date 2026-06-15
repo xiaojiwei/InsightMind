@@ -21,7 +21,7 @@ GraphBuilder and uses it to build SQL for Ad-Hoc indicator queries.
 - Maven 3.6 or newer.
 - MySQL 5.7/8.0-compatible database for the DA metadata schema.
 - Optional: Redis on `127.0.0.1:6379` for features that use Redis.
-- Optional for GraphBuilder integration: a generated business KG file at
+- Optional for GraphBuilder integration: a generated or restored business KG file at
   `GraphBuilder/output/business_kg/indicator-data.ttl`.
 
 The repository contains several environment-specific YAML files. Treat them as
@@ -54,6 +54,16 @@ mysql -u YOUR_DB_USER -p indbtest < schema.sql
 
 The schema gives the service the required tables. Business data and metadata may
 still be empty until imported or created through APIs.
+
+For the repository default demo, run this from the workspace root instead:
+
+```bash
+./scripts/init-demo-db.sh
+./scripts/init-demo-assets.sh
+```
+
+That initializes the `indbtest` metadata database and restores the TPC-DS
+business KG consumed by DA.
 
 ## Run Locally
 
@@ -90,7 +100,7 @@ http://localhost:8091/
 
 ## GraphBuilder Integration
 
-1. Start or run GraphBuilder and generate:
+1. Start or run GraphBuilder and generate or restore:
 
    ```text
    /path/to/GraphBuilder/output/business_kg/indicator-data.ttl
@@ -154,8 +164,7 @@ Run mvn -DskipTests package before committing code changes.
 
 ## Can A Fresh Clone Start?
 
-A fresh clone can compile with Maven. A full local service start also needs a
-local MySQL database initialized from `schema.sql`, local database credentials
-provided at runtime, and preferably a GraphBuilder-generated business KG file.
-Without those runtime dependencies, the application may build successfully but
-will not be fully usable.
+A fresh clone can compile with Maven. A full local demo start needs local MySQL
+initialized with `scripts/init-demo-db.sh` and the checked-in demo assets
+restored with `scripts/init-demo-assets.sh`. Without those runtime dependencies,
+the application may build successfully but will not be fully usable.

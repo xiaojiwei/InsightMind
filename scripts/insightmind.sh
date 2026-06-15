@@ -12,6 +12,7 @@ AD_PORT="${INSIGHTMIND_AD_PORT:-8080}"
 DA_PORT="${INSIGHTMIND_DA_PORT:-8091}"
 AD_LOG="$LOG_DIR/ad.log"
 DA_LOG="$LOG_DIR/da.log"
+DEMO_OUTPUT_DIR="$ROOT_DIR/demo/default/ad/output"
 
 python_has_ad_deps() {
   local python_bin="$1"
@@ -39,6 +40,18 @@ fi
 
 DA_JAR="$DA_DIR/target/da-indicator-0.0.1-SNAPSHOT.jar"
 KG_PATH="$AD_DIR/output/business_kg/indicator-data.ttl"
+
+ensure_demo_assets() {
+  if [[ -f "$KG_PATH" ]]; then
+    return
+  fi
+  if [[ ! -d "$DEMO_OUTPUT_DIR" ]]; then
+    return
+  fi
+
+  mkdir -p "$AD_DIR/output"
+  cp -R "$DEMO_OUTPUT_DIR"/. "$AD_DIR/output"/
+}
 
 usage() {
   echo "Usage: $0 {start|stop|restart|status} [ad|da|all]"
@@ -98,6 +111,8 @@ submit_job() {
 }
 
 start_ad() {
+  ensure_demo_assets
+
   if is_running "$AD_PORT"; then
     echo "AD already running on http://localhost:$AD_PORT"
     return
@@ -110,6 +125,8 @@ start_ad() {
 }
 
 start_da() {
+  ensure_demo_assets
+
   if is_running "$DA_PORT"; then
     echo "DA already running on http://localhost:$DA_PORT"
     return
