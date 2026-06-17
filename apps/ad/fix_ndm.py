@@ -15,8 +15,8 @@ from rdflib import Graph, RDF, Namespace, Literal, URIRef
 BASE_DIR = Path(__file__).parent
 TTL = BASE_DIR / "output/business_kg/indicator-data.ttl"
 
-IND = Namespace("http://indicator.xiaojw.com/ontology#")
-INST = Namespace("http://indicator.xiaojw.com/instance/")
+IND = Namespace("http://indicator.insightmind.com/ontology#")
+INST = Namespace("http://indicator.insightmind.com/instance/")
 
 # 事实表 → 日期外键列 映射
 DATE_COLUMN_MAP = {
@@ -44,13 +44,13 @@ def meas_code_to_short(code: str) -> str:
 def build_ndm_uri(meas_app_uri: str) -> URIRef:
     """为 MeasureApp 生成唯一的 NaturalDimMapping URI"""
     # inst:ma_store_sales_amount_store_sales → inst:ndm_store_sales_amount_store_sales_date
-    short = meas_app_uri.replace("http://indicator.xiaojw.com/instance/", "")
+    short = meas_app_uri.replace("http://indicator.insightmind.com/instance/", "")
     return INST[f"ndm_{short}_date"]
 
 
 def get_date_column(table_uri_str: str) -> str:
     """从 appliesToTable 获取日期物理列名"""
-    return DATE_COLUMN_MAP.get(table_uri_str.replace("http://indicator.xiaojw.com/instance/", ""), "ss_sold_date_sk")
+    return DATE_COLUMN_MAP.get(table_uri_str.replace("http://indicator.insightmind.com/instance/", ""), "ss_sold_date_sk")
 
 
 def add_ndm_to_graph(g: Graph, ma_uri: URIRef, meas_code: str, table_uri_str: str) -> URIRef:

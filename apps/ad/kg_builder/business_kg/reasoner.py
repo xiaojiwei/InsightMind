@@ -11,8 +11,8 @@ from rdflib import Graph, Literal, Namespace, RDF, URIRef
 from rdflib.namespace import RDFS, XSD
 
 
-IND = Namespace("http://indicator.xiaojw.com/ontology#")
-INST = Namespace("http://indicator.xiaojw.com/instance/")
+IND = Namespace("http://indicator.insightmind.com/ontology#")
+INST = Namespace("http://indicator.insightmind.com/instance/")
 
 
 Triple = Tuple[URIRef, URIRef, URIRef]

@@ -23,7 +23,7 @@ from rdflib.namespace import RDFS
 
 from kg_builder.ontology.owl_schema import DB
 
-IND = Namespace("http://indicator.xiaojw.com/ontology#")
+IND = Namespace("http://indicator.insightmind.com/ontology#")
 
 
 _NOISE_WORDS = {

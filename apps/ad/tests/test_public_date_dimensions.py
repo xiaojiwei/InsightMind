@@ -5,8 +5,8 @@ from web_app import _ensure_public_date_dimensions, _ensure_public_shared_dimens
 
 def test_ensure_public_date_dimensions_adds_shared_date_dimension():
     ttl = """
-@prefix ind: <http://indicator.xiaojw.com/ontology#> .
-@prefix inst: <http://indicator.xiaojw.com/instance/> .
+@prefix ind: <http://indicator.insightmind.com/ontology#> .
+@prefix inst: <http://indicator.insightmind.com/instance/> .
 
 inst:dim_web_month a ind:Dimension ;
     ind:code "DIM_web_sales_date_month" ;
@@ -32,8 +32,8 @@ inst:da_catalog_month a ind:DimensionApp ;
     out = _ensure_public_date_dimensions(ttl, lambda _msg: None)
     graph = Graph()
     graph.parse(data=out, format="turtle")
-    ind = Namespace("http://indicator.xiaojw.com/ontology#")
-    inst = Namespace("http://indicator.xiaojw.com/instance/")
+    ind = Namespace("http://indicator.insightmind.com/ontology#")
+    inst = Namespace("http://indicator.insightmind.com/instance/")
 
     public_dim = inst.dim_date_month
     assert (public_dim, RDF.type, ind.Dimension) in graph
@@ -46,8 +46,8 @@ inst:da_catalog_month a ind:DimensionApp ;
 
 def test_ensure_public_shared_dimensions_links_same_name_apps():
     ttl = """
-@prefix ind: <http://indicator.xiaojw.com/ontology#> .
-@prefix inst: <http://indicator.xiaojw.com/instance/> .
+@prefix ind: <http://indicator.insightmind.com/ontology#> .
+@prefix inst: <http://indicator.insightmind.com/instance/> .
 
 inst:dim_warehouse a ind:Dimension ;
     ind:code "DIM_warehouse" ;
@@ -74,8 +74,8 @@ inst:tbl_catalog_sales ind:tableName "catalog_sales" .
     out = _ensure_public_shared_dimensions(ttl, lambda _msg: None)
     graph = Graph()
     graph.parse(data=out, format="turtle")
-    ind = Namespace("http://indicator.xiaojw.com/ontology#")
-    inst = Namespace("http://indicator.xiaojw.com/instance/")
+    ind = Namespace("http://indicator.insightmind.com/ontology#")
+    inst = Namespace("http://indicator.insightmind.com/instance/")
 
     assert set(graph.objects(inst.dim_warehouse, ind.hasDimApp)) == {
         inst.da_web_warehouse,

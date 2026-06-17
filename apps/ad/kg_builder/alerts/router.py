@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 # ── Business KG paths (mirrors web_app.py layout) ────────────────────────
 
 _BKG_DIR = Path(__file__).resolve().parent.parent.parent / "output" / "business_kg"
-_IND = Namespace("http://indicator.xiaojw.com/ontology#")
+_IND = Namespace("http://indicator.insightmind.com/ontology#")
 
 
 # ---------------------------------------------------------------------------

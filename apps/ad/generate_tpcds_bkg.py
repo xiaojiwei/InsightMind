@@ -272,7 +272,7 @@ def merge_and_save(parts, out_path):
         print(f"\n❌ TTL 解析失败: {e}")
         return False
 
-    IND = Namespace("http://indicator.xiaojw.com/ontology#")
+    IND = Namespace("http://indicator.insightmind.com/ontology#")
     for label, cls in [("Measure", IND.Measure), ("MeasureApp", IND.MeasureApp),
                         ("Dimension", IND.Dimension), ("DimensionApp", IND.DimensionApp),
                         ("DwTable", IND.DwTable), ("Category", IND.Category)]:

@@ -1159,7 +1159,7 @@ def _build_valid_test_cases(turtle_str: str, blog) -> list:
         blog(f"[验证] TTL 解析失败: {e}")
         return []
 
-    IND = _NS("http://indicator.xiaojw.com/ontology#")
+    IND = _NS("http://indicator.insightmind.com/ontology#")
 
     # URI → code
     uri_to_code: dict = {}
@@ -1221,7 +1221,7 @@ def _extract_bkg_codes(turtle_str: str, blog):
     except Exception as e:
         blog(f"[验证] TTL 解析失败: {e}")
         return [], []
-    IND = _NS("http://indicator.xiaojw.com/ontology#")
+    IND = _NS("http://indicator.insightmind.com/ontology#")
     meas_codes, dim_codes = [], []
     for _s, _p, _o in g:
         if str(_p) == str(IND.code):
@@ -1340,7 +1340,7 @@ def _prune_unqueryable_bkg(turtle_str: str, blog) -> str:
     """Remove graph entities that DA cannot query because their app links are missing."""
     from rdflib import Graph as _Graph, Namespace as _NS, RDF as _RDF
 
-    IND = _NS("http://indicator.xiaojw.com/ontology#")
+    IND = _NS("http://indicator.insightmind.com/ontology#")
     try:
         g = _Graph()
         g.parse(data=turtle_str, format="turtle")
@@ -1405,8 +1405,8 @@ def _ensure_public_date_dimensions(turtle_str: str, blog) -> str:
     """Ensure h_date exposes real DIM_date_* dimensions for DA grouping."""
     from rdflib import Graph, Literal, Namespace, RDF
 
-    IND = Namespace("http://indicator.xiaojw.com/ontology#")
-    INST = Namespace("http://indicator.xiaojw.com/instance/")
+    IND = Namespace("http://indicator.insightmind.com/ontology#")
+    INST = Namespace("http://indicator.insightmind.com/instance/")
     try:
         g = Graph()
         g.parse(data=turtle_str, format="turtle")
@@ -1472,7 +1472,7 @@ def _ensure_public_shared_dimensions(turtle_str: str, blog) -> str:
     """Attach same-name dimension apps to one public dimension across fact tables."""
     from rdflib import Graph, Literal, Namespace, RDF
 
-    IND = Namespace("http://indicator.xiaojw.com/ontology#")
+    IND = Namespace("http://indicator.insightmind.com/ontology#")
     try:
         g = Graph()
         g.parse(data=turtle_str, format="turtle")
@@ -2069,7 +2069,7 @@ def _bkg_refine_worker(user_prompt: str, target_file: str, auto_empty_dim: bool 
         # Build a structured measure summary so the identifier LLM gets clean
         # facts instead of 200KB of Turtle.
         from rdflib import URIRef as _URIRef, RDF as _RDF
-        IND_NS = "http://indicator.xiaojw.com/ontology#"
+        IND_NS = "http://indicator.insightmind.com/ontology#"
         def _u(n): return _URIRef(IND_NS + n)
         def _val(s, p):
             v = g.value(s, _u(p))
@@ -2233,8 +2233,8 @@ def _bkg_refine_worker(user_prompt: str, target_file: str, auto_empty_dim: bool 
             "请输出一段 SPARQL 1.1 UPDATE 来修复该目标。严格要求：\n"
             "1. 只输出一段被 ```sparql ... ``` 包裹的 SPARQL UPDATE，不要解释。\n"
             "2. 必须重新声明前缀：\n"
-            "   PREFIX ind:  <http://indicator.xiaojw.com/ontology#>\n"
-            "   PREFIX inst: <http://indicator.xiaojw.com/instance/>\n"
+            "   PREFIX ind:  <http://indicator.insightmind.com/ontology#>\n"
+            "   PREFIX inst: <http://indicator.insightmind.com/instance/>\n"
             "   PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n"
             "   PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>\n"
             "3. 仅围绕给定 subject 修订；不要重写整张图。\n"
@@ -2392,7 +2392,7 @@ async def business_kg_stats(file: str = ""):
         return JSONResponse(status_code=404, content={"error": "尚未生成业务图谱"})
 
     from rdflib import Graph, URIRef, RDF
-    IND = "http://indicator.xiaojw.com/ontology#"
+    IND = "http://indicator.insightmind.com/ontology#"
     CLASS_LABELS = {
         "Measure":                  "指标",
         "Dimension":                "维度",
@@ -2437,7 +2437,7 @@ async def business_kg_measures(file: str = ""):
     import json as _json
     from rdflib import Graph, URIRef, RDF
 
-    IND = "http://indicator.xiaojw.com/ontology#"
+    IND = "http://indicator.insightmind.com/ontology#"
 
     def _u(name): return URIRef(IND + name)
 
@@ -2668,7 +2668,7 @@ async def nlq_suggestions(file: str = ""):
 
     from rdflib import Graph, URIRef, RDF
 
-    IND = "http://indicator.xiaojw.com/ontology#"
+    IND = "http://indicator.insightmind.com/ontology#"
 
     def _u(name): return URIRef(IND + name)
 
@@ -3134,7 +3134,7 @@ def _business_reasoning_for_measure(code: str) -> dict[str, Any]:
     from rdflib import Namespace, RDF
 
     graph = _load_business_graph(include_inferred=True)
-    ind = Namespace("http://indicator.xiaojw.com/ontology#")
+    ind = Namespace("http://indicator.insightmind.com/ontology#")
     measure = next((node for node in graph.subjects(RDF.type, ind.Measure) if _bkg_val(graph, node, ind, "code") == code), None)
     if not measure:
         raise KeyError(f"指标不存在: {code}")
@@ -3192,7 +3192,7 @@ async def business_kg_reasoning_impact(target: str, target_type: str = "auto"):
     except FileNotFoundError as exc:
         return JSONResponse(status_code=404, content={"error": str(exc)})
 
-    ind = Namespace("http://indicator.xiaojw.com/ontology#")
+    ind = Namespace("http://indicator.insightmind.com/ontology#")
     target = (target or "").strip()
     if not target:
         return JSONResponse(status_code=400, content={"error": "target 不能为空"})
@@ -3320,7 +3320,7 @@ async def business_kg_nodes(file: str = ""):
     from rdflib import Graph, RDF, RDFS, OWL, URIRef, Namespace
     import re
 
-    IND = Namespace("http://indicator.xiaojw.com/ontology#")
+    IND = Namespace("http://indicator.insightmind.com/ontology#")
 
     # ── Group config for ind: classes ──────────────────────────────────── #
     IND_CLASS_GROUPS = {
@@ -3586,7 +3586,7 @@ def _validate_bkg_iter(ttl_path: Path):
     from rdflib import Graph, Namespace
     import urllib.request as _ureq
 
-    IND = Namespace("http://indicator.xiaojw.com/ontology#")
+    IND = Namespace("http://indicator.insightmind.com/ontology#")
     g = Graph()
     g.parse(str(ttl_path), format="turtle")
 
@@ -3799,7 +3799,7 @@ async def business_kg_validate_fix(req: BkgFixRequest):
     if not ttl_path:
         return JSONResponse(status_code=404, content={"error": "未找到 TTL"})
 
-    IND = Namespace("http://indicator.xiaojw.com/ontology#")
+    IND = Namespace("http://indicator.insightmind.com/ontology#")
     g = Graph()
     g.parse(str(ttl_path), format="turtle")
 
@@ -4451,7 +4451,7 @@ def _pivot_catalog() -> dict[str, Any]:
     inferred_path = _bkg_inferred_path()
     if inferred_path.exists():
         graph.parse(str(inferred_path), format="turtle")
-    ind = Namespace("http://indicator.xiaojw.com/ontology#")
+    ind = Namespace("http://indicator.insightmind.com/ontology#")
 
     def val(node, prop) -> str:
         value = graph.value(node, prop)
@@ -5534,7 +5534,7 @@ async def stats_tables():
         return JSONResponse({"error": "TTL 文件不存在"}, status_code=404)
     g = Graph()
     g.parse(str(ttl_p), format="turtle")
-    IND = Namespace("http://indicator.xiaojw.com/ontology#")
+    IND = Namespace("http://indicator.insightmind.com/ontology#")
 
     def _v(uri, prop):
         v = g.value(uri, prop)

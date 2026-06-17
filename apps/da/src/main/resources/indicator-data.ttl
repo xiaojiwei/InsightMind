@@ -1,5 +1,5 @@
-@prefix ind: <http://indicator.xiaojw.com/ontology#> .
-@prefix inst: <http://indicator.xiaojw.com/instance/> .
+@prefix ind: <http://indicator.insightmind.com/ontology#> .
+@prefix inst: <http://indicator.insightmind.com/instance/> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
@@ -755,7 +755,7 @@ inst:tbl_tpcds_web_site a ind:DwTable ;
     ind:sourceTypeCode 0 ;
     ind:tableName "web_site" .
 
-<http://indicator.xiaojw.com/ontology> a owl:Ontology ;
+<http://indicator.insightmind.com/ontology> a owl:Ontology ;
     rdfs:label "理想汽车指标平台业务知识图谱本体"@zh ;
     owl:versionInfo "1.1.0" .
 

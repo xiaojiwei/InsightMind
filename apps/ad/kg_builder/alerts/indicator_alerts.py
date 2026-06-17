@@ -613,7 +613,7 @@ def _expression_meta(ttl_path: str) -> dict[str, dict[str, Any]]:
 
     graph = Graph()
     graph.parse(str(path), format="turtle")
-    ind = Namespace("http://indicator.xiaojw.com/ontology#")
+    ind = Namespace("http://indicator.insightmind.com/ontology#")
     meta: dict[str, dict[str, Any]] = {}
     for measure in graph.subjects(None, None):
         code_node = graph.value(measure, ind.code)

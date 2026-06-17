@@ -13,8 +13,8 @@ PHASE1 = BASE_DIR / "output/business_kg/phase1_measures.ttl"
 PHASE2 = BASE_DIR / "output/business_kg/phase2_dimensions.ttl"
 OUT    = BASE_DIR / "output/business_kg/indicator-data.ttl"
 
-IND = Namespace("http://indicator.xiaojw.com/ontology#")
-INST = Namespace("http://indicator.xiaojw.com/instance/")
+IND = Namespace("http://indicator.insightmind.com/ontology#")
+INST = Namespace("http://indicator.insightmind.com/instance/")
 
 # ── 原子/衍生指标分类 ──────────────────────────────────────────────── #
 DERIVED_CODES = {"total_sales_amount", "total_return_amt", "overall_return_rate"}

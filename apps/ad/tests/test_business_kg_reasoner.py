@@ -5,8 +5,8 @@ from kg_builder.business_kg.reasoner import BusinessKGReasoner
 
 def test_reasoner_materializes_dimension_compatibility_and_measure_dependencies():
     ttl = """
-@prefix ind: <http://indicator.xiaojw.com/ontology#> .
-@prefix inst: <http://indicator.xiaojw.com/instance/> .
+@prefix ind: <http://indicator.insightmind.com/ontology#> .
+@prefix inst: <http://indicator.insightmind.com/instance/> .
 
 inst:meas_order_cnt a ind:Measure ;
     ind:code "MEAS_order_cnt" ;
@@ -38,8 +38,8 @@ inst:tbl_order a ind:DwTable ;
 """
 
     inferred = BusinessKGReasoner().infer_from_turtle(ttl)
-    ind = Namespace("http://indicator.xiaojw.com/ontology#")
-    inst = Namespace("http://indicator.xiaojw.com/instance/")
+    ind = Namespace("http://indicator.insightmind.com/ontology#")
+    inst = Namespace("http://indicator.insightmind.com/instance/")
 
     assert (inst.meas_order_cnt, ind.compatibleDimension, inst.dim_city) in inferred
     assert (inst.meas_pay_rate, ind.compatibleDimension, inst.dim_city) in inferred

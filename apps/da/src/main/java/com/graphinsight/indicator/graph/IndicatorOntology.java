@@ -9,9 +9,9 @@ package com.graphinsight.indicator.graph;
 public final class IndicatorOntology {
 
     /** Ontology namespace (TBox) */
-    public static final String NS   = "http://indicator.xiaojw.com/ontology#";
+    public static final String NS   = "http://indicator.insightmind.com/ontology#";
     /** Instance namespace (ABox) */
-    public static final String INST = "http://indicator.xiaojw.com/instance/";
+    public static final String INST = "http://indicator.insightmind.com/instance/";
 
     // ── Classes ─────────────────────────────────────────────────────────────
 
