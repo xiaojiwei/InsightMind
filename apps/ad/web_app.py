@@ -35,6 +35,12 @@ from pydantic import BaseModel, Field
 
 BASE_DIR  = Path(__file__).parent
 TEMPLATES = Jinja2Templates(directory=str(BASE_DIR / "kg_builder" / "web" / "templates"))
+# ── Alert management ──────────────────────────────────────────────────────── #
+from kg_builder.alerts import alerts_router, init_db, get_db
+from kg_builder.alerts import scheduler as alert_scheduler
+
+# app.include_router(alerts_router)  -- deferred after app creation
+
 OUTPUT_DIR = BASE_DIR / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 BKG_DIR = OUTPUT_DIR / "business_kg"
@@ -46,6 +52,43 @@ DASHBOARD_DIR.mkdir(exist_ok=True)
 DEMO_OUTPUT_DIR = BASE_DIR.parents[1] / "demo" / "default" / "ad" / "output"
 # KG files are named kg_YYYYMMDD_NNN.ttl; legacy kg.ttl is still auto-detected
 _current_kg_path: Optional[Path] = None
+
+
+def _bkg_inferred_path() -> Path:
+    return BKG_DIR / "indicator-inferred.ttl"
+
+
+def _materialize_business_inferences(turtle_str: str, log_cb=None):
+    """Generate deterministic inferred triples for the active business KG."""
+    from kg_builder.business_kg.reasoner import BusinessKGReasoner
+
+    log = log_cb or (lambda _msg: None)
+    inferred = BusinessKGReasoner(log_cb=log).infer_from_turtle(turtle_str)
+    out = _bkg_inferred_path()
+    out.write_text(inferred.serialize(format="turtle"), encoding="utf-8")
+    log(f"[推理] 已保存 {out.name}: {len(inferred)} 条三元组")
+    return inferred
+
+
+def _load_business_graph(file: str = "", include_inferred: bool = True):
+    """Load the active business KG, optionally merged with materialized inferences."""
+    from rdflib import Graph
+
+    if file:
+        p = (BKG_DIR / Path(file).name).resolve()
+        if not str(p).startswith(str(BKG_DIR.resolve())) or not p.exists():
+            raise FileNotFoundError("业务图谱文件不存在")
+    else:
+        p = BKG_DIR / "indicator-data.ttl"
+        if not p.exists():
+            raise FileNotFoundError("尚未生成业务图谱")
+
+    graph = Graph()
+    graph.parse(str(p), format="turtle")
+    inferred = _bkg_inferred_path()
+    if include_inferred and inferred.exists():
+        graph.parse(str(inferred), format="turtle")
+    return graph
 
 
 def _seed_demo_assets() -> None:
@@ -110,6 +153,7 @@ def _get_active_path() -> Optional[Path]:
     return None
 
 app = FastAPI(title="KG Builder Web UI")
+app.include_router(alerts_router)
 
 # ── Shared state ────────────────────────────────────────────────────────── #
 
@@ -504,6 +548,10 @@ async def index(request: Request):
     return TEMPLATES.TemplateResponse(request, "index.html")
 
 
+
+@app.get("/alerts", response_class=HTMLResponse)
+async def alerts_page(request: Request):
+    return TEMPLATES.TemplateResponse(request, "alerts.html")
 @app.get("/dashboard/view/{item_id}", response_class=HTMLResponse)
 async def dashboard_view(request: Request, item_id: str):
     return TEMPLATES.TemplateResponse(request, "index.html")
@@ -1111,7 +1159,7 @@ def _build_valid_test_cases(turtle_str: str, blog) -> list:
         blog(f"[验证] TTL 解析失败: {e}")
         return []
 
-    IND = _NS("http://indicator.lixiang.com/ontology#")
+    IND = _NS("http://indicator.xiaojw.com/ontology#")
 
     # URI → code
     uri_to_code: dict = {}
@@ -1173,7 +1221,7 @@ def _extract_bkg_codes(turtle_str: str, blog):
     except Exception as e:
         blog(f"[验证] TTL 解析失败: {e}")
         return [], []
-    IND = _NS("http://indicator.lixiang.com/ontology#")
+    IND = _NS("http://indicator.xiaojw.com/ontology#")
     meas_codes, dim_codes = [], []
     for _s, _p, _o in g:
         if str(_p) == str(IND.code):
@@ -1292,7 +1340,7 @@ def _prune_unqueryable_bkg(turtle_str: str, blog) -> str:
     """Remove graph entities that DA cannot query because their app links are missing."""
     from rdflib import Graph as _Graph, Namespace as _NS, RDF as _RDF
 
-    IND = _NS("http://indicator.lixiang.com/ontology#")
+    IND = _NS("http://indicator.xiaojw.com/ontology#")
     try:
         g = _Graph()
         g.parse(data=turtle_str, format="turtle")
@@ -1357,8 +1405,8 @@ def _ensure_public_date_dimensions(turtle_str: str, blog) -> str:
     """Ensure h_date exposes real DIM_date_* dimensions for DA grouping."""
     from rdflib import Graph, Literal, Namespace, RDF
 
-    IND = Namespace("http://indicator.lixiang.com/ontology#")
-    INST = Namespace("http://indicator.lixiang.com/instance/")
+    IND = Namespace("http://indicator.xiaojw.com/ontology#")
+    INST = Namespace("http://indicator.xiaojw.com/instance/")
     try:
         g = Graph()
         g.parse(data=turtle_str, format="turtle")
@@ -1424,7 +1472,7 @@ def _ensure_public_shared_dimensions(turtle_str: str, blog) -> str:
     """Attach same-name dimension apps to one public dimension across fact tables."""
     from rdflib import Graph, Literal, Namespace, RDF
 
-    IND = Namespace("http://indicator.lixiang.com/ontology#")
+    IND = Namespace("http://indicator.xiaojw.com/ontology#")
     try:
         g = Graph()
         g.parse(data=turtle_str, format="turtle")
@@ -1787,6 +1835,10 @@ def _bkg_worker(domain_hint: str, model_override: str, source_kg_file: str,
 
         _bkg_turtle       = turtle_str
         _bkg_graph        = bkg
+        try:
+            _materialize_business_inferences(turtle_str, blog)
+        except Exception as infer_exc:
+            blog(f"[推理] 生成推理图谱失败: {infer_exc}")
         _current_bkg_path = save_path
         _bkg_meta         = {
             "gen_time":  time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1896,9 +1948,11 @@ async def business_kg_activate(req: ActivateRequest):
     global _current_bkg_path
     if src == target:
         _current_bkg_path = target
+        _materialize_business_inferences(target.read_text(encoding="utf-8"))
         return {"ok": True, "message": "已是当前版本", "active": target.name}
     # 直接复制历史版本覆盖当前，不归档旧版本
     target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    _materialize_business_inferences(target.read_text(encoding="utf-8"))
     _current_bkg_path = target
     return {"ok": True, "active": target.name, "archived_from": src.name}
 
@@ -2015,7 +2069,7 @@ def _bkg_refine_worker(user_prompt: str, target_file: str, auto_empty_dim: bool 
         # Build a structured measure summary so the identifier LLM gets clean
         # facts instead of 200KB of Turtle.
         from rdflib import URIRef as _URIRef, RDF as _RDF
-        IND_NS = "http://indicator.lixiang.com/ontology#"
+        IND_NS = "http://indicator.xiaojw.com/ontology#"
         def _u(n): return _URIRef(IND_NS + n)
         def _val(s, p):
             v = g.value(s, _u(p))
@@ -2179,8 +2233,8 @@ def _bkg_refine_worker(user_prompt: str, target_file: str, auto_empty_dim: bool 
             "请输出一段 SPARQL 1.1 UPDATE 来修复该目标。严格要求：\n"
             "1. 只输出一段被 ```sparql ... ``` 包裹的 SPARQL UPDATE，不要解释。\n"
             "2. 必须重新声明前缀：\n"
-            "   PREFIX ind:  <http://indicator.lixiang.com/ontology#>\n"
-            "   PREFIX inst: <http://indicator.lixiang.com/instance/>\n"
+            "   PREFIX ind:  <http://indicator.xiaojw.com/ontology#>\n"
+            "   PREFIX inst: <http://indicator.xiaojw.com/instance/>\n"
             "   PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n"
             "   PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>\n"
             "3. 仅围绕给定 subject 修订；不要重写整张图。\n"
@@ -2338,7 +2392,7 @@ async def business_kg_stats(file: str = ""):
         return JSONResponse(status_code=404, content={"error": "尚未生成业务图谱"})
 
     from rdflib import Graph, URIRef, RDF
-    IND = "http://indicator.lixiang.com/ontology#"
+    IND = "http://indicator.xiaojw.com/ontology#"
     CLASS_LABELS = {
         "Measure":                  "指标",
         "Dimension":                "维度",
@@ -2383,7 +2437,7 @@ async def business_kg_measures(file: str = ""):
     import json as _json
     from rdflib import Graph, URIRef, RDF
 
-    IND = "http://indicator.lixiang.com/ontology#"
+    IND = "http://indicator.xiaojw.com/ontology#"
 
     def _u(name): return URIRef(IND + name)
 
@@ -2614,7 +2668,7 @@ async def nlq_suggestions(file: str = ""):
 
     from rdflib import Graph, URIRef, RDF
 
-    IND = "http://indicator.lixiang.com/ontology#"
+    IND = "http://indicator.xiaojw.com/ontology#"
 
     def _u(name): return URIRef(IND + name)
 
@@ -3013,7 +3067,7 @@ async def business_kg_clear():
     global _bkg_turtle, _bkg_graph, _current_bkg_path
     if _bkg_state.get("status") == "running":
         return JSONResponse(status_code=409, content={"error": "图谱正在生成中，请稍后再试"})
-    files = [BKG_DIR / "indicator-data.ttl"]
+    files = [BKG_DIR / "indicator-data.ttl", _bkg_inferred_path()]
     deleted = 0
     for f in files:
         try:
@@ -3026,6 +3080,217 @@ async def business_kg_clear():
     _bkg_graph = None
     _current_bkg_path = None
     return {"deleted": deleted, "ok": True}
+
+
+@app.post("/api/business-kg/reasoning/build")
+async def business_kg_reasoning_build():
+    """Rebuild deterministic reasoning triples for the active business KG."""
+    p = BKG_DIR / "indicator-data.ttl"
+    if not p.exists():
+        return JSONResponse(status_code=404, content={"error": "尚未生成业务图谱"})
+    try:
+        inferred = _materialize_business_inferences(p.read_text(encoding="utf-8"))
+        return {"ok": True, "file": _bkg_inferred_path().name, "triples": len(inferred)}
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
+@app.get("/api/business-kg/reasoning/turtle")
+async def business_kg_reasoning_turtle():
+    p = _bkg_inferred_path()
+    if not p.exists():
+        return JSONResponse(status_code=404, content={"error": "尚未生成推理图谱"})
+    return HTMLResponse(p.read_text(encoding="utf-8"), media_type="text/plain")
+
+
+def _bkg_val(graph, node, ns, prop: str) -> str:
+    value = graph.value(node, ns[prop])
+    return str(value) if value is not None else ""
+
+
+def _bkg_entity_label(graph, node, ind) -> dict[str, Any]:
+    return {
+        "uri": str(node),
+        "code": _bkg_val(graph, node, ind, "code"),
+        "name": _bkg_val(graph, node, ind, "cnName") or _bkg_val(graph, node, ind, "enName") or _bkg_val(graph, node, ind, "tableName") or str(node).rsplit("/", 1)[-1],
+    }
+
+
+def _bkg_evidence(graph, subject, predicate, obj, ind) -> dict[str, Any]:
+    from rdflib.namespace import RDF
+
+    for inf in graph.subjects(RDF.subject, subject):
+        if graph.value(inf, RDF.predicate) == predicate and graph.value(inf, RDF.object) == obj:
+            return {
+                "ruleId": _bkg_val(graph, inf, ind, "inferredByRule"),
+                "confidence": _bkg_val(graph, inf, ind, "confidence"),
+                "evidencePath": _bkg_val(graph, inf, ind, "evidencePath"),
+                "generatedAt": _bkg_val(graph, inf, ind, "generatedAt"),
+            }
+    return {}
+
+
+def _business_reasoning_for_measure(code: str) -> dict[str, Any]:
+    from rdflib import Namespace, RDF
+
+    graph = _load_business_graph(include_inferred=True)
+    ind = Namespace("http://indicator.xiaojw.com/ontology#")
+    measure = next((node for node in graph.subjects(RDF.type, ind.Measure) if _bkg_val(graph, node, ind, "code") == code), None)
+    if not measure:
+        raise KeyError(f"指标不存在: {code}")
+
+    def relation(prop_name: str):
+        prop = ind[prop_name]
+        rows = []
+        for target in graph.objects(measure, prop):
+            item = _bkg_entity_label(graph, target, ind)
+            item.update(_bkg_evidence(graph, measure, prop, target, ind))
+            rows.append(item)
+        return sorted(rows, key=lambda x: x.get("code") or x.get("name") or "")
+
+    apps = []
+    for app in graph.objects(measure, ind.hasMeasureApp):
+        table = graph.value(app, ind.appliesToTable)
+        apps.append({
+            "uri": str(app),
+            "factColumn": _bkg_val(graph, app, ind, "factColumn"),
+            "expression": _bkg_val(graph, app, ind, "expression"),
+            "whereCondition": _bkg_val(graph, app, ind, "whereCondition"),
+            "table": _bkg_entity_label(graph, table, ind) if table else None,
+        })
+
+    return {
+        "measure": _bkg_entity_label(graph, measure, ind),
+        "definition": _bkg_val(graph, measure, ind, "definition"),
+        "caliber": _bkg_val(graph, measure, ind, "caliber"),
+        "measureApps": apps,
+        "compatibleDimensions": relation("compatibleDimension"),
+        "upstreamMeasures": relation("upstreamMeasure"),
+        "downstreamMeasures": relation("downstreamMeasure"),
+    }
+
+
+@app.get("/api/business-kg/reasoning/measure/{code}")
+async def business_kg_reasoning_measure(code: str):
+    try:
+        return _business_reasoning_for_measure(code)
+    except FileNotFoundError as exc:
+        return JSONResponse(status_code=404, content={"error": str(exc)})
+    except KeyError as exc:
+        return JSONResponse(status_code=404, content={"error": str(exc)})
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
+@app.get("/api/business-kg/reasoning/impact")
+async def business_kg_reasoning_impact(target: str, target_type: str = "auto"):
+    """Analyze business KG impact before changing a table, field, or measure caliber."""
+    from rdflib import Namespace, RDF
+
+    try:
+        graph = _load_business_graph(include_inferred=True)
+    except FileNotFoundError as exc:
+        return JSONResponse(status_code=404, content={"error": str(exc)})
+
+    ind = Namespace("http://indicator.xiaojw.com/ontology#")
+    target = (target or "").strip()
+    if not target:
+        return JSONResponse(status_code=400, content={"error": "target 不能为空"})
+
+    def norm(s: str) -> str:
+        return str(s or "").strip().lower()
+
+    def table_matches(table) -> bool:
+        names = [_bkg_val(graph, table, ind, "tableName"), _bkg_val(graph, table, ind, "schemaName") + "." + _bkg_val(graph, table, ind, "tableName"), str(table).rsplit("/", 1)[-1]]
+        return norm(target) in {norm(x) for x in names if x}
+
+    def measure_matches(measure) -> bool:
+        values = [_bkg_val(graph, measure, ind, "code"), _bkg_val(graph, measure, ind, "cnName"), _bkg_val(graph, measure, ind, "enName")]
+        return norm(target) in {norm(x) for x in values if x}
+
+    def field_matches(app, *props) -> bool:
+        return any(norm(_bkg_val(graph, app, ind, prop)) == norm(target) for prop in props)
+
+    impacted_measures: dict[str, dict] = {}
+    impacted_dimensions: dict[str, dict] = {}
+    impacted_tables: dict[str, dict] = {}
+    paths: list[dict] = []
+
+    def add_measure(measure, reason: str, path: str):
+        if not measure:
+            return
+        item = _bkg_entity_label(graph, measure, ind)
+        impacted_measures[item["code"] or item["uri"]] = item
+        paths.append({"type": "measure", "code": item["code"], "name": item["name"], "reason": reason, "path": path})
+        for downstream in graph.objects(measure, ind.downstreamMeasure):
+            ds = _bkg_entity_label(graph, downstream, ind)
+            impacted_measures[ds["code"] or ds["uri"]] = ds
+            evidence = _bkg_evidence(graph, measure, ind.downstreamMeasure, downstream, ind)
+            paths.append({
+                "type": "measure",
+                "code": ds["code"],
+                "name": ds["name"],
+                "reason": "下游指标依赖",
+                "path": evidence.get("evidencePath") or f"{item['code']} -> downstreamMeasure -> {ds['code']}",
+            })
+
+    resolved_type = target_type
+    if target_type == "auto":
+        if any(measure_matches(m) for m in graph.subjects(RDF.type, ind.Measure)):
+            resolved_type = "measure"
+        elif any(table_matches(t) for t in graph.subjects(RDF.type, ind.DwTable)):
+            resolved_type = "table"
+        else:
+            resolved_type = "field"
+
+    if resolved_type in ("table", "auto"):
+        for table in graph.subjects(RDF.type, ind.DwTable):
+            if not table_matches(table):
+                continue
+            table_item = _bkg_entity_label(graph, table, ind)
+            impacted_tables[table_item["name"] or table_item["uri"]] = table_item
+            for app in graph.subjects(ind.appliesToTable, table):
+                add_measure(graph.value(predicate=ind.hasMeasureApp, object=app), "事实表变更", f"{table_item['name']} -> appliesToTable <- {str(app).rsplit('/', 1)[-1]}")
+            for app in graph.subjects(ind.dimFactTable, table):
+                dim = graph.value(predicate=ind.hasDimApp, object=app)
+                if dim:
+                    item = _bkg_entity_label(graph, dim, ind)
+                    impacted_dimensions[item["code"] or item["uri"]] = item
+                    paths.append({"type": "dimension", "code": item["code"], "name": item["name"], "reason": "维度事实表变更", "path": f"{table_item['name']} -> dimFactTable <- {str(app).rsplit('/', 1)[-1]}"})
+
+    if resolved_type in ("field", "auto"):
+        for app in graph.subjects(RDF.type, ind.MeasureApp):
+            if field_matches(app, "factColumn"):
+                add_measure(graph.value(predicate=ind.hasMeasureApp, object=app), "指标聚合字段变更", f"{target} -> factColumn <- {str(app).rsplit('/', 1)[-1]}")
+        for app in graph.subjects(RDF.type, ind.DimensionApp):
+            if field_matches(app, "dimFactColumn", "dimPrimaryKey", "dimColumn", "masterPrimaryKey"):
+                dim = graph.value(predicate=ind.hasDimApp, object=app)
+                if dim:
+                    item = _bkg_entity_label(graph, dim, ind)
+                    impacted_dimensions[item["code"] or item["uri"]] = item
+                    paths.append({"type": "dimension", "code": item["code"], "name": item["name"], "reason": "维度映射字段变更", "path": f"{target} -> DimensionApp {str(app).rsplit('/', 1)[-1]}"})
+                    for measure in graph.subjects(ind.compatibleDimension, dim):
+                        add_measure(measure, "可分析维度受影响", f"{_bkg_val(graph, measure, ind, 'code')} -> compatibleDimension -> {item['code']}")
+
+    if resolved_type in ("measure", "caliber", "auto"):
+        for measure in graph.subjects(RDF.type, ind.Measure):
+            if measure_matches(measure):
+                add_measure(measure, "指标口径变更", f"{target} -> Measure")
+
+    return {
+        "target": target,
+        "targetType": resolved_type,
+        "summary": {
+            "measureCount": len(impacted_measures),
+            "dimensionCount": len(impacted_dimensions),
+            "tableCount": len(impacted_tables),
+            "pathCount": len(paths),
+        },
+        "measures": sorted(impacted_measures.values(), key=lambda x: x.get("code") or ""),
+        "dimensions": sorted(impacted_dimensions.values(), key=lambda x: x.get("code") or ""),
+        "tables": sorted(impacted_tables.values(), key=lambda x: x.get("name") or ""),
+        "paths": paths[:200],
+    }
 
 
 @app.get("/api/business-kg/turtle")
@@ -3055,7 +3320,7 @@ async def business_kg_nodes(file: str = ""):
     from rdflib import Graph, RDF, RDFS, OWL, URIRef, Namespace
     import re
 
-    IND = Namespace("http://indicator.lixiang.com/ontology#")
+    IND = Namespace("http://indicator.xiaojw.com/ontology#")
 
     # ── Group config for ind: classes ──────────────────────────────────── #
     IND_CLASS_GROUPS = {
@@ -3321,7 +3586,7 @@ def _validate_bkg_iter(ttl_path: Path):
     from rdflib import Graph, Namespace
     import urllib.request as _ureq
 
-    IND = Namespace("http://indicator.lixiang.com/ontology#")
+    IND = Namespace("http://indicator.xiaojw.com/ontology#")
     g = Graph()
     g.parse(str(ttl_path), format="turtle")
 
@@ -3534,7 +3799,7 @@ async def business_kg_validate_fix(req: BkgFixRequest):
     if not ttl_path:
         return JSONResponse(status_code=404, content={"error": "未找到 TTL"})
 
-    IND = Namespace("http://indicator.lixiang.com/ontology#")
+    IND = Namespace("http://indicator.xiaojw.com/ontology#")
     g = Graph()
     g.parse(str(ttl_path), format="turtle")
 
@@ -4183,7 +4448,10 @@ def _pivot_catalog() -> dict[str, Any]:
 
     graph = Graph()
     graph.parse(str(ttl_path), format="turtle")
-    ind = Namespace("http://indicator.lixiang.com/ontology#")
+    inferred_path = _bkg_inferred_path()
+    if inferred_path.exists():
+        graph.parse(str(inferred_path), format="turtle")
+    ind = Namespace("http://indicator.xiaojw.com/ontology#")
 
     def val(node, prop) -> str:
         value = graph.value(node, prop)
@@ -4191,6 +4459,7 @@ def _pivot_catalog() -> dict[str, Any]:
 
     dimensions = []
     dimension_tables: dict[str, set[str]] = {}
+    dimension_uri_by_code: dict[str, Any] = {}
     for node in graph.subjects(RDF.type, ind.Dimension):
         code = val(node, ind.code)
         if not code.startswith("DIM_"):
@@ -4207,6 +4476,7 @@ def _pivot_catalog() -> dict[str, Any]:
         if not tables:
             continue
         view_type = int(val(node, ind.viewTypeCode) or 0)
+        dimension_uri_by_code[code] = node
         dimension_tables[code] = tables
         dimensions.append({
             "code": code,
@@ -4233,10 +4503,30 @@ def _pivot_catalog() -> dict[str, Any]:
                 tables.add(table_name)
         if not tables:
             continue
-        compatible = [
-            dim["code"] for dim in dimensions
-            if tables & dimension_tables.get(dim["code"], set())
-        ]
+        compatible = []
+        dimension_reasons = {}
+        for dim_node in graph.objects(node, ind.compatibleDimension):
+            dim_code = val(dim_node, ind.code)
+            if not dim_code:
+                continue
+            if dim_code not in compatible:
+                compatible.append(dim_code)
+            evidence = _bkg_evidence(graph, node, ind.compatibleDimension, dim_node, ind)
+            if evidence:
+                dimension_reasons[dim_code] = evidence
+        if not compatible:
+            compatible = [
+                dim["code"] for dim in dimensions
+                if tables & dimension_tables.get(dim["code"], set())
+            ]
+        for dim_code in compatible:
+            if dim_code not in dimension_reasons:
+                dim_tables = sorted(tables & dimension_tables.get(dim_code, set()))
+                dimension_reasons[dim_code] = {
+                    "ruleId": "compatible_dimension.shared_fact_table",
+                    "confidence": "1.0",
+                    "evidencePath": f"{code} 与 {dim_code} 共享事实表: {', '.join(dim_tables) if dim_tables else '未知'}",
+                }
         measures.append({
             "code": code,
             "name": val(node, ind.cnName) or code,
@@ -4244,6 +4534,7 @@ def _pivot_catalog() -> dict[str, Any]:
             "caliber": val(node, ind.caliber) or val(node, ind.definition),
             "tables": sorted(tables),
             "dimensionCodes": compatible,
+            "dimensionReasons": dimension_reasons,
         })
 
     return {
@@ -4277,7 +4568,7 @@ def _pivot_da_post(url: str, payload: dict[str, Any]) -> dict[str, Any]:
         method="POST",
     )
     try:
-        with url_request.urlopen(request, timeout=30) as response:
+        with url_request.urlopen(request, timeout=120) as response:
             result = json.loads(response.read().decode("utf-8"))
     except url_error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:1000]
@@ -4448,7 +4739,19 @@ async def ad_semantic_meta():
 async def ad_semantic_load(request: Request):
     try:
         body = await request.json()
-        result = await asyncio.to_thread(_ad_semantic_service().load, body)
+        service = _ad_semantic_service()
+        result = await asyncio.to_thread(service.load, body)
+        if body.get("enableAlerts", True) is not False:
+            from kg_builder.alerts import annotate_semantic_result
+
+            result = await asyncio.to_thread(
+                annotate_semantic_result,
+                result,
+                body,
+                _pivot_catalog(),
+                BKG_DIR / "indicator-data.ttl",
+                service.load,
+            )
         return result
     except FileNotFoundError as exc:
         return JSONResponse({"error": str(exc)}, status_code=404)
@@ -4671,6 +4974,146 @@ async def dashboard_delete(item_id: str):
     if path.exists():
         path.unlink()
     return {"ok": True}
+
+
+def _dashboard_ai_local_interpretation(payload: dict[str, Any]) -> str:
+    widgets = payload.get("widgets") or []
+    lines = ["### 现状"]
+    if not widgets:
+        return "### 现状\n暂无可解读的组件数据。\n\n### 趋势\n暂无趋势数据。\n\n### 异常\n暂无异常信号。\n\n### 建议\n请先刷新看板并确保组件有返回数据。"
+
+    for widget in widgets[:8]:
+        name = widget.get("name") or "未命名组件"
+        measures = widget.get("measures") or []
+        dimensions = widget.get("dimensions") or []
+        rows = widget.get("rows") or []
+        measure = measures[0] if measures else ""
+        dim = dimensions[0] if dimensions else ""
+        values = []
+        for row in rows:
+            try:
+                values.append(float(str(row.get(measure, "")).replace(",", "")))
+            except Exception:
+                continue
+        if values:
+            total = sum(values)
+            avg = total / len(values)
+            lines.append(f"- **{name}**：围绕 {', '.join(measures) or '指标'} 按 {', '.join(dimensions) or '汇总'} 观察，当前样本 {len(values)} 个，合计约 {total:,.2f}，均值约 {avg:,.2f}。")
+        else:
+            lines.append(f"- **{name}**：已纳入解读，但当前返回数据不足以计算数值概览。")
+
+    lines.append("\n### 趋势")
+    for widget in widgets[:8]:
+        name = widget.get("name") or "未命名组件"
+        measures = widget.get("measures") or []
+        dimensions = widget.get("dimensions") or []
+        rows = widget.get("rows") or []
+        measure = measures[0] if measures else ""
+        if len(rows) >= 2 and measure:
+            try:
+                first = float(str(rows[0].get(measure, "")).replace(",", ""))
+                last = float(str(rows[-1].get(measure, "")).replace(",", ""))
+                delta = last - first
+                pct = (delta / first * 100) if first else 0
+                direction = "上升" if delta > 0 else "下降" if delta < 0 else "持平"
+                lines.append(f"- **{name}**：沿 {dimensions[0] if dimensions else '当前维度'} 从首项到末项呈{direction}，变化约 {pct:.1f}%。")
+            except Exception:
+                lines.append(f"- **{name}**：趋势需要更多连续维度或数值结果支撑。")
+        else:
+            lines.append(f"- **{name}**：趋势样本不足，建议增加时间维度或扩大查询范围。")
+
+    lines.append("\n### 异常")
+    found = False
+    for widget in widgets[:8]:
+        name = widget.get("name") or "未命名组件"
+        measures = widget.get("measures") or []
+        dimensions = widget.get("dimensions") or []
+        rows = widget.get("rows") or []
+        measure = measures[0] if measures else ""
+        dim = dimensions[0] if dimensions else ""
+        values = []
+        for row in rows:
+            try:
+                values.append((row.get(dim, "汇总"), float(str(row.get(measure, "")).replace(",", ""))))
+            except Exception:
+                pass
+        nums = [v for _, v in values]
+        if len(nums) >= 3:
+            avg = sum(nums) / len(nums)
+            hi = max(values, key=lambda x: x[1])
+            lo = min(values, key=lambda x: x[1])
+            if avg and hi[1] > avg * 1.5:
+                lines.append(f"- **{name}**：{dim or '维度'}={hi[0]} 明显高于均值，可能是集中贡献点。")
+                found = True
+            if avg and lo[1] < avg * 0.5:
+                lines.append(f"- **{name}**：{dim or '维度'}={lo[0]} 明显低于均值，建议排查低表现原因。")
+                found = True
+    if not found:
+        lines.append("- 暂未发现明显高低离群点，建议结合环比/同比继续观察。")
+
+    lines.append("\n### 建议")
+    lines.append("- 优先关注贡献最高和最低的维度成员，分别验证增长来源与短板原因。")
+    lines.append("- 对时间维度组件补充环比或同比口径，区分季节性波动与真实趋势变化。")
+    lines.append("- 对异常点继续下钻到更细维度，例如地域、渠道、仓库或商品，以定位可执行动作。")
+    return "\n".join(lines)
+
+
+def _dashboard_ai_call_llm(payload: dict[str, Any]) -> str:
+    import os
+    import urllib.request as _ureq
+
+    from kg_builder.utils.llm_config import llm_config_from_env, validate_llm_config
+
+    cfg = llm_config_from_env(BASE_DIR, model_override=os.environ.get("BUSINESS_KG_MODEL", "").strip())
+    validate_llm_config(cfg, purpose="Dashboard AI 解读")
+    base_url = cfg.get("base_url", "").rstrip("/")
+    api_key = cfg.get("api_key", "")
+    model = cfg.get("model", "GPT5.5")
+    is_anthropic = "anthropic" in base_url.lower()
+    system = (
+        "你是一名资深数据分析专家。请基于 Dashboard 中每个组件的指标、维度、筛选条件和样本数据，"
+        "输出中文 Markdown。必须分为四段：现状、趋势、异常、建议。"
+        "不要复述技术字段名过多，优先使用业务名称；结论要谨慎，不能编造数据中不存在的事实。"
+    )
+    user = json.dumps(payload, ensure_ascii=False)[:30000]
+    if is_anthropic:
+        body = json.dumps({
+            "model": model,
+            "max_tokens": 1600,
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
+        }).encode("utf-8")
+        headers = {"Content-Type": "application/json", "x-api-key": api_key, "anthropic-version": "2023-06-01"}
+        req = _ureq.Request(f"{base_url}/messages", data=body, headers=headers, method="POST")
+    else:
+        body = json.dumps({
+            "model": model,
+            "max_tokens": 1600,
+            "messages": [{"role": "user", "content": system + "\n\n" + user}],
+        }).encode("utf-8")
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+        req = _ureq.Request(f"{base_url}/chat/completions", data=body, headers=headers, method="POST")
+    with _ureq.urlopen(req, timeout=60) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    if "choices" in data:
+        return data["choices"][0]["message"]["content"]
+    if "content" in data and data["content"]:
+        return data["content"][0].get("text", "")
+    return str(data)
+
+
+@app.post("/api/dashboard/v1/ai-interpret")
+async def dashboard_ai_interpret(request: Request):
+    body = await request.json()
+    try:
+        text = await asyncio.to_thread(_dashboard_ai_call_llm, body)
+        return {"text": text, "source": "llm"}
+    except Exception as exc:
+        return {
+            "text": _dashboard_ai_local_interpretation(body),
+            "source": "local",
+            "warning": str(exc),
+        }
 
 
 def _pivot_path(axis: list[dict[str, str]], values: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
@@ -4995,7 +5438,7 @@ async def pivot_query(request: Request):
             column_headers[_pivot_key([])] = {"key": _pivot_key([]), "path": []}
         if not row_headers:
             row_headers[_pivot_key([])] = {"key": _pivot_key([]), "path": []}
-        return {
+        result = {
             "rows": list(row_headers.values()),
             "columns": list(column_headers.values()),
             "measures": [
@@ -5009,6 +5452,9 @@ async def pivot_query(request: Request):
                 "reviewSql": da_data.get("reviewSql") or "",
             },
         }
+        from kg_builder.alerts import annotate_pivot_result
+
+        return annotate_pivot_result(result, measures, rows, columns, body.get("alertRules") or [])
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     except Exception as exc:
@@ -5088,7 +5534,7 @@ async def stats_tables():
         return JSONResponse({"error": "TTL 文件不存在"}, status_code=404)
     g = Graph()
     g.parse(str(ttl_p), format="turtle")
-    IND = Namespace("http://indicator.lixiang.com/ontology#")
+    IND = Namespace("http://indicator.xiaojw.com/ontology#")
 
     def _v(uri, prop):
         v = g.value(uri, prop)
@@ -5187,6 +5633,37 @@ async def stats_analyze(request: Request):
 
 
 # ── Entry point ─────────────────────────────────────────────────────────── #
+
+
+@app.on_event("startup")
+async def on_startup():
+    """Initialize alert DB and start the background scanner."""
+    try:
+        init_db()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Alert DB init failed: %s", e)
+
+    try:
+        # Wire the scheduler's load function to the internal semantic API
+        from kg_builder.alerts.scheduler import init_scan_loader
+        init_scan_loader(_execute_semantic_load_for_alerts)
+        await alert_scheduler.start(interval=300)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Alert scheduler start failed: %s", e)
+
+
+async def _execute_semantic_load_for_alerts(query: dict):
+    import asyncio
+    service = _ad_semantic_service()
+    result = await asyncio.to_thread(service.load, query)
+    if query.get('enableAlerts', True) is not False:
+        from kg_builder.alerts import annotate_semantic_result
+        result = await asyncio.to_thread(
+            annotate_semantic_result, result, query,
+            _pivot_catalog(), BKG_DIR / 'indicator-data.ttl', service.load)
+    return result
 
 if __name__ == "__main__":
     import uvicorn

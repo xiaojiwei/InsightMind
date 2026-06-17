@@ -339,7 +339,7 @@ class InsightAnalyzer:
         self._log("  加载知识图谱元数据...")
         g = Graph()
         g.parse(str(p), format="turtle")
-        IND = Namespace("http://indicator.lixiang.com/ontology#")
+        IND = Namespace("http://indicator.xiaojw.com/ontology#")
 
         cache: dict = {}
         for inst in g.subjects(None, None):

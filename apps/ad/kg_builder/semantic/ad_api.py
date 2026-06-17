@@ -112,6 +112,17 @@ def build_meta(catalog: dict[str, Any], model_name: str = "ad") -> dict[str, Any
                 codes.add(str(dimension.get("code") or ""))
         return sorted(codes)
 
+    def expanded_dimension_reasons(item: dict[str, Any]) -> dict[str, Any]:
+        reasons = dict(item.get("dimensionReasons") or {})
+        for dimension in logical_dimensions:
+            public_code = str(dimension.get("code") or "")
+            source_codes = [str(code) for code in (dimension.get("sourceCodes") or []) if code]
+            for source_code in source_codes:
+                if source_code in reasons and public_code not in reasons:
+                    reasons[public_code] = reasons[source_code]
+                    break
+        return reasons
+
     measures = []
     for item in catalog.get("measures") or []:
         code = str(item.get("code") or "")
@@ -126,6 +137,7 @@ def build_meta(catalog: dict[str, Any], model_name: str = "ad") -> dict[str, Any
             "caliber": item.get("caliber") or "",
             "tables": item.get("tables") or [],
             "dimensionCodes": expanded_dimension_codes(item),
+            "dimensionReasons": expanded_dimension_reasons(item),
         })
 
     dimensions = []

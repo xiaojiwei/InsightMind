@@ -3,7 +3,6 @@ package com.graphinsight.indicator.exception;
 import com.graphinsight.indicator.enums.ResultCode;
 
 /**
- * 业务警告异常（替代私有 lixiang-framework SDK 中的同名类）
  */
 public class BusinessWarnException extends RuntimeException {
 

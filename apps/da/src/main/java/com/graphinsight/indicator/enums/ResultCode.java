@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.enums;
 
 /**
- * 响应码枚举（替代私有 lixiang-framework SDK 中的同名类）
  */
 public enum ResultCode {
 

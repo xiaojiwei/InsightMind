@@ -9,9 +9,9 @@ package com.graphinsight.indicator.graph;
 public final class IndicatorOntology {
 
     /** Ontology namespace (TBox) */
-    public static final String NS   = "http://indicator.lixiang.com/ontology#";
+    public static final String NS   = "http://indicator.xiaojw.com/ontology#";
     /** Instance namespace (ABox) */
-    public static final String INST = "http://indicator.lixiang.com/instance/";
+    public static final String INST = "http://indicator.xiaojw.com/instance/";
 
     // ── Classes ─────────────────────────────────────────────────────────────
 
@@ -131,6 +131,18 @@ public final class IndicatorOntology {
     public static final String BELONGS_TO_CAT   = NS + "belongsToCategory";
     /** Category → Category (parent link, used for transitive category lookup) */
     public static final String CAT_PARENT       = NS + "categoryParent";
+    /** Measure → Dimension, materialized by AD business KG reasoning. */
+    public static final String COMPATIBLE_DIMENSION = NS + "compatibleDimension";
+    /** Measure → Measure dependency closure: current measure depends on upstream measure. */
+    public static final String UPSTREAM_MEASURE = NS + "upstreamMeasure";
+    /** Measure → Measure dependency closure: current measure is used by downstream measure. */
+    public static final String DOWNSTREAM_MEASURE = NS + "downstreamMeasure";
+    /** Reasoning rule identifier on inference evidence nodes. */
+    public static final String INFERRED_BY_RULE = NS + "inferredByRule";
+    /** Confidence score on inference evidence nodes. */
+    public static final String CONFIDENCE = NS + "confidence";
+    /** Human-readable evidence path on inference evidence nodes. */
+    public static final String EVIDENCE_PATH = NS + "evidencePath";
     /** DwTable → TableHistogram */
     public static final String HAS_TBL_HIST     = NS + "hasTableHistogram";
     /** DimHistogram dimCode property */

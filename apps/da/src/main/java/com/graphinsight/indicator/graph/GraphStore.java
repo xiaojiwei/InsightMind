@@ -36,10 +36,17 @@ public class GraphStore {
     @Value("${indicator.graph.data-path:/Users/xiaojiwei/kd/output/business_kg/indicator-data.ttl}")
     private String dataPath;
 
+    /**
+     * Optional inferred triples path. When empty, GraphStore looks for
+     * indicator-inferred.ttl next to indicator-data.ttl.
+     */
+    @Value("${indicator.graph.inferred-data-path:}")
+    private String inferredDataPath;
+
     /** Volatile so reads always see the latest reload without locking. */
     private volatile Model model;
 
-    /** 上次加载时的文件修改时间戳（毫秒）。 */
+    /** 上次加载时的主图 + 推理图文件修改签名。 */
     private final AtomicLong lastModified = new AtomicLong(-1L);
 
     @PostConstruct
@@ -54,10 +61,15 @@ public class GraphStore {
         }
 
         Model fresh = ModelFactory.createDefaultModel();
-        try (InputStream in = new FileInputStream(path.toFile())) {
-            fresh.read(in, null, "TURTLE");
+        try {
+            readTurtleInto(fresh, path);
+            Path inferredPath = resolveInferredPath(path);
+            if (Files.exists(inferredPath)) {
+                readTurtleInto(fresh, inferredPath);
+                log.info("[GraphStore] Loaded inferred triples from {}", inferredPath.toAbsolutePath());
+            }
             this.model = fresh;
-            lastModified.set(path.toFile().lastModified());
+            lastModified.set(modifiedSignature(path, inferredPath));
             log.info("[GraphStore] Loaded {} triples from {}", fresh.size(), path.toAbsolutePath());
         } catch (Exception e) {
             log.warn("[GraphStore] Failed to load {}: {} — starting with empty graph",
@@ -93,9 +105,33 @@ public class GraphStore {
         if (!Files.exists(path)) {
             return;
         }
-        long current = path.toFile().lastModified();
+        long current = modifiedSignature(path, resolveInferredPath(path));
         if (current != lastModified.get()) {
             reload();
         }
+    }
+
+    private void readTurtleInto(Model target, Path path) throws Exception {
+        try (InputStream in = new FileInputStream(path.toFile())) {
+            target.read(in, null, "TURTLE");
+        }
+    }
+
+    private Path resolveInferredPath(Path dataFile) {
+        String configured = inferredDataPath == null ? "" : inferredDataPath.trim();
+        if (!configured.isEmpty()) {
+            return Paths.get(configured);
+        }
+        Path parent = dataFile.getParent();
+        if (parent == null) {
+            return Paths.get("indicator-inferred.ttl");
+        }
+        return parent.resolve("indicator-inferred.ttl");
+    }
+
+    private long modifiedSignature(Path dataFile, Path inferredFile) {
+        long dataModified = Files.exists(dataFile) ? dataFile.toFile().lastModified() : 0L;
+        long inferredModified = Files.exists(inferredFile) ? inferredFile.toFile().lastModified() : 0L;
+        return dataModified * 31L + inferredModified;
     }
 }

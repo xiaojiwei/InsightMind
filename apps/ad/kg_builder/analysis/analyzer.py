@@ -130,7 +130,7 @@ class IndicatorAnalyzer:
 
         g = Graph()
         g.parse(str(p), format="turtle")
-        IND = Namespace("http://indicator.lixiang.com/ontology#")
+        IND = Namespace("http://indicator.xiaojw.com/ontology#")
 
         for inst in g.subjects(None, None):
             code = g.value(inst, IND.code)
@@ -201,7 +201,7 @@ class IndicatorAnalyzer:
 
         g = Graph()
         g.parse(str(p), format="turtle")
-        IND = Namespace("http://indicator.lixiang.com/ontology#")
+        IND = Namespace("http://indicator.xiaojw.com/ontology#")
 
         # 排除粗粒度日期维度（只保留日粒度和非日期维度）
         _exclude_suffix = ("_year", "_quarter", "_month", "_week")
@@ -1335,7 +1335,7 @@ class IndicatorAnalyzer:
         g = Graph()
         g.parse(str(ttl_path), format="turtle")
 
-        IND = Namespace("http://indicator.lixiang.com/ontology#")
+        IND = Namespace("http://indicator.xiaojw.com/ontology#")
 
         def _val(uri, prop):
             v = g.value(uri, prop)
@@ -2143,7 +2143,7 @@ class IndicatorAnalyzer:
         # ── Step 3: Re-read TTL 获取凭证 + 列映射 ─────────────────────────── #
         g = Graph()
         g.parse(self._ttl_path, format="turtle")
-        IND = Namespace("http://indicator.lixiang.com/ontology#")
+        IND = Namespace("http://indicator.xiaojw.com/ontology#")
 
         def _val(uri, prop):
             v = g.value(uri, prop)
@@ -2472,7 +2472,7 @@ class IndicatorAnalyzer:
         # ── 从 TTL 读取完整凭证 + 维度物理列映射 ── #
         g = Graph()
         g.parse(self._ttl_path, format="turtle")
-        IND = Namespace("http://indicator.lixiang.com/ontology#")
+        IND = Namespace("http://indicator.xiaojw.com/ontology#")
 
         def _v(uri, prop):
             v = g.value(uri, prop)

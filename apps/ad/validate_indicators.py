@@ -18,7 +18,7 @@ from rdflib import Graph, Namespace
 from kg_builder.utils.llm_config import llm_config_from_env
 
 BASE_DIR = Path(__file__).parent
-IND = Namespace("http://indicator.lixiang.com/ontology#")
+IND = Namespace("http://indicator.xiaojw.com/ontology#")
 DA_API = "http://localhost:8091/bi/v1/datasource/query"
 
 

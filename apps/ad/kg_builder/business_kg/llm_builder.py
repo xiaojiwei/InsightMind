@@ -43,7 +43,7 @@ _ONTOLOGY_PREAMBLE = """\
 @prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
 
 # 本体命名空间
-@prefix ind:   <http://indicator.lixiang.com/ontology#> .
+@prefix ind:   <http://indicator.xiaojw.com/ontology#> .
 
 # 实例命名空间（所有 ABox 实例统一使用 inst:，URI 使用描述性名称）
 # URI 模式：
@@ -58,7 +58,7 @@ _ONTOLOGY_PREAMBLE = """\
 #   inst:dimhist_<dim>__<tbl>       — DimHistogram
 #   inst:conn_<dbType>_<host>_<db>  — DataConnection
 #   inst:ndm_<meas_short>_<用途>    — NaturalDimMapping（如 ndm_order_cnt_date）
-@prefix inst:  <http://indicator.lixiang.com/instance/> .
+@prefix inst:  <http://indicator.xiaojw.com/instance/> .
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 本体元数据
@@ -66,7 +66,7 @@ _ONTOLOGY_PREAMBLE = """\
 # 以确保生成的知识图谱可被 dataAgent 的 SPARQL 查询直接使用。
 # ═══════════════════════════════════════════════════════════════════════════
 
-<http://indicator.lixiang.com/ontology> a owl:Ontology ;
+<http://indicator.xiaojw.com/ontology> a owl:Ontology ;
     rdfs:label "理想汽车指标平台业务知识图谱本体"@zh ;
     owl:versionInfo "1.1.0" .
 
@@ -1612,7 +1612,7 @@ class BusinessKGBuilder:
         lines = []
         for line in turtle_str.splitlines():
             s = line.strip()
-            if s.startswith("@prefix") or s.startswith("ind:") or s.startswith("<http://indicator.lixiang.com/ontology>"):
+            if s.startswith("@prefix") or s.startswith("ind:") or s.startswith("<http://indicator.xiaojw.com/ontology>"):
                 continue
             lines.append(line)
         return "\n".join(lines).strip()
@@ -1733,7 +1733,7 @@ class BusinessKGBuilder:
         from rdflib import Graph, RDF, Literal, URIRef
         from rdflib.namespace import Namespace
 
-        IND = Namespace("http://indicator.lixiang.com/ontology#")
+        IND = Namespace("http://indicator.xiaojw.com/ontology#")
         MEASURE = IND.Measure
         DIMENSION = IND.Dimension
         CODE = IND.code
@@ -1921,8 +1921,8 @@ class BusinessKGBuilder:
             "@prefix rdfs:":  "@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .",
             "@prefix owl:":   "@prefix owl:   <http://www.w3.org/2002/07/owl#> .",
             "@prefix xsd:":   "@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .",
-            "@prefix ind:":   "@prefix ind:   <http://indicator.lixiang.com/ontology#> .",
-            "@prefix inst:":  "@prefix inst:  <http://indicator.lixiang.com/instance/> .",
+            "@prefix ind:":   "@prefix ind:   <http://indicator.xiaojw.com/ontology#> .",
+            "@prefix inst:":  "@prefix inst:  <http://indicator.xiaojw.com/instance/> .",
         }
         prefix_block = ""
         for check, declaration in needed.items():
@@ -2049,8 +2049,8 @@ class BusinessKGBuilder:
     def _log_repair_diff(self, old_turtle: str, new_turtle: str) -> None:
         """对比修复前后的实例主语，输出新增/删除/修改摘要。"""
         from rdflib import Graph, Namespace
-        IND  = Namespace("http://indicator.lixiang.com/ontology#")
-        INST = "http://indicator.lixiang.com/instance/"
+        IND  = Namespace("http://indicator.xiaojw.com/ontology#")
+        INST = "http://indicator.xiaojw.com/instance/"
 
         def _subj_triples(ttl: str) -> dict:
             """返回 {subject_uri: set(predicate_object_str)}"""

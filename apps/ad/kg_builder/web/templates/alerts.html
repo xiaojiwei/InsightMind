@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>预警管理 - InsightMind</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --ibm-blue:#65758a; --ibm-text:#202832; --ibm-border:#cbd2da;
+      --ibm-layer:#f4f6f8; --ibm-white:#ffffff;
+      --silver-bg:#eef2f5; --silver-panel:#fbfcfd;
+      --silver-line:#d5dbe2; --silver-ink:#202832;
+    }
+    * { box-sizing:border-box; }
+    body {
+      background:var(--silver-bg); color:var(--ibm-text);
+      font-size:13px; min-height:100vh;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;
+    }
+    .alerts-shell { min-height:100vh; display:flex; flex-direction:column; }
+    .alerts-topbar {
+      height:48px; background:var(--ibm-white); border-bottom:1px solid var(--ibm-border);
+      display:flex; align-items:center; padding:0 20px; gap:16px;
+    }
+    .alerts-topbar .brand { font-weight:600; font-size:14px; color:var(--ibm-text); text-decoration:none; }
+    .alerts-topbar .brand i { color:#65758a; margin-right:6px; }
+    .alerts-main { flex:1; display:flex; }
+    .alerts-sidebar {
+      width:200px; background:linear-gradient(180deg,#f8fafc 0%,#eef2f6 100%);
+      border-right:1px solid var(--ibm-border); padding:12px 0;
+    }
+    .alerts-sidebar .nav-link { color:var(--ibm-text); font-size:13px; padding:8px 20px; border-radius:0; }
+    .alerts-sidebar .nav-link i { margin-right:8px; color:#8f9aaa; }
+    .alerts-sidebar .nav-link:hover { background:var(--ibm-layer); }
+    .alerts-sidebar .nav-link.active { background:var(--ibm-white); font-weight:600; border-right:2px solid #65758a; }
+    .alerts-content { flex:1; padding:20px 24px; overflow:auto; max-height:calc(100vh - 48px); }
+
+    /* Cards */
+    .card { border:1px solid var(--ibm-border); border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+    .card-header { background:var(--silver-panel); border-bottom:1px solid var(--ibm-border); font-weight:600; font-size:13px; }
+    .stat-card { text-align:center; padding:16px; }
+    .stat-card .value { font-size:28px; font-weight:700; }
+    .stat-card .label { font-size:12px; color:#8f9aaa; margin-top:4px; }
+
+    /* Severity */
+    .badge-critical { background:#c84b4b; }
+    .badge-warning { background:#d99042; }
+    .badge-notice { background:#f3c969; color:#333; }
+    .severity-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; }
+
+    /* Rule cards */
+    .rule-card {
+      background:var(--ibm-white); border:1px solid var(--ibm-border);
+      border-radius:8px; padding:16px; margin-bottom:12px;
+      display:flex; gap:16px; align-items:flex-start;
+      transition: box-shadow .15s;
+    }
+    .rule-card:hover { box-shadow:0 2px 8px rgba(0,0,0,.08); }
+    .rule-card.disabled { opacity:.55; }
+    .rule-card .rc-status { flex-shrink:0; padding-top:2px; }
+    .rule-card .rc-body { flex:1; min-width:0; }
+    .rule-card .rc-body .rc-title { font-weight:600; font-size:14px; margin-bottom:4px; }
+    .rule-card .rc-body .rc-meta { font-size:12px; color:#6b7a8a; line-height:1.7; }
+    .rule-card .rc-body .rc-meta code { font-size:11px; color:var(--ibm-blue); background:#f0f3f7; padding:1px 5px; border-radius:3px; }
+    .rule-card .rc-actions { flex-shrink:0; display:flex; gap:4px; }
+    .rule-card .rc-severity { flex-shrink:0; }
+
+    /* Detection method radio cards */
+    .detect-cards { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .detect-card {
+      border:2px solid var(--ibm-border); border-radius:8px; padding:12px;
+      cursor:pointer; transition:all .15s; background:var(--ibm-white);
+    }
+    .detect-card:hover { border-color:#65758a; background:#f8fafc; }
+    .detect-card.active { border-color:#65758a; background:#eef3f8; }
+    .detect-card .dc-icon { font-size:22px; margin-bottom:4px; }
+    .detect-card .dc-title { font-weight:600; font-size:13px; }
+    .detect-card .dc-desc { font-size:11px; color:#6b7a8a; margin-top:2px; }
+
+    /* Offcanvas */
+    .offcanvas { width:560px !important; }
+    .offcanvas-body { padding:20px 24px; }
+    .form-section { margin-bottom:20px; }
+    .form-section-title { font-size:12px; font-weight:700; color:#6b7a8a; text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px; border-bottom:1px solid var(--ibm-border); padding-bottom:6px; }
+
+    /* Preview */
+    .rule-preview {
+      background:#f0f6ff; border:1px solid #b8d4f0; border-radius:6px;
+      padding:12px 16px; font-size:13px; line-height:1.6; color:#1a3a5c;
+    }
+    .rule-preview strong { color:#0a2540; }
+    .rule-preview .sev-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin:0 2px; }
+
+    /* Dim tags */
+    .dim-tag { display:inline-flex; align-items:center; background:#eef2f6; border-radius:4px; padding:2px 8px; font-size:12px; margin:2px 4px 2px 0; }
+    .dim-tag .btn-close { font-size:8px; margin-left:6px; }
+
+    .toast-container { position:fixed; top:60px; right:20px; z-index:9999; }
+    .empty-state { text-align:center; padding:60px 20px; color:#8f9aaa; }
+    .empty-state i { font-size:48px; display:block; margin-bottom:12px; }
+
+    /* Settings */
+    .sensitivity-table td, .sensitivity-table th { font-size:12px; vertical-align:middle; }
+
+    /* Embed mode: hide topbar, transform sidebar to horizontal nav-tabs */
+    body.embed-mode .alerts-topbar { display:none; }
+    body.embed-mode .alerts-main { flex-direction:column; }
+    body.embed-mode .alerts-sidebar {
+      width:100%; background:var(--ibm-white); border-right:0;
+      border-bottom:1px solid var(--ibm-border); padding:0;
+    }
+    body.embed-mode .alerts-sidebar .nav {
+      flex-direction:row !important; padding:0 20px; flex-wrap:nowrap;
+    }
+    body.embed-mode .alerts-sidebar .nav-link {
+      padding:10px 16px; border-bottom:2px solid transparent; border-right:0 !important;
+      font-size:13px; white-space:nowrap;
+    }
+    body.embed-mode .alerts-sidebar .nav-link.active {
+      border-bottom-color:#65758a; background:transparent; font-weight:600;
+    }
+    body.embed-mode .alerts-content {
+      max-height:none; padding:16px 20px;
+    }
+  </style>
+</head>
+<body>
+<div class="alerts-shell">
+  <!-- Top bar -->
+  <div class="alerts-topbar">
+    <a href="/" class="brand"><i class="bi bi-shield-check"></i>InsightMind</a>
+    <span style="color:#8f9aaa;">/</span>
+    <span style="font-weight:600;">预警管理</span>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <span id="summaryBadge" class="badge bg-secondary">加载中...</span>
+    </div>
+  </div>
+
+  <div class="alerts-main">
+    <!-- Sidebar -->
+    <div class="alerts-sidebar">
+      <ul class="nav flex-column" id="alertTabs">
+        <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-rules"><i class="bi bi-sliders2"></i>规则管理</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs"><i class="bi bi-list-ul"></i>预警日志</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-stats"><i class="bi bi-bar-chart"></i>统计看板</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-settings"><i class="bi bi-gear"></i>通知设置</a></li>
+      </ul>
+    </div>
+
+    <!-- Content -->
+    <div class="alerts-content">
+      <div class="tab-content">
+
+        <!-- ════════════════════════════════ Rules Tab ═══════════════════════ -->
+        <div class="tab-pane fade show active" id="tab-rules">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h6 class="mb-0">预警规则</h6>
+              <small class="text-muted">监控指标、设定条件、自动通知</small>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="openRuleEditor()"><i class="bi bi-plus-lg"></i> 新建规则</button>
+          </div>
+
+          <!-- Filters -->
+          <div class="d-flex gap-2 mb-3">
+            <input class="form-control form-control-sm" id="ruleSearch" placeholder="搜索规则名称或指标..." style="max-width:240px;" oninput="loadRules()">
+            <select class="form-select form-select-sm" id="ruleMethodFilter" style="width:130px;" onchange="loadRules()">
+              <option value="">全部检测方式</option>
+              <option value="statistical">自动统计</option>
+              <option value="gt">固定阈值</option>
+              <option value="fluctuation">环比波动</option>
+              <option value="zero">跌零检测</option>
+            </select>
+            <select class="form-select form-select-sm" id="ruleSeverityFilter" style="width:110px;" onchange="loadRules()">
+              <option value="">全部级别</option>
+              <option value="critical">严重</option>
+              <option value="warning">异常</option>
+              <option value="notice">关注</option>
+            </select>
+            <select class="form-select form-select-sm" id="ruleStatusFilter" style="width:100px;" onchange="loadRules()">
+              <option value="">全部状态</option><option value="enabled">启用</option><option value="disabled">停用</option>
+            </select>
+          </div>
+
+          <!-- Rule cards -->
+          <div id="rulesList"><div class="empty-state"><i class="bi bi-hourglass-split"></i>加载中...</div></div>
+          <div id="rulesPagination" class="mt-3"></div>
+
+          <!-- Rule Editor (offcanvas) -->
+          <div class="offcanvas offcanvas-end" tabindex="-1" id="ruleEditor" aria-labelledby="ruleEditorLabel">
+            <div class="offcanvas-header">
+              <h6 class="offcanvas-title" id="ruleEditorLabel">新建预警规则</h6>
+              <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+            </div>
+            <div class="offcanvas-body">
+              <input type="hidden" id="editRuleId">
+              <input type="hidden" id="editRuleType" value="custom">
+
+              <!-- ① Basic info -->
+              <div class="form-section">
+                <div class="form-section-title"><i class="bi bi-info-circle"></i> 基本信息</div>
+                <div class="mb-2"><label class="form-label small fw-bold">规则名称</label><input class="form-control form-control-sm" id="editName" placeholder="如：销售额异常下降"></div>
+                <div>
+                  <label class="form-label small fw-bold">严重级别</label>
+                  <div class="d-flex gap-2" id="severityRadio" onclick="event.target.closest('.detect-card') && selectSeverity(event.target.closest('.detect-card').dataset.sev)">
+                    <label class="flex-fill detect-card" style="padding:8px 12px;" data-sev="notice">
+                      <input type="radio" name="severity" value="notice" class="d-none">
+                      <span class="severity-dot" style="background:#f3c969;"></span> 关注
+                    </label>
+                    <label class="flex-fill detect-card active" style="padding:8px 12px;" data-sev="warning">
+                      <input type="radio" name="severity" value="warning" class="d-none" checked>
+                      <span class="severity-dot" style="background:#d99042;"></span> 异常
+                    </label>
+                    <label class="flex-fill detect-card" style="padding:8px 12px;" data-sev="critical">
+                      <input type="radio" name="severity" value="critical" class="d-none">
+                      <span class="severity-dot" style="background:#c84b4b;"></span> 严重
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ② Monitor target -->
+              <div class="form-section">
+                <div class="form-section-title"><i class="bi bi-bullseye"></i> 监控目标</div>
+                <div class="mb-2">
+                  <label class="form-label small fw-bold">指标</label>
+                  <div class="input-group input-group-sm">
+                    <input class="form-control" id="editMeasureSearch" placeholder="搜索指标名称或编码..." autocomplete="off"
+                           oninput="filterMeasureList()" onfocus="showMeasureDropdown()">
+                    <button class="btn btn-outline-secondary" type="button" onclick="refreshMeasures()"><i class="bi bi-arrow-clockwise"></i></button>
+                  </div>
+                  <div class="dropdown-menu" id="measureDropdown" style="max-height:200px;overflow:auto;width:100%;"></div>
+                  <input type="hidden" id="editMeasureCode">
+                  <div id="measureSelected" class="small text-muted mt-1" style="display:none;"></div>
+                </div>
+                <div>
+                  <label class="form-label small fw-bold">维度过滤 <small class="text-muted fw-normal">（可选，仅监控特定维度组合）</small></label>
+                  <div id="dimFilters"></div>
+                  <button class="btn btn-sm btn-link p-0 mt-1" onclick="addDimFilter()"><i class="bi bi-plus"></i> 添加维度条件</button>
+                </div>
+              </div>
+
+              <!-- ③ Detection method -->
+              <div class="form-section">
+                <div class="form-section-title"><i class="bi bi-graph-up"></i> 检测方式</div>
+                <div class="detect-cards" id="detectMethodCards">
+                  <div class="detect-card active" data-method="lt" onclick="selectDetectMethod('lt', this)">
+                    <input type="radio" name="detectMethod" value="lt" class="d-none" checked>
+                    <div class="dc-icon">📈</div>
+                    <div class="dc-title">固定阈值</div>
+                    <div class="dc-desc">指定一个数值界限，超过或低于时触发</div>
+                  </div>
+                  <div class="detect-card" data-method="statistical" onclick="selectDetectMethod('statistical', this)">
+                    <input type="radio" name="detectMethod" value="statistical" class="d-none">
+                    <div class="dc-icon">🤖</div>
+                    <div class="dc-title">自动统计异常</div>
+                    <div class="dc-desc">自动学习历史模式，发现异常偏离</div>
+                  </div>
+                  <div class="detect-card" data-method="fluctuation" onclick="selectDetectMethod('fluctuation', this)">
+                    <input type="radio" name="detectMethod" value="fluctuation" class="d-none">
+                    <div class="dc-icon">📉</div>
+                    <div class="dc-title">环比波动</div>
+                    <div class="dc-desc">较上一周期变化超过设定比例时触发</div>
+                  </div>
+                  <div class="detect-card" data-method="zero" onclick="selectDetectMethod('zero', this)">
+                    <input type="radio" name="detectMethod" value="zero" class="d-none">
+                    <div class="dc-icon">🪫</div>
+                    <div class="dc-title">跌零检测</div>
+                    <div class="dc-desc">数值骤降至接近零时立即告警</div>
+                  </div>
+                </div>
+
+                <!-- Threshold method condition config -->
+                <div id="condThreshold" class="mt-3 p-3 rounded" style="background:#f8fafc;">
+                  <div class="row g-2 align-items-end">
+                    <div class="col-4">
+                      <label class="form-label small">比较方式</label>
+                      <select class="form-select form-select-sm" id="condThOp">
+                        <option value="lt">小于 (&lt;)</option>
+                        <option value="gt">大于 (&gt;)</option>
+                        <option value="lte">小于等于 (≤)</option>
+                        <option value="gte">大于等于 (≥)</option>
+                        <option value="eq">等于 (=)</option>
+                        <option value="between">在区间内</option>
+                        <option value="outside">在区间外</option>
+                      </select>
+                    </div>
+                    <div class="col-4" id="thVal1Col">
+                      <label class="form-label small">阈值</label>
+                      <input class="form-control form-control-sm" id="condThValue" type="number" step="any" placeholder="如 10000">
+                    </div>
+                    <div class="col-4" id="thVal2Col" style="display:none;">
+                      <label class="form-label small">阈值上限</label>
+                      <input class="form-control form-control-sm" id="condThValue2" type="number" step="any" placeholder="如 50000">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Fluctuation method condition config -->
+                <div id="condFluctuation" class="mt-3 p-3 rounded" style="background:#f8fafc; display:none;">
+                  <div class="row g-2 align-items-end">
+                    <div class="col-4">
+                      <label class="form-label small">波动方向</label>
+                      <select class="form-select form-select-sm" id="condFlucDir">
+                        <option value="drop">下降（负向）</option>
+                        <option value="surge">上升（正向）</option>
+                        <option value="both">双向</option>
+                      </select>
+                    </div>
+                    <div class="col-4">
+                      <label class="form-label small">波动比例 (%)</label>
+                      <input class="form-control form-control-sm" id="condFlucRatio" type="number" step="1" min="1" max="100" value="30" placeholder="30">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Statistical / zero methods: no extra config needed -->
+                <div id="condStatistical" class="mt-3 p-3 rounded" style="background:#f8fafc; display:none;">
+                  <small class="text-muted"><i class="bi bi-info-circle"></i> 自动检测灵敏度可在「通知设置 → 检测灵敏度」中调整。</small>
+                </div>
+                <div id="condZero" class="mt-3 p-3 rounded" style="background:#f8fafc; display:none;">
+                  <small class="text-muted"><i class="bi bi-info-circle"></i> 当指标值突降至接近零时自动触发，无需额外配置。</small>
+                </div>
+              </div>
+
+              <!-- ④ Notification -->
+              <div class="form-section">
+                <div class="form-section-title"><i class="bi bi-bell"></i> 通知配置</div>
+                <div class="row g-2 mb-2">
+                  <div class="col-6"><label class="form-label small fw-bold">责任人</label><input class="form-control form-control-sm" id="editAssignee" placeholder="姓名 或 飞书 Open ID"></div>
+                  <div class="col-6">
+                    <label class="form-label small fw-bold">冷却期（分钟）</label>
+                    <input class="form-control form-control-sm" id="editCooldown" type="number" value="15" min="1" max="1440">
+                    <small class="text-muted">同一规则触发后，X 分钟内不再重复通知</small>
+                  </div>
+                </div>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="editEnabled" checked>
+                  <label class="form-check-label small" for="editEnabled">创建后立即启用</label>
+                </div>
+              </div>
+
+              <!-- Live preview -->
+              <div class="rule-preview mb-3" id="rulePreview"></div>
+
+              <!-- Save -->
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-primary flex-fill" onclick="saveRule()"><i class="bi bi-check-lg"></i> 保存规则</button>
+                <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="offcanvas">取消</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════ Logs Tab ═══════════════════════ -->
+        <div class="tab-pane fade" id="tab-logs">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">预警日志</h6>
+            <div class="d-flex gap-2">
+              <select class="form-select form-select-sm" id="logStatusFilter" style="width:110px;" onchange="loadLogs()">
+                <option value="">全部状态</option><option value="open">待处理</option><option value="acknowledged">已知</option><option value="closed">已关闭</option>
+              </select>
+              <select class="form-select form-select-sm" id="logSeverityFilter" style="width:100px;" onchange="loadLogs()">
+                <option value="">全部级别</option><option value="notice">关注</option><option value="warning">异常</option><option value="critical">严重</option>
+              </select>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                  <thead><tr><th>时间</th><th>规则</th><th>指标</th><th>值</th><th>级别</th><th>状态</th><th>责任人</th><th>操作</th></tr></thead>
+                  <tbody id="logsTableBody"><tr><td colspan="8" class="text-center text-muted">加载中...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center" id="logsPagination"></div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════ Stats Tab ═══════════════════════ -->
+        <div class="tab-pane fade" id="tab-stats">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">统计看板</h6>
+            <select class="form-select form-select-sm" id="statsDays" style="width:120px;" onchange="loadStats()">
+              <option value="7">近7天</option><option value="30" selected>近30天</option><option value="90">近90天</option>
+            </select>
+          </div>
+          <div class="row g-3 mb-3" id="statsSummary"></div>
+          <div class="row g-3">
+            <div class="col-8"><div class="card"><div class="card-body" id="chartTrend" style="height:320px;"></div></div></div>
+            <div class="col-4"><div class="card"><div class="card-body" id="chartDist" style="height:320px;"></div></div></div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════ Settings Tab ═══════════════════ -->
+        <div class="tab-pane fade" id="tab-settings">
+
+          <!-- Sensitivity (was: builtin rules) -->
+          <h6 class="mb-3">检测灵敏度 <small class="text-muted fw-normal">— 自动统计异常检测的参数配置</small></h6>
+          <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <span><i class="bi bi-cpu"></i> 统计检测参数</span>
+              <button class="btn btn-sm btn-outline-secondary" onclick="resetSensitivity()">恢复默认</button>
+            </div>
+            <div class="card-body p-2">
+              <div class="table-responsive">
+                <table class="table table-sm sensitivity-table mb-0" id="sensitivityTable"></table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notification config -->
+          <h6 class="mb-3 mt-4">通知配置</h6>
+          <div class="card mb-3">
+            <div class="card-header">飞书通道</div>
+            <div class="card-body">
+              <div class="row g-2 mb-2">
+                <div class="col-6"><label class="form-label small">App ID</label><input class="form-control form-control-sm" id="feishuAppId"></div>
+                <div class="col-6"><label class="form-label small">App Secret</label><input class="form-control form-control-sm" id="feishuAppSecret" type="password"></div>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-6"><label class="form-label small">API Base URL</label><input class="form-control form-control-sm" id="feishuBaseUrl" value="https://open.feishu.cn"></div>
+                <div class="col-6"><label class="form-label small">测试 Open ID</label><input class="form-control form-control-sm" id="feishuTestOpenId" placeholder="ou_xxxx"></div>
+              </div>
+              <button class="btn btn-sm btn-primary me-2" onclick="saveNotifyConfig()">保存配置</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="testNotify()">发送测试</button>
+            </div>
+          </div>
+
+          <div class="card mb-3">
+            <div class="card-header">静默时段</div>
+            <div class="card-body">
+              <div class="row g-2">
+                <div class="col-3"><label class="form-label small">开始</label><input class="form-control form-control-sm" type="time" id="quietStart" value="22:00"></div>
+                <div class="col-3"><label class="form-label small">结束</label><input class="form-control form-control-sm" type="time" id="quietEnd" value="08:00"></div>
+                <div class="col-6 d-flex align-items-end"><button class="btn btn-sm btn-outline-secondary" onclick="saveNotifyConfig()">保存</button></div>
+              </div>
+            </div>
+          </div>
+
+          <h6 class="mb-3 mt-4">预警级别管理</h6>
+          <div class="card">
+            <div class="card-body p-0">
+              <table class="table table-sm mb-0" id="levelsTable"></table>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /tab-content -->
+    </div><!-- /alerts-content -->
+  </div><!-- /alerts-main -->
+</div><!-- /alerts-shell -->
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const API = '/api/alerts';
+
+// ── Helpers ──
+function fmt(v) { return v === null || v === undefined ? '-' : String(v); }
+function sevBadge(s) {
+  const m = {notice:'badge-notice',warning:'badge-warning',critical:'badge-critical'};
+  return `<span class="badge ${m[s]||'bg-secondary'}">${s}</span>`;
+}
+function sevDot(s) {
+  const c = {notice:'#f3c969',warning:'#d99042',critical:'#c84b4b'};
+  return `<span class="severity-dot" style="background:${c[s]||'#999'}"></span>${fmt(s)}`;
+}
+function statusBadge(s) {
+  const m = {open:'bg-danger',acknowledged:'bg-info',closed:'bg-secondary'};
+  const l = {open:'待处理',acknowledged:'已知',closed:'已关闭'};
+  return `<span class="badge ${m[s]||'bg-light text-dark'}">${l[s]||fmt(s)}</span>`;
+}
+function sevColor(s) {
+  return {notice:'#f3c969',warning:'#d99042',critical:'#c84b4b'}[s]||'#999';
+}
+function sevIcon(s) {
+  return {notice:'🔔',warning:'⚠️',critical:'🚨'}[s]||'🔔';
+}
+async function api(url, opts) {
+  const res = await fetch(url, opts);
+  if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.detail||res.statusText); }
+  return res.json();
+}
+function showToast(msg, type='success') {
+  const c = document.getElementById('toastContainer');
+  const bg = type==='error'?'bg-danger':type==='warning'?'bg-warning':'bg-success';
+  c.innerHTML = `<div class="toast show ${bg} text-white" role="alert"><div class="toast-body">${msg}</div></div>`;
+  setTimeout(()=>c.innerHTML='', 3000);
+}
+
+// ── Tab init ──
+document.querySelectorAll('#alertTabs .nav-link').forEach(el => {
+  el.addEventListener('shown.bs.tab', e => {
+    const t = e.target.getAttribute('href');
+    if (t==='#tab-rules') loadRules();
+    if (t==='#tab-logs') loadLogs();
+    if (t==='#tab-stats') loadStats();
+    if (t==='#tab-settings') loadSettings();
+  });
+});
+
+// ── Summary ──
+async function loadSummary() {
+  try {
+    const r = await api(API+'/summary');
+    let html = '';
+    if (r.openCritical > 0) html += `<span class="badge badge-critical me-1">严重 ${r.openCritical}</span>`;
+    if (r.openWarning > 0) html += `<span class="badge badge-warning me-1">异常 ${r.openWarning}</span>`;
+    if (r.openNotice > 0) html += `<span class="badge badge-notice me-1">关注 ${r.openNotice}</span>`;
+    if (!html) html = '无活跃预警';
+    document.getElementById('summaryBadge').innerHTML = html;
+  } catch(e) { console.error(e); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Rules
+// ═══════════════════════════════════════════════════════════════════════════
+
+const METHOD_LABELS = {
+  statistical:'自动统计异常', fluctuation:'环比波动', zero:'跌零检测',
+  gt:'固定阈值', lt:'固定阈值', gte:'固定阈值', lte:'固定阈值', eq:'固定阈值', between:'区间阈值', outside:'区间外阈值', always:'始终触发'
+};
+const OP_LABELS = {gt:'大于', lt:'小于', gte:'大于等于', lte:'小于等于', eq:'等于', between:'在区间内', outside:'在区间外'};
+const DETECT_CARDS = ['lt','statistical','fluctuation','zero'];
+
+let _allMeasures = [];
+
+async function loadMeasures() {
+  try {
+    const r = await api(API+'/measures');
+    _allMeasures = r.measures || [];
+  } catch(e) { console.error(e); _allMeasures = []; }
+}
+
+async function refreshMeasures() {
+  await loadMeasures();
+  showToast(`已加载 ${_allMeasures.length} 个指标`);
+}
+
+function filterMeasureList() {
+  const q = document.getElementById('editMeasureSearch').value.toLowerCase();
+  const dd = document.getElementById('measureDropdown');
+  let items = _allMeasures;
+  if (q) items = items.filter(m => m.code.toLowerCase().includes(q) || m.name.toLowerCase().includes(q) || m.table.toLowerCase().includes(q));
+  items = items.slice(0, 30);
+  let html = '';
+  items.forEach(m => {
+    html += `<a class="dropdown-item" href="#" onclick="selectMeasure('${m.code}','${m.name.replace(/'/g,"\\'")}','${m.table.replace(/'/g,"\\'")}')">
+      ${m.name||m.code} <small class="text-muted">${m.name ? m.code : ''}</small> ${m.table?`<small class="text-muted">(${m.table})</small>`:''}
+    </a>`;
+  });
+  if (!items.length) html = '<span class="dropdown-item text-muted">无匹配指标</span>';
+  dd.innerHTML = html;
+  dd.classList.add('show');
+}
+
+function showMeasureDropdown() {
+  if (!_allMeasures.length) loadMeasures().then(filterMeasureList);
+  else filterMeasureList();
+}
+
+function selectMeasure(code, name, table) {
+  document.getElementById('editMeasureCode').value = code;
+  document.getElementById('editMeasureSearch').value = `${name||code} (${code})`;
+  const sel = document.getElementById('measureSelected');
+  sel.style.display = 'block';
+  sel.innerHTML = `指标：<strong>${name||code}</strong> <small class="text-muted">${code}</small> ${table ? '<small class="text-muted">('+table+')</small>' : ''}`;
+  document.getElementById('measureDropdown').classList.remove('show');
+  updatePreview();
+  // Fetch associated dimensions for auto-suggest
+  loadDimSuggestions(code);
+}
+
+// ── Dimension filters ──
+let _cachedDimensions = []; // loaded by loadDimSuggestions
+
+function addDimFilter(code='', name='', val='') {
+  const label = name || code;
+  const div = document.createElement('div');
+  div.className = 'input-group input-group-sm mb-1 dim-row';
+  div.innerHTML = `<input type="hidden" class="dim-code" value="${code.replace(/"/g,'&quot;')}">
+    <div style="position:relative;max-width:140px;">
+      <input class="form-control form-control-sm dim-label" placeholder="选择维度" value="${label.replace(/"/g,'&quot;')}" autocomplete="off"
+        onfocus="showDimDropdown(this)" onclick="showDimDropdown(this)" style="background:#f8fafc;cursor:pointer;" readonly>
+      <div class="dim-dropdown dropdown-menu" style="position:absolute;top:100%;left:0;right:0;max-height:180px;overflow:auto;display:none;"></div>
+    </div>
+    <span class="input-group-text">=</span>
+    <div style="position:relative;flex:1;">
+      <input class="form-control form-control-sm dim-val" placeholder="筛选值" value="${val.replace(/"/g,'&quot;')}" autocomplete="off" readonly style="background:#f8fafc;cursor:pointer;"
+        onclick="toggleValDropdown(this)">
+      <div class="val-dropdown dropdown-menu" style="position:absolute;top:100%;left:0;right:0;max-height:200px;overflow:auto;display:none;">
+        <div class="px-2 py-1"><small class="text-muted">点击"获取维值"加载</small></div>
+      </div>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary dim-fetch-btn" onclick="fetchDimValues(event, this.closest('.dim-row'))" title="获取维值"><i class="bi bi-download"></i></button>
+    <button class="btn btn-sm btn-outline-secondary" onclick="this.closest('.dim-row').remove();updatePreview();"><i class="bi bi-x"></i></button>`;
+  document.getElementById('dimFilters').appendChild(div);
+}
+
+function showDimDropdown(input) {
+  const dropdown = input.parentElement.querySelector('.dim-dropdown');
+  if (!dropdown) return;
+  // Close other dim dropdowns
+  document.querySelectorAll('.dim-dropdown').forEach(d => { if (d !== dropdown) d.style.display = 'none'; });
+
+  const dims = _cachedDimensions;
+  const q = input.value.trim().toLowerCase();
+  const filtered = q ? dims.filter(d => (d.name||d.code).toLowerCase().includes(q)) : dims;
+
+  if (!filtered.length) {
+    dropdown.innerHTML = '<span class="dropdown-item text-muted">无匹配维度，请先选择指标</span>';
+  } else {
+    dropdown.innerHTML = filtered.map(d =>
+      `<a class="dropdown-item" href="#" onclick="event.preventDefault();selectDimFilter(event.target.closest('.dim-row'),'${d.code.replace(/'/g,"\\'")}','${(d.name||d.code).replace(/'/g,"\\'")}')">
+        ${d.name||d.code}
+      </a>`
+    ).join('');
+  }
+  dropdown.style.display = 'block';
+}
+
+function filterDimDropdown(input) {
+  // Allow typing to filter even though readonly — handle via oninput
+  if (input.readOnly) {
+    const tempInput = document.createElement('input');
+    // Actually, readonly prevents typing. Use a different approach: allow typing.
+  }
+  showDimDropdown(input);
+}
+
+function selectDimFilter(row, code, name) {
+  row.querySelector('.dim-code').value = code;
+  row.querySelector('.dim-label').value = name;
+  row.querySelector('.dim-dropdown').style.display = 'none';
+  updatePreview();
+}
+
+// Keep loadDimSuggestions to populate _cachedDimensions
+async function loadDimSuggestions(code) {
+  _cachedDimensions = [];
+  try {
+    const r = await api(API+'/measures/'+encodeURIComponent(code)+'/dimensions');
+    _cachedDimensions = r.dimensions || [];
+  } catch(e) { _cachedDimensions = []; }
+}
+
+// Click outside closes dropdowns
+document.addEventListener('click', e => {
+  if (!e.target.closest('.dim-row')) {
+    document.querySelectorAll('.dim-dropdown, .val-dropdown').forEach(d => d.style.display = 'none');
+  }
+  if (!e.target.closest('#editMeasureSearch') && !e.target.closest('#measureDropdown')) {
+    document.getElementById('measureDropdown').classList.remove('show');
+  }
+});
+
+// ── Dimension value fetch / multi-select ──
+
+async function fetchDimValues(evt, row) {
+  evt.stopPropagation();
+  const code = row.querySelector('.dim-code').value.trim();
+  if (!code) { showToast('请先选择维度', 'warning'); return; }
+
+  const dropdown = row.querySelector('.val-dropdown');
+  dropdown.style.display = 'block';
+  dropdown.innerHTML = '<div class="px-2 py-1"><small class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>加载中...</small></div>';
+
+  try {
+    const r = await api(API+'/dimensions/'+encodeURIComponent(code)+'/values');
+    const values = r.values || [];
+    if (!values.length) {
+      dropdown.innerHTML = '<div class="px-2 py-1"><small class="text-muted">无可用值</small></div>';
+      return;
+    }
+    // Get currently selected values
+    const valInput = row.querySelector('.dim-val');
+    const current = new Set((valInput.value||'').split(',').map(s => s.trim()).filter(Boolean));
+
+    dropdown.innerHTML = values.map(v =>
+      `<label class="dropdown-item" style="cursor:pointer;">
+        <input type="checkbox" class="form-check-input me-1 val-check" value="${v.replace(/"/g,'&quot;')}" ${current.has(v)?'checked':''}
+          onchange="updateValSelection(this.closest('.dim-row'))">
+        ${v}
+      </label>`
+    ).join('');
+  } catch(e) {
+    dropdown.innerHTML = `<div class="px-2 py-1"><small class="text-danger">加载失败: ${e.message}</small></div>`;
+  }
+}
+
+function toggleValDropdown(input) {
+  const dropdown = input.parentElement.querySelector('.val-dropdown');
+  if (!dropdown) return;
+  const isOpen = dropdown.style.display === 'block';
+  // Close all val dropdowns first
+  document.querySelectorAll('.val-dropdown').forEach(d => d.style.display = 'none');
+  if (!isOpen) dropdown.style.display = 'block';
+}
+
+function updateValSelection(row) {
+  const checks = row.querySelectorAll('.val-check:checked');
+  const values = Array.from(checks).map(c => c.value);
+  row.querySelector('.dim-val').value = values.join(',');
+  updatePreview();
+}
+
+function getDimFilters() {
+  const dims = {};
+  document.querySelectorAll('.dim-row').forEach(row => {
+    const k = (row.querySelector('.dim-code')||row.querySelector('.dim-key')).value.trim();
+    const v = row.querySelector('.dim-val').value.trim();
+    if (k && v) dims[k] = v;
+  });
+  return dims;
+}
+
+function setDimFilters(dims) {
+  document.getElementById('dimFilters').innerHTML = '';
+  if (typeof dims === 'string') { try { dims = JSON.parse(dims); } catch(e) { dims = {}; } }
+  if (!dims || !Object.keys(dims).length) return;
+  // Try to resolve Chinese names from cached dims
+  for (const [k,v] of Object.entries(dims)) {
+    const found = _cachedDimensions.find(d => d.code === k);
+    addDimFilter(k, found ? found.name : k, v);
+  }
+}
+
+// ── Detection method ──
+function selectDetectMethod(method, el) {
+  document.querySelectorAll('#detectMethodCards .detect-card').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  el.querySelector('input').checked = true;
+
+  // Show/hide condition config
+  document.getElementById('condThreshold').style.display = (['gt','lt','gte','lte','eq','between','outside'].includes(method)) ? '' : 'none';
+  document.getElementById('condFluctuation').style.display = (method === 'fluctuation') ? '' : 'none';
+  document.getElementById('condStatistical').style.display = (method === 'statistical') ? '' : 'none';
+  document.getElementById('condZero').style.display = (method === 'zero') ? '' : 'none';
+
+  // Default op for threshold
+  if (method === 'lt') {
+    document.getElementById('condThOp').value = 'lt';
+    updateThVal2Visibility();
+  }
+  if (method === 'statistical') {
+    // statistical maps operator to "statistical", not "lt"
+  }
+
+  updatePreview();
+}
+
+function selectSeverity(sev) {
+  if (!sev) return;
+  document.querySelectorAll('#severityRadio .detect-card').forEach(c => c.classList.remove('active'));
+  const card = document.querySelector(`#severityRadio [data-sev="${sev}"]`);
+  if (card) {
+    card.classList.add('active');
+    card.querySelector('input').checked = true;
+  }
+  updatePreview();
+}
+
+// Threshold value2 visibility
+document.addEventListener('change', e => {
+  if (e.target.id === 'condThOp') { updateThVal2Visibility(); updatePreview(); }
+  if (e.target.matches('#condThValue, #condThValue2, #condFlucDir, #condFlucRatio')) updatePreview();
+});
+
+function updateThVal2Visibility() {
+  const op = document.getElementById('condThOp').value;
+  document.getElementById('thVal1Col').style.display = '';  // always show
+  document.getElementById('thVal2Col').style.display = (op==='between'||op==='outside') ? '' : 'none';
+  if (op==='between'||op==='outside') {
+    document.getElementById('thVal1Col').querySelector('label').textContent = '下限';
+  } else {
+    document.getElementById('thVal1Col').querySelector('label').textContent = '阈值';
+  }
+}
+
+// ── Preview ──
+function updatePreview() {
+  const method = (document.querySelector('input[name="detectMethod"]:checked')||{}).value || 'lt';
+  const sev = (document.querySelector('input[name="severity"]:checked')||{}).value || 'warning';
+  const sevName = {notice:'关注',warning:'异常',critical:'严重'}[sev]||'异常';
+  const name = document.getElementById('editName').value || '（未命名）';
+  const measure = document.getElementById('editMeasureCode').value || '（未选指标）';
+
+  let condText = '';
+  if (method === 'statistical') { condText = '出现自动检测的统计异常'; }
+  else if (method === 'fluctuation') {
+    const dir = document.getElementById('condFlucDir').value;
+    const ratio = document.getElementById('condFlucRatio').value || '30';
+    const dName = {drop:'下降',surge:'上升',both:'波动'}[dir]||'变化';
+    condText = `环比${dName}超过 ${ratio}%`;
+  }
+  else if (method === 'zero') { condText = '数值骤降至接近零'; }
+  else {
+    const op = document.getElementById('condThOp')?.value || method;
+    const opName = OP_LABELS[op] || op;
+    const th = document.getElementById('condThValue')?.value || '?';
+    if (op==='between') { const th2 = document.getElementById('condThValue2')?.value || '?'; condText = `${opName} [${th}, ${th2}]`; }
+    else if (op==='outside') { const th2 = document.getElementById('condThValue2')?.value || '?'; condText = `在区间 [${th}, ${th2}] 之外`; }
+    else { condText = `${opName} ${th}`; }
+  }
+
+  const assignee = document.getElementById('editAssignee').value || '（未指定）';
+  const cooldown = document.getElementById('editCooldown').value || '15';
+
+  document.getElementById('rulePreview').innerHTML =
+    `当 <strong>${name}</strong> 监控的指标 <code>${measure}</code> <strong>${condText}</strong> 时，` +
+    `触发 <span class="severity-dot" style="background:${sevColor(sev)}"></span><strong>${sevName}</strong> 预警，通知 <strong>${assignee}</strong>。` +
+    `同一规则 ${cooldown} 分钟内不重复通知。`;
+}
+
+// Attach preview updates
+['editName','editAssignee','editCooldown'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updatePreview);
+});
+document.querySelectorAll('#severityRadio input').forEach(r => r.addEventListener('change', updatePreview));
+
+// ── Rule CRUD ──
+async function loadRules(page=1) {
+  const search = document.getElementById('ruleSearch').value;
+  const status = document.getElementById('ruleStatusFilter').value;
+  const sev = document.getElementById('ruleSeverityFilter').value;
+  const method = document.getElementById('ruleMethodFilter').value;
+  const params = new URLSearchParams({page, page_size:20});
+  if (status) params.set('status', status);
+  if (sev) params.set('severity', sev);
+  if (search) params.set('search', search);
+
+  try {
+    const r = await api(API+'/rules?'+params);
+    let html = '';
+    if (!r.items.length) html = '<div class="empty-state"><i class="bi bi-inbox"></i>暂无预警规则<br><small>点击「新建规则」开始</small></div>';
+
+    r.items.forEach(rule => {
+      // Filter by method on client side (API doesn't support operator filter)
+      if (method && rule.operator !== method) return;
+
+      const isEnabled = rule.enabled === 1 || rule.enabled === true;
+      const sev = rule.severity || 'warning';
+      const methodLabel = METHOD_LABELS[rule.operator] || '固定阈值';
+      let cond = methodLabel;
+      const op = rule.operator || 'always';
+      if (['gt','lt','gte','lte','eq'].includes(op)) {
+        cond = `固定阈值 ${OP_LABELS[op]||op} ${rule.threshold??'—'}`;
+      } else if (op === 'between') {
+        cond = `区间 [${rule.threshold??'?'}, ${rule.threshold2??'?'}]`;
+      } else if (op === 'outside') {
+        cond = `区间外 [${rule.threshold??'?'}, ${rule.threshold2??'?'}]`;
+      } else if (op === 'fluctuation') {
+        cond = '环比波动检测';
+      } else if (op === 'zero') {
+        cond = '跌零检测';
+      } else if (op === 'statistical') {
+        cond = '自动统计异常';
+      }
+
+      html += `<div class="rule-card ${isEnabled?'':'disabled'}">
+        <div class="rc-status"><span class="severity-dot" style="background:${isEnabled?'#48a868':'#999'}"></span></div>
+        <div class="rc-body">
+          <div class="rc-title">${fmt(rule.name)} ${sevIcon(sev)}</div>
+          <div class="rc-meta">
+            指标：<code>${fmt(rule.measure_code)}</code> ·
+            条件：${cond} ·
+            责任人：${fmt(rule.assignee_name||'—')} ·
+            冷却：${rule.cooldown_minutes||15}分钟 ·
+            已触发：${rule.trigger_count||0} 次
+          </div>
+        </div>
+        <div class="rc-severity">${sevBadge(sev)}</div>
+        <div class="rc-actions">
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleRule(${rule.id})" title="${isEnabled?'停用':'启用'}"><i class="bi bi-${isEnabled?'pause-fill':'play-fill'}"></i></button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="editRule(${rule.id})"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteRule(${rule.id})"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>`;
+    });
+    document.getElementById('rulesList').innerHTML = html || '<div class="empty-state"><i class="bi bi-inbox"></i>无匹配规则</div>';
+    document.getElementById('rulesPagination').innerHTML = paginationHTML(r.page, r.total, r.pageSize, loadRules);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function openRuleEditor(id) {
+  document.getElementById('editRuleId').value = id||'';
+  document.getElementById('ruleEditorLabel').textContent = id?'编辑预警规则':'新建预警规则';
+  // Reset form
+  ['editName','editMeasureCode','editMeasureSearch','editAssignee'].forEach(x => document.getElementById(x).value = '');
+  document.getElementById('editCooldown').value = '15';
+  document.getElementById('editEnabled').checked = true;
+  document.getElementById('measureSelected').style.display = 'none';
+  document.getElementById('dimFilters').innerHTML = '';
+  document.getElementById('editMeasureSearch').value = '';
+
+  // Default severity = warning
+  document.querySelectorAll('#severityRadio .detect-card').forEach(c => c.classList.remove('active'));
+  document.querySelector('#severityRadio [data-sev="warning"]').classList.add('active');
+  document.querySelector('input[name="severity"][value="warning"]').checked = true;
+
+  // Default method = 固定阈值 (lt)
+  selectDetectMethod('lt', document.querySelector('#detectMethodCards [data-method="lt"]'));
+  document.getElementById('condThOp').value = 'lt';
+  document.getElementById('condThValue').value = '';
+  document.getElementById('condThValue2').value = '';
+  document.getElementById('condFlucDir').value = 'drop';
+  document.getElementById('condFlucRatio').value = '30';
+
+  if (id) {
+    api(API+'/rules/'+id).then(rule => {
+      document.getElementById('editName').value = rule.name||'';
+      document.getElementById('editMeasureCode').value = rule.measure_code||'';
+      document.getElementById('editMeasureSearch').value = rule.measure_code||'';
+      document.getElementById('editAssignee').value = rule.assignee_name||'';
+      document.getElementById('editCooldown').value = rule.cooldown_minutes||15;
+      document.getElementById('editEnabled').checked = rule.enabled===1||rule.enabled===true;
+
+      // Severity
+      const sev = rule.severity||'warning';
+      document.querySelectorAll('#severityRadio .detect-card').forEach(c => c.classList.remove('active'));
+      document.querySelector(`#severityRadio [data-sev="${sev}"]`)?.classList.add('active');
+      document.querySelector(`input[name="severity"][value="${sev}"]`).checked = true;
+
+      // Detection method
+      const op = rule.operator||'lt';
+      const cardMap = {lt:'lt',gt:'lt',gte:'lt',lte:'lt',eq:'lt',between:'lt',outside:'lt',statistical:'statistical',fluctuation:'fluctuation',zero:'zero'};
+      const card = cardMap[op]||'lt';
+      selectDetectMethod(card, document.querySelector(`#detectMethodCards [data-method="${card}"]`));
+
+      // Method-specific fields
+      if (['gt','lt','gte','lte','eq'].includes(op)) {
+        document.getElementById('condThOp').value = op;
+        document.getElementById('condThValue').value = rule.threshold||'';
+        updateThVal2Visibility();
+      } else if (op==='between'||op==='outside') {
+        document.getElementById('condThOp').value = op;
+        document.getElementById('condThValue').value = rule.threshold||'';
+        document.getElementById('condThValue2').value = rule.threshold2||'';
+        updateThVal2Visibility();
+      }
+
+      // Dimension filters
+      setDimFilters(rule.dimensions_json);
+
+      // Show selected measure info
+      if (rule.measure_code) {
+        document.getElementById('measureSelected').style.display = 'block';
+        document.getElementById('measureSelected').innerHTML = `指标：<code>${rule.measure_code}</code>`;
+        loadDimSuggestions(rule.measure_code);
+      }
+
+      updatePreview();
+    });
+  } else {
+    updatePreview();
+  }
+
+  const offcanvas = new bootstrap.Offcanvas(document.getElementById('ruleEditor'));
+  offcanvas.show();
+}
+
+async function saveRule() {
+  const id = document.getElementById('editRuleId').value;
+  const card = document.querySelector('input[name="detectMethod"]:checked')?.value || 'lt';
+
+  // Determine operator and threshold based on method
+  let operator, threshold=null, threshold2=null;
+  if (card==='statistical') { operator='statistical'; }
+  else if (card==='fluctuation') { operator='fluctuation'; threshold=parseFloat(document.getElementById('condFlucRatio').value)/100||0.3; }
+  else if (card==='zero') { operator='zero'; }
+  else {
+    operator = document.getElementById('condThOp').value || 'gt';
+    threshold = document.getElementById('condThValue').value ? parseFloat(document.getElementById('condThValue').value) : null;
+    if (operator==='between'||operator==='outside') threshold2 = document.getElementById('condThValue2').value ? parseFloat(document.getElementById('condThValue2').value) : null;
+  }
+
+  const dims = getDimFilters();
+  const sev = (document.querySelector('input[name="severity"]:checked')||{}).value || 'warning';
+
+  const body = {
+    name: document.getElementById('editName').value.trim() || '未命名规则',
+    type: 'custom',
+    measure_code: document.getElementById('editMeasureCode').value.trim(),
+    operator: operator,
+    severity: sev,
+    assignee_name: document.getElementById('editAssignee').value.trim(),
+    cooldown_minutes: parseInt(document.getElementById('editCooldown').value)||15,
+    notify_enabled: 1,
+    enabled: document.getElementById('editEnabled').checked,
+  };
+  if (threshold !== null && threshold !== undefined) body.threshold = threshold;
+  if (threshold2 !== null && threshold2 !== undefined) body.threshold2 = threshold2;
+  if (Object.keys(dims).length) body.dimensions_json = JSON.stringify(dims);
+
+  // Validation
+  if (!body.measure_code) { showToast('请选择监控指标','error'); return; }
+  if (['gt','lt','gte','lte','eq','between','outside'].includes(operator) && threshold===null) { showToast('请填写阈值','error'); return; }
+
+  try {
+    if (id) await api(API+'/rules/'+id, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    else await api(API+'/rules', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    bootstrap.Offcanvas.getInstance(document.getElementById('ruleEditor')).hide();
+    loadRules(); showToast('保存成功');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function editRule(id) { openRuleEditor(id); }
+async function toggleRule(id) {
+  await api(API+'/rules/'+id+'/toggle', {method:'PATCH'});
+  loadRules();
+}
+async function deleteRule(id) {
+  if (confirm('确认删除此规则？此操作不可撤销。')) {
+    try { await api(API+'/rules/'+id, {method:'DELETE'}); loadRules(); showToast('已删除'); }
+    catch(e) { showToast(e.message, 'error'); }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Logs (mostly unchanged)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function loadLogs(page=1) {
+  const stat = document.getElementById('logStatusFilter').value;
+  const sev = document.getElementById('logSeverityFilter').value;
+  const params = new URLSearchParams({page, page_size:20});
+  if (stat) params.set('status', stat);
+  if (sev) params.set('severity', sev);
+  try {
+    const r = await api(API+'/logs?'+params);
+    let html = '';
+    if (!r.items.length) html = '<tr><td colspan="8" class="text-center text-muted">暂无预警日志</td></tr>';
+    r.items.forEach(log => {
+      html += `<tr>
+        <td><small>${fmt(log.triggered_at).substring(0,16)}</small></td>
+        <td>${fmt(log.rule_name||'-')}</td>
+        <td><code>${fmt(log.measure_code)}</code></td>
+        <td>${fmt(log.actual_value)}</td>
+        <td>${sevDot(log.severity)}</td>
+        <td>${statusBadge(log.status)}</td>
+        <td>${fmt(log.assignee_name)}</td>
+        <td>
+          <div class="btn-group btn-group-xs">
+            ${log.status==='open'?`<button class="btn btn-sm btn-outline-info" onclick="ackLog(${log.id})">已知</button>`:''}
+            ${log.status!=='closed'?`<button class="btn btn-sm btn-outline-success" onclick="resolveLog(${log.id})">关闭</button>`:''}
+          </div>
+        </td>
+      </tr>`;
+    });
+    document.getElementById('logsTableBody').innerHTML = html;
+    document.getElementById('logsPagination').innerHTML = paginationHTML(r.page, r.total, r.pageSize, loadLogs);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function ackLog(id) { await api(API+'/logs/'+id+'/ack', {method:'POST'}); loadLogs(); showToast('已确认'); }
+async function resolveLog(id) {
+  const note = prompt('处理说明（可选）:');
+  await api(API+'/logs/'+id+'/resolve', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note||''})});
+  loadLogs(); showToast('已关闭');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Stats (unchanged)
+// ═══════════════════════════════════════════════════════════════════════════
+
+let trendChart, distChart;
+async function loadStats() {
+  const days = document.getElementById('statsDays').value;
+  try {
+    const r = await api(API+'/stats?days='+days);
+    document.getElementById('statsSummary').innerHTML = `
+      <div class="col-3"><div class="card stat-card"><div class="value" style="color:#c84b4b">${r.openCritical||0}</div><div class="label">严重预警</div></div></div>
+      <div class="col-3"><div class="card stat-card"><div class="value" style="color:#d99042">${r.openWarning||0}</div><div class="label">异常预警</div></div></div>
+      <div class="col-3"><div class="card stat-card"><div class="value">${r.openNotice||0}</div><div class="label">关注预警</div></div></div>
+      <div class="col-3"><div class="card stat-card"><div class="value">${r.totalRules||0}</div><div class="label">启用规则</div></div></div>`;
+
+    if (!trendChart) trendChart = echarts.init(document.getElementById('chartTrend'));
+    trendChart.setOption({
+      tooltip:{trigger:'axis'}, legend:{bottom:0,data:['严重','异常','关注']},
+      grid:{left:40,right:20,top:20,bottom:40},
+      xAxis:{type:'category',data:(r.dailyTrend||[]).map(d=>d.date),axisLabel:{rotate:30,fontSize:10}},
+      yAxis:{type:'value'},
+      series:[
+        {name:'严重',type:'line',data:(r.dailyTrend||[]).map(d=>d.critical||0),color:'#c84b4b',smooth:true},
+        {name:'异常',type:'line',data:(r.dailyTrend||[]).map(d=>d.warning||0),color:'#d99042',smooth:true},
+        {name:'关注',type:'line',data:(r.dailyTrend||[]).map(d=>d.notice||0),color:'#f3c969',smooth:true},
+      ]
+    });
+
+    if (!distChart) distChart = echarts.init(document.getElementById('chartDist'));
+    distChart.setOption({
+      tooltip:{trigger:'item'},
+      series:[{type:'pie',radius:['40%','70%'],label:{show:true,formatter:'{b}\\n{d}%'},
+        data:[
+          {value:r.bySeverity?.critical||0,name:'严重',itemStyle:{color:'#c84b4b'}},
+          {value:r.bySeverity?.warning||0,name:'异常',itemStyle:{color:'#d99042'}},
+          {value:r.bySeverity?.notice||0,name:'关注',itemStyle:{color:'#f3c969'}},
+        ]
+      }]
+    });
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Settings
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function loadSensitivityConfig() {
+  try {
+    const r = await api(API+'/builtin/config');
+    const defaults = await api(API+'/builtin/defaults');
+    const labels = {
+      self:'自身数据异常', path:'路径异常', expression:'计算表达式异常'
+    };
+    const paramLabels = {
+      'self.zscore_critical': '严重异常阈值 (z-score)',
+      'self.zscore_warning': '异常阈值 (z-score)',
+      'self.iqr_multiplier': 'IQR 极值倍数',
+      'self.drop_ratio': '环比下降比例阈值',
+      'self.surge_ratio': '环比暴涨比例阈值',
+      'self.fluctuation_ratio': '环比波动比例阈值',
+      'self.near_zero_ratio': '近零检测比例',
+      'path.iqr_multiplier': '路径 IQR 极值倍数',
+      'path.near_zero_ratio': '路径跌零比例',
+      'path.surge_ratio': '路径超高倍率',
+      'expression.enabled': '表达式检测开关',
+    };
+    const paramHints = {
+      'self.zscore_critical': '偏离程度 ≥ 此值判定为严重（robust z-score）',
+      'self.zscore_warning': '偏离程度 ≥ 此值判定为异常',
+      'self.iqr_multiplier': '超出 Q1/N×IQR 或 Q3+N×IQR 边界则触发',
+      'self.drop_ratio': '较上一点下降比例 ≤ 此值触发严重（例 -0.9 即下降 90%）',
+      'self.surge_ratio': '较上一点增长比例 ≥ 此值触发严重（例 3.0 即增长 300%）',
+      'self.fluctuation_ratio': '较上一点波动比例 ≥ 此值触发异常',
+      'self.near_zero_ratio': '值 ≤ 基线中位数 × 此比例视为近零',
+      'path.iqr_multiplier': '路径内跨维度异常检测的 IQR 倍数',
+      'path.near_zero_ratio': '路径内跌零检测的比例阈值',
+      'path.surge_ratio': '路径内值 ≥ 中位数 × 此倍数视为暴涨',
+      'expression.enabled': '是否启用计算表达式内部异常检测 (true/false)',
+    };
+
+    let html = '';
+    for (const [type, cfg] of Object.entries(r.builtins)) {
+      const defs = defaults.defaults[type] || {};
+      html += `<thead class="table-light"><tr><th colspan="4">${labels[type]||type}</th></tr></thead><tbody>`;
+      for (const [key, val] of Object.entries(defs)) {
+        const fullKey = `${type}.${key}`;
+        html += `<tr>
+          <td><small><strong>${paramLabels[fullKey]||key}</strong></small></td>
+          <td><input class="form-control form-control-sm sensitivity-param" data-key="${fullKey}" value="${cfg[key]??val}" style="width:120px;"></td>
+          <td><small class="text-muted">${paramHints[fullKey]||''}</small></td>
+          <td><button class="btn btn-sm btn-outline-secondary" onclick="saveSensitivityParam('${fullKey}', this)">保存</button></td>
+        </tr>`;
+      }
+      html += '</tbody>';
+    }
+    document.getElementById('sensitivityTable').innerHTML = html;
+  } catch(e) { console.error(e); }
+}
+
+function saveSensitivityParam(fullKey, btn) {
+  const [type, key] = fullKey.split('.');
+  const input = btn.closest('tr').querySelector('input');
+  let v = input.value;
+  if (key === 'enabled') v = v === 'true' || v === '1' ? 'true' : 'false';
+  else if (!isNaN(v) && v.trim()!=='') v = parseFloat(v);
+  const body = {};
+  body[key] = v;
+  api(API+'/builtin/config/'+type, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(()=>showToast('参数已保存')).catch(e=>showToast(e.message,'error'));
+}
+
+async function resetSensitivity() {
+  if (!confirm('确定恢复所有检测参数为默认值？')) return;
+  for (const t of ['self','path','expression']) {
+    await api(API+'/builtin/reset/'+t, {method:'POST'}).catch(()=>{});
+  }
+  loadSensitivityConfig(); showToast('已恢复默认');
+}
+
+// ── Notification config ──
+async function loadSettings() {
+  loadSensitivityConfig();
+  try {
+    const cfg = await api(API+'/notify/config');
+    document.getElementById('feishuAppId').value = cfg.app_id||'';
+    document.getElementById('feishuAppSecret').value = cfg.app_secret||'';
+    document.getElementById('feishuBaseUrl').value = cfg.base_url||'https://open.feishu.cn';
+    document.getElementById('quietStart').value = cfg.quiet_start||'22:00';
+    document.getElementById('quietEnd').value = cfg.quiet_end||'08:00';
+  } catch(e) { console.error(e); }
+  try {
+    const r = await api(API+'/levels');
+    let html = '<thead><tr><th>编码</th><th>标签</th><th>颜色</th><th>排序</th></tr></thead><tbody>';
+    (r.levels||[]).forEach(l => {
+      html += `<tr><td><code>${fmt(l.code)}</code></td><td>${fmt(l.label)}</td>
+        <td><span class="severity-dot" style="background:${l.color||'#999'}"></span>${fmt(l.color)}</td>
+        <td>${l.sort_order||0}</td></tr>`;
+    });
+    html += '</tbody>';
+    document.getElementById('levelsTable').innerHTML = html;
+  } catch(e) { console.error(e); }
+}
+
+async function saveNotifyConfig() {
+  const body = {
+    app_id: document.getElementById('feishuAppId').value,
+    app_secret: document.getElementById('feishuAppSecret').value,
+    base_url: document.getElementById('feishuBaseUrl').value,
+    quiet_start: document.getElementById('quietStart').value,
+    quiet_end: document.getElementById('quietEnd').value,
+  };
+  try {
+    await api(API+'/notify/config', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    showToast('配置已保存');
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+async function testNotify() {
+  const openId = document.getElementById('feishuTestOpenId').value;
+  if (!openId) { showToast('请填写测试 Open ID','warning'); return; }
+  try {
+    await api(API+'/notify/test', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({open_id:openId})});
+    showToast('测试消息已发送');
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+// ── Pagination ──
+function paginationHTML(page, total, ps, cb) {
+  const pages = Math.ceil(total/ps);
+  if (pages<=1) return '';
+  let html = `<small class="text-muted">共 ${total} 条</small><div class="btn-group btn-group-xs">`;
+  for (let p=1; p<=pages; p++) {
+    html += `<button class="btn btn-sm ${p===page?'btn-primary':'btn-outline-secondary'}" onclick="${cb.name}(${p})">${p}</button>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+// ── Init ──
+loadSummary();
+loadMeasures();
+loadRules();
+
+// Resize charts
+window.addEventListener('resize', ()=>{ trendChart?.resize(); distChart?.resize(); });
+
+// ── Embed mode ──
+(function() {
+  if (new URLSearchParams(window.location.search).get('embed') === '1') {
+    document.body.classList.add('embed-mode');
+  }
+})();
+</script>
+</body>
+</html>

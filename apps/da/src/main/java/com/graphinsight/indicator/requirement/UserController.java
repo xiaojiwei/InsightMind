@@ -243,7 +243,7 @@ public class UserController {
     }
 
     private String getCoaToken(){
-        String coaTokenUrl = "https://coa-api.it.lixiangoa.com/oauth/token";
+        String coaTokenUrl = "https://coa-api.it.xiaojwoa.com/oauth/token";
         String clientId = "176";
         String clientSecret = "coqot2hJvSIo9MOINm4sDYUGBcpTHFVTPA6e33go";
         String token;
@@ -264,7 +264,7 @@ public class UserController {
         HttpHeaders headers = new HttpHeaders();
         headers.add("Content-Type", "application/json");
         headers.add("Authorization", getCoaToken());
-        String url = "https://coa-api.it.lixiangoa.com/api/info/search_in_all_user?" + "search_type=" + type + "&search_text=" + keyword;
+        String url = "https://coa-api.it.xiaojwoa.com/api/info/search_in_all_user?" + "search_type=" + type + "&search_text=" + keyword;
         final ResponseEntity<JSONObject> exchange = httpRestTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), JSONObject.class);
         final JSONObject res = exchange.getBody();
         if (res == null) {

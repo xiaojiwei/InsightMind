@@ -576,6 +576,64 @@
       min-width:100%;
       max-width:none;
     }
+    .dashboard-ai-panel {
+      margin-top:8px;
+      background:#fff;
+      border:1px solid var(--ibm-border);
+      padding:12px 14px;
+      font-size:13px;
+      line-height:1.75;
+    }
+    .dashboard-ai-panel h3,
+    .dashboard-ai-panel h4 {
+      font-size:14px;
+      margin:10px 0 6px;
+    }
+    .dashboard-ai-panel ul { margin-bottom:8px; }
+    .dashboard-ai-panel .dashboard-ai-meta { color:#6b7280; font-size:12px; margin-bottom:6px; }
+    .dashboard-ai-panel .ai-highlight {
+      border-left:3px solid transparent;
+      padding:4px 8px;
+      margin:3px 0;
+      border-radius:3px;
+    }
+    .dashboard-ai-panel .ai-severity-red {
+      background:#fff1f1;
+      border-left-color:#dc2626;
+      color:#7f1d1d;
+    }
+    .dashboard-ai-panel .ai-severity-orange {
+      background:#fff7ed;
+      border-left-color:#f97316;
+      color:#7c2d12;
+    }
+    .dashboard-ai-panel .ai-severity-yellow {
+      background:#fffbeb;
+      border-left-color:#f59e0b;
+      color:#713f12;
+    }
+    .dashboard-ai-panel .ai-positive-blue {
+      background:#eff6ff;
+      border-left-color:#60a5fa;
+      color:#1e3a8a;
+    }
+    .dashboard-ai-panel .ai-severity-badge {
+      display:inline-flex;
+      align-items:center;
+      font-size:11px;
+      line-height:1;
+      padding:2px 5px;
+      border-radius:3px;
+      margin-right:6px;
+      border:1px solid currentColor;
+      opacity:.86;
+    }
+    #dashboard-widget-ai-body {
+      font-size:13px;
+      line-height:1.75;
+      max-height:66vh;
+      overflow:auto;
+    }
     .grid-stack-item-content { inset:4px !important; }
     body.dashboard-view-mode .dashboard-edit-only { display:none !important; }
     body.dashboard-view-mode .dashboard-canvas { background:#fff; border-color:#dde5ee; padding:0; }
@@ -1175,6 +1233,7 @@
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-adhoc" onclick="initAdhocTab()" title="Ad-Hoc"><i class="bi bi-bounding-box-circles"></i><span>Ad-Hoc</span></a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-dashboard" onclick="initDashboardTab()" title="Dashboard"><i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span></a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-my-dashboards" onclick="initMyDashboardsTab()" title="我的看板"><i class="bi bi-person-workspace"></i><span>我的看板</span></a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-alerts" onclick="initAlertsTab()" title="监控预警"><i class="bi bi-exclamation-triangle-fill"></i><span>监控预警</span></a></li>
     </ul>
   </aside>
 
@@ -1630,15 +1689,24 @@
             <div class="card-header py-2">
               <i class="bi bi-radioactive me-2 text-danger"></i>
               <strong>变更影响分析</strong>
-              <span class="text-muted small ms-2">— 分析修改某张表将影响哪些下游表</span>
+              <span class="text-muted small ms-2">— 变更事实表、字段或指标口径前预估影响范围</span>
             </div>
             <div class="card-body">
               <div class="row g-2 mb-3">
-                <div class="col-8">
-                  <label class="form-label small fw-semibold mb-1">目标表名</label>
-                  <input type="text" class="form-control form-control-sm" id="impact-table" placeholder="measure" />
+                <div class="col-4">
+                  <label class="form-label small fw-semibold mb-1">变更对象</label>
+                  <select class="form-select form-select-sm" id="impact-target-type">
+                    <option value="auto">自动识别</option>
+                    <option value="table">事实表</option>
+                    <option value="field">字段</option>
+                    <option value="measure">指标口径</option>
+                  </select>
                 </div>
-                <div class="col-4 d-flex align-items-end">
+                <div class="col-5">
+                  <label class="form-label small fw-semibold mb-1">目标名称</label>
+                  <input type="text" class="form-control form-control-sm" id="impact-table" placeholder="web_sales / ws_net_paid / MEAS_xxx" />
+                </div>
+                <div class="col-3 d-flex align-items-end">
                   <button class="btn btn-sm btn-danger w-100" onclick="runImpact()">
                     <i class="bi bi-radioactive me-1"></i>分析
                   </button>
@@ -1952,7 +2020,7 @@
                           <th style="min-width:110px">数据来源</th>
                           <th style="min-width:150px">关联维度</th>
                           <th style="width:70px">逻辑SQL</th>
-                          <th style="width:60px">分析</th>
+                          <th style="width:100px">操作</th>
                         </tr>
                       </thead>
                       <tbody id="meas-tbody">
@@ -2652,6 +2720,7 @@
                   <div id="adhoc-measures" class="adhoc-dropzone mb-2"></div>
                   <label class="small fw-semibold mb-1">维度</label>
                   <div id="adhoc-dimensions" class="adhoc-dropzone mb-2"></div>
+                  <div id="adhoc-dimension-recommendations" class="small mb-2"></div>
                   <div id="adhoc-chart-hint" class="small text-muted mb-2"></div>
                   <div id="adhoc-pivot-columns-wrap" class="d-none">
                     <label class="small fw-semibold mb-1">透视列轴</label>
@@ -2698,10 +2767,18 @@
                 </div>
                 <div class="card-body p-2">
                   <div class="small text-muted mb-2">下钻路径表示点击当前图形元素后进入的后续层级；也可以打开明细。</div>
-                  <input id="adhoc-drill-member-search" class="form-control form-control-sm mb-2" placeholder="搜索下钻维度..." oninput="renderAdhocConfig()">
-                  <div class="d-flex gap-2 mb-2">
-                    <select id="adhoc-drill-member" class="form-select form-select-sm"></select>
-                    <button class="btn btn-sm btn-outline-primary text-nowrap" onclick="adhocAddDrillMember()"><i class="bi bi-plus-lg me-1"></i>添加层级</button>
+                  <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="下钻方式">
+                    <input type="radio" class="btn-check" name="adhoc-drill-mode" id="adhoc-drill-mode-path" value="path" autocomplete="off" onchange="adhocSetDrillMode('path')">
+                    <label class="btn btn-outline-secondary" for="adhoc-drill-mode-path">自定义路径</label>
+                    <input type="radio" class="btn-check" name="adhoc-drill-mode" id="adhoc-drill-mode-dynamic" value="dynamic" autocomplete="off" onchange="adhocSetDrillMode('dynamic')">
+                    <label class="btn btn-outline-secondary" for="adhoc-drill-mode-dynamic">点击后选择维度</label>
+                  </div>
+                  <div id="adhoc-drill-path-config">
+                    <input id="adhoc-drill-member-search" class="form-control form-control-sm mb-2" placeholder="搜索下钻维度..." oninput="renderAdhocConfig()">
+                    <div class="d-flex gap-2 mb-2">
+                      <select id="adhoc-drill-member" class="form-select form-select-sm"></select>
+                      <button class="btn btn-sm btn-outline-primary text-nowrap" onclick="adhocAddDrillMember()"><i class="bi bi-plus-lg me-1"></i>添加层级</button>
+                    </div>
                   </div>
                   <div id="adhoc-drill-path" class="adhoc-dropzone mb-2"></div>
                   <div id="adhoc-drill-stack" class="small text-muted">当前层级：根</div>
@@ -2788,6 +2865,9 @@
                 <button class="btn btn-sm btn-primary flex-fill" onclick="dashboardRefreshAll()"><i class="bi bi-arrow-repeat me-1"></i>刷新</button>
                 <button class="btn btn-sm btn-outline-success flex-fill" onclick="saveDashboardSpec()"><i class="bi bi-save me-1"></i>保存</button>
               </div>
+              <button id="dashboard-ai-toggle" class="btn btn-sm btn-outline-info w-100 mb-2" onclick="dashboardToggleAiInsight()">
+                <i class="bi bi-stars me-1"></i>AI 解读：关闭
+              </button>
               <input id="dashboard-saved-search" class="form-control form-control-sm mb-2" placeholder="搜索看板..." oninput="renderDashboardAssetLists()">
               <div id="dashboard-saved-list" class="d-flex flex-column gap-2" style="max-height:360px;overflow:auto"></div>
             </div>
@@ -2803,6 +2883,7 @@
             </div>
             <div class="card-body p-1">
               <div id="dashboard-canvas" class="dashboard-canvas grid-stack"></div>
+              <div id="dashboard-ai-insight-panel" class="dashboard-ai-panel d-none"></div>
             </div>
           </div>
         </div>
@@ -2823,6 +2904,10 @@
         <div class="col-12 text-muted py-5 text-center">正在加载看板...</div>
       </div>
     </div><!-- /tab-my-dashboards -->
+
+    <div class="tab-pane fade" id="tab-alerts">
+      <iframe id="alertsIframe" src="" style="width:100%;height:calc(100vh - 68px);border:none;" title="监控预警"></iframe>
+    </div><!-- /tab-alerts -->
 
   </div><!-- tab-content -->
     </div><!-- app-content -->
@@ -2854,6 +2939,45 @@
           <div class="text-muted text-center py-5">请选择图形元素</div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dynamic drill dimension chooser -->
+<div class="modal fade" id="dynamic-drill-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:560px">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title mb-0">
+          <i class="bi bi-signpost-split me-2 text-success"></i>选择下钻维度
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="dynamic-drill-context" class="small text-muted mb-2"></div>
+        <div id="dynamic-drill-body"></div>
+      </div>
+      <div class="modal-footer py-2 small text-muted">
+        仅显示当前指标可兼容、且尚未用于本次下钻链路的维度。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard single widget AI interpretation -->
+<div class="modal fade" id="dashboard-widget-ai-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:760px">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <div>
+          <h6 class="modal-title mb-0">
+            <i class="bi bi-stars me-2 text-info"></i>图表 AI 解读
+          </h6>
+          <div id="dashboard-widget-ai-title" class="small text-muted"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div id="dashboard-widget-ai-body" class="modal-body dashboard-ai-panel border-0 m-0"></div>
     </div>
   </div>
 </div>
@@ -3663,34 +3787,35 @@ async function runJoinPath() {
 
 async function runImpact() {
   const tbl = document.getElementById('impact-table').value.trim();
+  const targetType = document.getElementById('impact-target-type')?.value || 'auto';
   const out = document.getElementById('impact-result');
-  if (!tbl) { out.innerHTML='<span class="text-danger">请填写目标表名</span>'; return; }
+  if (!tbl) { out.innerHTML='<span class="text-danger">请填写目标名称</span>'; return; }
   out.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>分析中…';
   try {
-    const r = await fetch(`/api/impact?table=${encodeURIComponent(tbl)}`);
+    const r = await fetch(`/api/business-kg/reasoning/impact?target=${encodeURIComponent(tbl)}&target_type=${encodeURIComponent(targetType)}`);
     const d = await r.json();
     if (d.error) { out.innerHTML=`<span class="text-danger">${d.error}</span>`; return; }
-    const deps = d['影响范围'] || [];
-    if (deps.length === 0) {
-      out.innerHTML = `<span class="text-muted">表 <strong>${tbl}</strong> 没有下游依赖表（无其他表通过FK引用它）</span>`;
+    const paths = d.paths || [];
+    const summary = d.summary || {};
+    if (!paths.length) {
+      out.innerHTML = `<span class="text-muted">未发现 <strong>${escHtml(tbl)}</strong> 的业务图谱影响范围</span>`;
       return;
     }
-    // Group by hops
-    const byHop = {};
-    deps.forEach(dep => {
-      const h = dep['跳数'];
-      if (!byHop[h]) byHop[h] = [];
-      byHop[h].push(dep);
-    });
-    let html = `<div class="mb-2">表 <strong class="text-danger">${tbl}</strong> 被 <strong>${d['总计']}</strong> 张表直接或间接依赖：</div>`;
-    Object.keys(byHop).sort((a,b)=>a-b).forEach(hop => {
-      const color = hop==1 ? 'danger' : hop==2 ? 'warning' : 'secondary';
-      html += `<div class="mb-1"><span class="badge bg-${color} me-1">第${hop}跳</span>`;
-      byHop[hop].forEach(dep => {
-        html += `<span class="badge bg-light text-dark border me-1" title="通过外键: ${dep['通过外键']||'?'}">${dep['依赖表']}</span>`;
-      });
-      html += `</div>`;
-    });
+    let html = `<div class="mb-2">
+      <strong class="text-danger">${escHtml(tbl)}</strong> 影响预估：
+      <span class="badge bg-light text-dark border">指标 ${summary.measureCount || 0}</span>
+      <span class="badge bg-light text-dark border">维度 ${summary.dimensionCount || 0}</span>
+      <span class="badge bg-light text-dark border">事实表 ${summary.tableCount || 0}</span>
+    </div>`;
+    html += `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
+      <thead class="table-light"><tr><th>类型</th><th>对象</th><th>原因</th><th>证据路径</th></tr></thead>
+      <tbody>${paths.slice(0, 80).map(p => `<tr>
+        <td><span class="badge ${p.type === 'measure' ? 'bg-warning text-dark' : p.type === 'dimension' ? 'bg-success' : 'bg-secondary'}">${escHtml(p.type || '')}</span></td>
+        <td><code>${escHtml(p.code || '')}</code><div class="small text-muted">${escHtml(p.name || '')}</div></td>
+        <td>${escHtml(p.reason || '')}</td>
+        <td class="small text-muted">${escHtml(p.path || '')}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
     out.innerHTML = html;
   } catch(e) { out.innerHTML = `<span class="text-danger">${e}</span>`; }
 }
@@ -3762,12 +3887,13 @@ let _adhocDetailColumns = [];
 let _adhocDetailRecords = [];
 let _adhocFilterTimeDraft = null;
 let _adhocPivotRenderCache = {};
+let _dynamicDrillPending = null;
 let _adhocState = {
   id: '',
   name: '渠道销售额分析',
   query: {measures:[], dimensions:[], filters:[], order:{}, limit:1000},
   view: {type:'chart', chartType:'auto', encoding:{}},
-  drill: {path:[], stack:[]}
+  drill: {mode:'path', path:[], stack:[]}
 };
 
 let _dashboardGrid = null;
@@ -3779,12 +3905,15 @@ let _dashboardViewMode = false;
 let _dashboardStandaloneView = false;
 let _dashboardFilterExpanded = false;
 let _dashboardWidgetResults = {};
+let _dashboardAiRequestId = 0;
+let _dashboardAiTimer = null;
 const DASHBOARD_DRAFT_KEY = 'ad_dashboard_draft_v1';
 let _dashboardState = {
   id: '',
   name: '销售经营总览',
   globalFilters: [],
   linkedFilter: null,
+  aiInsightEnabled: false,
   widgets: []
 };
 
@@ -3842,25 +3971,272 @@ function adhocDimensionCompatibleWithMeasure(dimensionMember, measureMeta) {
   return (measureMeta.dimensionCodes || []).some(code => sourceCodes.has(code));
 }
 
+function adhocDimensionCompatibilityInfo(dimensionMember, measureMeta) {
+  const dim = adhocFindDimension(dimensionMember);
+  if (!dim || !measureMeta) return {enabled:false, reason:'维度或指标不存在'};
+  const sourceCodes = [dim.code, ...(dim.sourceCodes || [])].filter(Boolean);
+  const hitCode = sourceCodes.find(code => (measureMeta.dimensionCodes || []).includes(code));
+  if (hitCode) {
+    const evidence = (measureMeta.dimensionReasons || {})[hitCode] || {};
+    return {
+      enabled:true,
+      reason:`适用于${measureMeta.title || measureMeta.name || '当前指标'}的业务分析维度`,
+      evidencePath:evidence.evidencePath || '',
+      ruleId:evidence.ruleId || '',
+      confidence:evidence.confidence || '',
+    };
+  }
+  return {
+    enabled:false,
+    reason:`当前指标口径未开放按“${dim.title || dim.name}”分析`,
+  };
+}
+
 function adhocFieldAvailability(type, name) {
   if (type === 'measure') {
     const measure = adhocFindMeasure(name);
     if (!measure) return {enabled:false, reason:'指标不存在'};
     const badDims = adhocSelectedDimensionMembers()
-      .filter(dim => !adhocDimensionCompatibleWithMeasure(dim, measure))
-      .map(adhocMemberLabel);
+      .map(dim => ({label: adhocMemberLabel(dim), info: adhocDimensionCompatibilityInfo(dim, measure)}))
+      .filter(x => !x.info.enabled);
     return badDims.length
-      ? {enabled:false, reason:`与已选维度无事实表关联：${badDims.slice(0, 2).join('、')}${badDims.length > 2 ? '等' : ''}`}
+      ? {enabled:false, reason:`与已选维度不兼容：${badDims.slice(0, 2).map(x => x.label).join('、')}${badDims.length > 2 ? '等' : ''}；${badDims[0].info.reason}`}
       : {enabled:true, reason:''};
   }
   const measures = adhocSelectedMeasureMetas();
   if (!measures.length) return {enabled:true, reason:''};
   const badMeasures = measures
-    .filter(measure => !adhocDimensionCompatibleWithMeasure(name, measure))
-    .map(measure => measure.title || measure.name);
+    .map(measure => ({label: measure.title || measure.name, info: adhocDimensionCompatibilityInfo(name, measure)}))
+    .filter(x => !x.info.enabled);
   return badMeasures.length
-    ? {enabled:false, reason:`与已选指标无事实表关联：${badMeasures.slice(0, 2).join('、')}${badMeasures.length > 2 ? '等' : ''}`}
+    ? {enabled:false, reason:`与已选指标不兼容：${badMeasures.slice(0, 2).map(x => x.label).join('、')}${badMeasures.length > 2 ? '等' : ''}；${badMeasures[0].info.reason}`}
     : {enabled:true, reason:''};
+}
+
+function adhocRecommendedDimensions(limit=8, measureMembers=null, selectedDimensions=null) {
+  const measures = (measureMembers || _adhocState.query.measures || []).map(adhocFindMeasure).filter(Boolean);
+  if (!measures.length) return [];
+  const selected = new Set(selectedDimensions || [
+    ...(_adhocState.query.dimensions || []),
+    ...((_adhocState.view?.encoding?.pivotColumns) || []),
+    ...(_adhocState.drill?.path || []),
+  ]);
+  return (_adhocMeta.dimensions || [])
+    .filter(dim => !selected.has(dim.name))
+    .map(dim => {
+      const infos = measures.map(measure => adhocDimensionCompatibilityInfo(dim.name, measure));
+      const enabled = infos.every(info => info.enabled);
+      return {dim, infos, enabled};
+    })
+    .filter(x => x.enabled)
+    .sort((a, b) => {
+      if (adhocDimensionIsTime(a.dim) !== adhocDimensionIsTime(b.dim)) return adhocDimensionIsTime(a.dim) ? -1 : 1;
+      return String(a.dim.title || a.dim.name).localeCompare(String(b.dim.title || b.dim.name), 'zh-Hans-CN');
+    })
+    .slice(0, limit);
+}
+
+function adhocDimensionTokens(dim) {
+  const text = [
+    dim?.title,
+    dim?.shortTitle,
+    dim?.code,
+    dim?.name,
+    dim?.levelCode,
+    dim?.hierarchyCode,
+    ...(dim?.sourceCodes || []),
+  ].filter(Boolean).join(' ').toLowerCase();
+  const tokens = new Set();
+  text.replace(/dim_|date_|web_|catalog_|sales_/g, ' ')
+    .split(/[^a-z0-9\u4e00-\u9fa5]+/)
+    .filter(Boolean)
+    .forEach(token => tokens.add(token));
+  if (/仓库|warehouse/.test(text)) tokens.add('warehouse');
+  if (/城市|city/.test(text)) tokens.add('city');
+  if (/渠道|channel/.test(text)) tokens.add('channel');
+  if (/客户|customer/.test(text)) tokens.add('customer');
+  if (/商品|产品|product|item/.test(text)) tokens.add('product');
+  if (/促销|promotion|promo/.test(text)) tokens.add('promotion');
+  if (/呼叫|call/.test(text)) tokens.add('callcenter');
+  if (/目录|catalog/.test(text)) tokens.add('catalog');
+  if (/年|year/.test(text)) tokens.add('year');
+  if (/季度|quarter/.test(text)) tokens.add('quarter');
+  if (/月|month/.test(text)) tokens.add('month');
+  if (/周|week/.test(text)) tokens.add('week');
+  if (/日|天|day|date/.test(text)) tokens.add('day');
+  return tokens;
+}
+
+function adhocDimensionIsTime(dim) {
+  return Boolean(dim?.isTime) || dim?.type === 'time' || (dim?.granularities || []).length > 0;
+}
+
+function adhocDimensionTimeGranularity(dim) {
+  const tokens = adhocDimensionTokens(dim);
+  for (const key of ['year', 'quarter', 'month', 'week', 'day']) {
+    if (tokens.has(key)) return key;
+  }
+  const gran = (dim?.granularities || [])[0];
+  return gran || '';
+}
+
+function adhocBusinessRecommendation(candidate, currentMember=null) {
+  const dim = candidate.dim || candidate;
+  const current = adhocFindDimension(currentMember);
+  const title = dim.title || dim.name;
+  const currentTitle = current ? (current.title || current.name) : '';
+  const dimTokens = adhocDimensionTokens(dim);
+  const curTokens = adhocDimensionTokens(current);
+  const overlap = [...dimTokens].filter(token => curTokens.has(token));
+  const dimIsTime = adhocDimensionIsTime(dim);
+  const currentIsTime = adhocDimensionIsTime(current);
+  let score = dimIsTime ? 25 : 70;
+  let reason = '适合继续拆解当前指标表现';
+
+  if (current) {
+    if (dimIsTime && !currentIsTime) {
+      const timeScores = {year:10, quarter:12, month:15, week:8, day:5};
+      const gran = adhocDimensionTimeGranularity(dim);
+      score = timeScores[gran] || 10;
+      reason = `时间维度可作为补充观察，但与“${currentTitle}”的业务邻近度较低`;
+    } else if (!dimIsTime && currentIsTime) {
+      score = 80;
+      reason = `适合在“${currentTitle}”时间切片内继续定位业务来源`;
+    } else if (!dimIsTime && !currentIsTime) {
+      if (overlap.includes('warehouse') && dimTokens.has('city')) {
+        score = 90;
+        reason = `与“${currentTitle}”属于仓储地域链路，适合继续定位区域差异`;
+      } else if (overlap.length) {
+        score = 85;
+        reason = `与“${currentTitle}”属于相近业务主题，适合连续下钻`;
+      } else {
+        score = 55;
+        reason = `可从另一个业务视角补充拆解当前节点`;
+      }
+    } else if (dimIsTime && currentIsTime) {
+      const order = {year:1, quarter:2, month:3, week:4, day:5};
+      const cur = order[adhocDimensionTimeGranularity(current)] || 0;
+      const next = order[adhocDimensionTimeGranularity(dim)] || 0;
+      score = next > cur ? 78 : 45;
+      reason = next > cur ? `适合从“${currentTitle}”继续细化时间粒度` : `可切换时间视角观察趋势`;
+    }
+  } else if (dimIsTime) {
+    const baseScores = {year:45, quarter:58, month:65, week:55, day:40};
+    score = baseScores[adhocDimensionTimeGranularity(dim)] || 50;
+    reason = '适合先观察指标的时间趋势';
+  }
+
+  return {
+    score: Math.max(1, Math.min(99, Math.round(score))),
+    reason,
+    title,
+  };
+}
+
+function adhocDrillMode(state=_adhocState) {
+  return state?.drill?.mode || 'path';
+}
+
+function adhocSetDrillMode(mode) {
+  _adhocState.drill = _adhocState.drill || {path:[], stack:[]};
+  _adhocState.drill.mode = mode === 'dynamic' ? 'dynamic' : 'path';
+  _adhocState.drill.stack = [];
+  renderAdhocConfig();
+  showToast(_adhocState.drill.mode === 'dynamic' ? '已切换为点击后选择维度下钻' : '已切换为自定义路径下钻', 'info');
+}
+
+function adhocDynamicDrillCandidates(state, currentMember) {
+  const drill = state?.drill || {};
+  const used = new Set([
+    ...((state?.query?.dimensions) || []),
+    ...((state?.view?.encoding?.pivotColumns) || []),
+    ...((drill.stack || []).map(x => x.member)),
+    ...((drill.stack || []).map(x => x.nextMember)),
+    currentMember,
+  ].filter(Boolean));
+  return adhocRecommendedDimensions(100, state?.query?.measures || [], Array.from(used))
+    .map(item => ({...item, recommendation: adhocBusinessRecommendation(item, currentMember)}))
+    .sort((a, b) => b.recommendation.score - a.recommendation.score
+      || String(a.dim.title || a.dim.name).localeCompare(String(b.dim.title || b.dim.name), 'zh-Hans-CN'));
+}
+
+function openDynamicDrillChooser(context) {
+  const state = context.kind === 'dashboard'
+    ? ((_dashboardState.widgets || []).find(w => w.id === context.widgetId)?.spec || {})
+    : _adhocState;
+  const candidates = adhocDynamicDrillCandidates(state, context.member);
+  if (!candidates.length) {
+    showToast('当前节点没有更多可用维度可下钻', 'info');
+    return;
+  }
+  _dynamicDrillPending = {...context, candidates};
+  document.getElementById('dynamic-drill-context').textContent = `${adhocMemberLabel(context.member)} = ${context.value}`;
+  document.getElementById('dynamic-drill-body').innerHTML = candidates.map(({dim, recommendation}, idx) => {
+    const rec = recommendation || adhocBusinessRecommendation(dim, context.member);
+    return `<button class="btn btn-sm btn-outline-success text-start w-100 mb-2" title="${escHtml(rec.reason)}" onclick="applyDynamicDrill(${idx})">
+      <div class="d-flex align-items-center gap-2">
+        <span class="fw-semibold flex-fill">${escHtml(dim.title || dim.name)}</span>
+        <span class="badge bg-success-subtle text-success border border-success-subtle">${escHtml(rec.score)}% 推荐</span>
+      </div>
+      <div class="small text-muted text-truncate">${escHtml(rec.reason)}</div>
+    </button>`;
+  }).join('');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('dynamic-drill-modal')).show();
+}
+
+function applyDynamicDrill(index) {
+  const pending = _dynamicDrillPending;
+  if (!pending || !pending.candidates || !pending.candidates[index]) return;
+  const nextMember = pending.candidates[index].dim.name;
+  const entry = {
+    member: pending.member,
+    operator: 'equals',
+    values: pending.filterValues || [String(pending.value)],
+    label: String(pending.value),
+    nextMember,
+  };
+  if (pending.kind === 'dashboard') {
+    const widget = (_dashboardState.widgets || []).find(w => w.id === pending.widgetId);
+    if (!widget) return;
+    widget.spec = widget.spec || {};
+    widget.spec.drill = widget.spec.drill || {mode:'dynamic', path:[], stack:[]};
+    widget.spec.drill.mode = 'dynamic';
+    widget.spec.drill.stack = widget.spec.drill.stack || [];
+    widget.spec.drill.stack.push(entry);
+    dashboardPersistDraft();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('dynamic-drill-modal')).hide();
+    dashboardRenderWidget(pending.widgetId);
+  } else {
+    _adhocState.drill = _adhocState.drill || {mode:'dynamic', path:[], stack:[]};
+    _adhocState.drill.mode = 'dynamic';
+    _adhocState.drill.stack = _adhocState.drill.stack || [];
+    _adhocState.drill.stack.push(entry);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('dynamic-drill-modal')).hide();
+    renderAdhocConfig();
+    runAdhocQuery();
+  }
+  showToast(`已下钻到：${adhocMemberLabel(nextMember)}`, 'success');
+}
+
+function renderAdhocDimensionRecommendations() {
+  const out = document.getElementById('adhoc-dimension-recommendations');
+  if (!out) return;
+  const recs = adhocRecommendedDimensions(8);
+  if (!(_adhocState.query.measures || []).length) {
+    out.innerHTML = '<span class="text-muted">选择指标后自动推荐可分析维度</span>';
+    return;
+  }
+  if (!recs.length) {
+    out.innerHTML = '<span class="text-muted">暂无更多可推荐维度</span>';
+    return;
+  }
+  out.innerHTML = `<div class="d-flex flex-wrap gap-1 align-items-center">
+    <span class="text-muted me-1">推荐维度</span>
+    ${recs.map(item => {
+      const rec = adhocBusinessRecommendation(item);
+      return `<button class="btn btn-sm btn-outline-success py-0 px-1" title="${escHtml(`${rec.score}%推荐：${rec.reason}`)}" onclick="adhocAddField('dimension','${escHtml(item.dim.name)}')">${escHtml(item.dim.title || item.dim.name)}</button>`;
+    }).join('')}
+  </div>`;
 }
 
 function adhocSortByAvailability(items, availabilityFor) {
@@ -3870,6 +4246,40 @@ function adhocSortByAvailability(items, availabilityFor) {
       if (a.availability.enabled !== b.availability.enabled) return a.availability.enabled ? -1 : 1;
       return a.index - b.index;
     });
+}
+
+function adhocDrillRecommendationContext() {
+  const path = _adhocState.drill?.path || [];
+  if (path.length) return path[path.length - 1];
+  const dims = [
+    ...(_adhocState.query?.dimensions || []),
+    ...((_adhocState.view?.encoding?.pivotColumns) || []),
+  ].filter(Boolean);
+  return dims.length ? dims[dims.length - 1] : null;
+}
+
+function adhocDrillOptionRows(items) {
+  const contextMember = adhocDrillRecommendationContext();
+  const hasMeasures = Boolean((_adhocState.query?.measures || []).length);
+  const selected = new Set([
+    ...(_adhocState.query?.dimensions || []),
+    ...((_adhocState.view?.encoding?.pivotColumns) || []),
+    ...(_adhocState.drill?.path || []),
+  ].filter(Boolean));
+  return (items || []).map((item, index) => {
+    const availability = selected.has(item.name)
+      ? {enabled:false, reason:'已在当前查询或下钻路径中使用'}
+      : adhocFieldAvailability('dimension', item.name);
+    const recommendation = availability.enabled && hasMeasures ? adhocBusinessRecommendation(item, contextMember) : null;
+    return {item, index, availability, recommendation};
+  }).sort((a, b) => {
+    if (a.availability.enabled !== b.availability.enabled) return a.availability.enabled ? -1 : 1;
+    if (a.availability.enabled && b.availability.enabled) {
+      const scoreDiff = (b.recommendation?.score || 0) - (a.recommendation?.score || 0);
+      if (scoreDiff) return scoreDiff;
+    }
+    return a.index - b.index;
+  });
 }
 
 function adhocSearchTerm(id) {
@@ -4019,7 +4429,7 @@ function renderAdhocFilterOptions() {
       ? (_adhocState.query.measures.includes(x.name) ? {enabled:true} : {enabled:false, reason:'指标筛选仅作用于当前查询指标'})
       : adhocFieldAvailability('dimension', x.name);
   sel.innerHTML = adhocSortByAvailability(items, availabilityFor).map(({item:x, availability}) => {
-    return `<option value="${escHtml(x.name)}" ${availability.enabled?'':'disabled'}>${escHtml(x.title || x.name)}${availability.enabled?'':'（不可用）'}</option>`;
+    return `<option value="${escHtml(x.name)}" title="${escHtml(availability.reason || '')}" ${availability.enabled?'':'disabled'}>${escHtml(x.title || x.name)}${availability.enabled?'':'（不可用）'}</option>`;
   }).join('') || '<option value="" disabled>无匹配字段</option>';
   const firstEnabled = Array.from(sel.options).find(opt => !opt.disabled);
   if (firstEnabled && sel.selectedOptions[0]?.disabled) sel.value = firstEnabled.value;
@@ -4218,6 +4628,7 @@ function renderAdhocConfig() {
   const byId = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html || '<span class="text-muted small">未选择</span>'; };
   byId('adhoc-measures', _adhocState.query.measures.map(x=>chip('measures', x, 'measure')).join(''));
   byId('adhoc-dimensions', _adhocState.query.dimensions.map(x=>chip('dimensions', x, 'dimension')).join(''));
+  renderAdhocDimensionRecommendations();
   const viewType = document.getElementById('adhoc-view-type')?.value || _adhocState.view?.type || 'chart';
   const chartType = document.getElementById('adhoc-chart-type')?.value || _adhocState.view?.chartType || 'auto';
   const hint = document.getElementById('adhoc-chart-hint');
@@ -4233,13 +4644,22 @@ function renderAdhocConfig() {
   byId('adhoc-pivot-columns', ((_adhocState.view?.encoding?.pivotColumns) || []).map(x=>chip('pivotColumns', x, 'dimension')).join(''));
   byId('adhoc-filters', _adhocState.query.filters.map(x=>`<span class="adhoc-chip">${escHtml(dashboardFilterKind(x)==='measure'?'指标':'维度')} · ${escHtml(adhocMemberLabel(x.member))}: ${escHtml(dashboardFilterDescription(x))}<button class="btn btn-sm p-0 border-0" onclick="adhocRemoveField('filters','${escHtml(x.member)}')"><i class="bi bi-x"></i></button></span>`).join(''));
   byId('adhoc-drill-path', _adhocState.drill.path.map(x=>chip('drill', x, 'dimension')).join(''));
+  const mode = adhocDrillMode(_adhocState);
+  const modePath = document.getElementById('adhoc-drill-mode-path');
+  const modeDynamic = document.getElementById('adhoc-drill-mode-dynamic');
+  if (modePath) modePath.checked = mode === 'path';
+  if (modeDynamic) modeDynamic.checked = mode === 'dynamic';
+  const pathConfig = document.getElementById('adhoc-drill-path-config');
+  if (pathConfig) pathConfig.classList.toggle('d-none', mode === 'dynamic');
   renderAdhocFilterOptions();
   const drillMember = document.getElementById('adhoc-drill-member');
   if (drillMember) {
     const drillTerm = adhocSearchTerm('adhoc-drill-member-search');
     const drillItems = (_adhocMeta.dimensions || []).filter(x => adhocItemMatchesTerm(x, drillTerm));
-    drillMember.innerHTML = adhocSortByAvailability(drillItems, x => adhocFieldAvailability('dimension', x.name)).map(({item:x, availability}) => {
-      return `<option value="${escHtml(x.name)}" ${availability.enabled?'':'disabled'}>${escHtml(x.title || x.name)}${availability.enabled?'':'（无关联）'}</option>`;
+    drillMember.innerHTML = adhocDrillOptionRows(drillItems).map(({item:x, availability, recommendation}) => {
+      const suffix = availability.enabled ? (recommendation ? ` · ${recommendation.score}% 推荐` : '') : `（${availability.reason || '无关联'}）`;
+      const title = availability.enabled ? (recommendation ? `${recommendation.score}%推荐：${recommendation.reason || ''}` : '选择指标后显示推荐度') : (availability.reason || '');
+      return `<option value="${escHtml(x.name)}" title="${escHtml(title)}" ${availability.enabled?'':'disabled'}>${escHtml(x.title || x.name)}${escHtml(suffix)}</option>`;
     }).join('') || '<option value="" disabled>无匹配维度</option>';
   }
   const pivotColumnMember = document.getElementById('adhoc-pivot-column-member');
@@ -4250,7 +4670,7 @@ function renderAdhocConfig() {
       const selected = ((_adhocState.view?.encoding?.pivotColumns) || []).includes(x.name);
       return selected ? {enabled:false, reason:'已添加为列轴'} : adhocFieldAvailability('dimension', x.name);
     }).map(({item:x, availability}) => {
-      return `<option value="${escHtml(x.name)}" ${availability.enabled?'':'disabled'}>${escHtml(x.title || x.name)}${availability.enabled?'':'（无关联）'}</option>`;
+      return `<option value="${escHtml(x.name)}" title="${escHtml(availability.reason || '')}" ${availability.enabled?'':'disabled'}>${escHtml(x.title || x.name)}${availability.enabled?'':'（无关联）'}</option>`;
     }).join('') || '<option value="" disabled>无匹配维度</option>';
   }
   const stack = _adhocState.drill.stack || [];
@@ -4259,17 +4679,21 @@ function renderAdhocConfig() {
   if (st) {
     const dims = adhocCurrentDimensions();
     const current = dims.length ? dims.map(adhocMemberLabel).join(' / ') : '汇总';
-    const next = adhocHasNextDrillLevel() ? ` · 下一层：${adhocMemberLabel((_adhocState.drill.path || [])[(stack.length || 0) + ((_adhocState.query.dimensions || []).length ? 0 : 1)])}` : '';
+    const next = mode === 'dynamic'
+      ? ' · 点击图形节点后选择下一层维度'
+      : (adhocHasNextDrillLevel() ? ` · 下一层：${adhocMemberLabel((_adhocState.drill.path || [])[(stack.length || 0) + ((_adhocState.query.dimensions || []).length ? 0 : 1)])}` : '');
     st.textContent = `当前层级：${stackText} · 当前展示：${current}${next}`;
   }
 }
 
 function adhocNormalizeDrillPath() {
-  _adhocState.drill = _adhocState.drill || {path:[], stack:[]};
+  _adhocState.drill = _adhocState.drill || {mode:'path', path:[], stack:[]};
+  _adhocState.drill.mode = _adhocState.drill.mode || 'path';
   const baseDimensions = _adhocState.query?.dimensions || [];
-  if (baseDimensions.length && Array.isArray(_adhocState.drill.path)) {
+  if (_adhocState.drill.mode !== 'dynamic' && baseDimensions.length && Array.isArray(_adhocState.drill.path)) {
     _adhocState.drill.path = _adhocState.drill.path.filter(member => !baseDimensions.includes(member));
   }
+  if (_adhocState.drill.mode === 'dynamic') return;
   const path = _adhocState.drill.path || [];
   const maxStack = baseDimensions.length ? path.length : Math.max(path.length - 1, 0);
   if ((_adhocState.drill.stack || []).length > maxStack) {
@@ -4282,6 +4706,10 @@ function adhocCurrentDimensions() {
   const path = _adhocState.drill.path || [];
   const stack = _adhocState.drill.stack || [];
   const baseDimensions = _adhocState.query.dimensions || [];
+  if (adhocDrillMode(_adhocState) === 'dynamic') {
+    const last = stack[stack.length - 1];
+    return last?.nextMember ? [last.nextMember] : baseDimensions;
+  }
   if (!path.length) return baseDimensions;
   if (baseDimensions.length) {
     return stack.length ? (stack.length <= path.length ? [path[stack.length - 1]] : []) : baseDimensions;
@@ -4291,6 +4719,7 @@ function adhocCurrentDimensions() {
 
 function adhocHasNextDrillLevel() {
   adhocNormalizeDrillPath();
+  if (adhocDrillMode(_adhocState) === 'dynamic') return false;
   const path = _adhocState.drill.path || [];
   const stack = _adhocState.drill.stack || [];
   const baseDimensions = _adhocState.query.dimensions || [];
@@ -4298,11 +4727,20 @@ function adhocHasNextDrillLevel() {
   return baseDimensions.length ? stack.length < path.length : stack.length < path.length - 1;
 }
 
+function adhocDrillFilters(state=_adhocState) {
+  return ((state?.drill?.stack) || []).map(item => ({
+    member: item.member,
+    operator: item.operator || 'equals',
+    values: item.values || [],
+    label: item.label || item.value || (item.values || [])[0] || '',
+  }));
+}
+
 function adhocBuildQuery(extraFilters=[]) {
   return {
     measures: _adhocState.query.measures,
     dimensions: adhocCurrentDimensions(),
-    filters: [...(_adhocState.query.filters || []), ...(_adhocState.drill.stack || []), ...extraFilters],
+    filters: [...(_adhocState.query.filters || []), ...adhocDrillFilters(_adhocState), ...extraFilters],
     order: _adhocState.query.order || {},
     limit: parseInt(document.getElementById('adhoc-limit')?.value || _adhocState.query.limit || 1000, 10),
   };
@@ -4377,6 +4815,7 @@ function adhocBuildPivotConfig(extraFilters=[]) {
     rows,
     columns,
     filters,
+    alertRules: _adhocState.query.alertRules || [],
     limit: parseInt(_adhocState.query.limit || document.getElementById('adhoc-limit')?.value || 1000, 10),
   };
 }
@@ -4397,7 +4836,10 @@ async function runAdhocPivotQuery(extraFilters=[], targetId='adhoc-preview', sta
     if (!r.ok) throw new Error(d.error || '透视查询失败');
     _adhocLastResult = d;
     renderPivotResult(targetId, d, pivotConfig);
-    if (statusEl) statusEl.textContent = `${d.diagnostics?.rowCount ?? 0} 条聚合记录 · ${d.diagnostics?.elapsedMs ?? '-'} ms`;
+    if (statusEl) {
+      const alertText = d.alerts?.count ? ` · ${d.alerts.count} 个预警` : '';
+      statusEl.textContent = `${d.diagnostics?.rowCount ?? 0} 条聚合记录 · ${d.diagnostics?.elapsedMs ?? '-'} ms${alertText}`;
+    }
     return d;
   } finally {
     if (spec) _adhocState = oldState;
@@ -4428,6 +4870,80 @@ function adhocChartTypeChanged() {
   if (_adhocState.query.measures.length) runAdhocQuery();
 }
 
+function ensureAdhocAlertStyles() {
+  if (document.getElementById('adhoc-alert-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'adhoc-alert-styles';
+  style.textContent = `
+    .ad-alert-self-l1{background:#fff7d6!important}
+    .ad-alert-self-l2{background:#ffe9cc!important}
+    .ad-alert-self-l3{background:#fbe0df!important}
+    .ad-alert-expression-l1{outline:1px solid #ef7772!important;outline-offset:-1px}
+    .ad-alert-expression-l2{outline:1.5px solid #dc2626!important;outline-offset:-1px}
+    .ad-alert-expression-l3{outline:2px solid #991b1b!important;outline-offset:-1px}
+    .ad-alert-path-l1{--ad-alert-path-color:#ef7772;--ad-alert-path-width:1px}
+    .ad-alert-path-l2{--ad-alert-path-color:#dc2626;--ad-alert-path-width:1.5px}
+    .ad-alert-path-l3{--ad-alert-path-color:#991b1b;--ad-alert-path-width:2px}
+    .ad-alert-cell{position:relative;background-clip:padding-box}
+    .ad-alert-path::before{content:"";position:absolute;inset:3px;border:var(--ad-alert-path-width,1px) dashed var(--ad-alert-path-color,#dc2626);border-radius:2px;pointer-events:none;z-index:1}
+    .ad-alert-cell::after{content:"";position:absolute;right:3px;top:3px;width:5px;height:5px;border-radius:50%;background:var(--ad-alert-color,#d99042);z-index:2}
+    .ad-alert-badge{font-size:10px;border-radius:999px;padding:2px 7px;border:1px solid rgba(0,0,0,.08);background:#fff}
+  `;
+  document.head.appendChild(style);
+}
+
+function adhocAlertTop(alerts=[]) {
+  return (alerts || []).slice().sort((a,b)=>(b.level||0)-(a.level||0))[0] || null;
+}
+
+function adhocAlertClasses(alerts=[]) {
+  const classes = [];
+  (alerts || []).forEach(a => {
+    const level = Math.max(1, Math.min(3, Number(a.level || 1)));
+    if (a.type === 'self') classes.push(`ad-alert-self-l${level}`);
+    if (a.type === 'expression') classes.push(`ad-alert-expression-l${level}`);
+    if (a.type === 'path') classes.push('ad-alert-path', `ad-alert-path-l${level}`);
+  });
+  if (classes.length) classes.push('ad-alert-cell');
+  return [...new Set(classes)].join(' ');
+}
+
+function adhocAlertStyle(alerts=[]) {
+  const top = adhocAlertTop(alerts);
+  return top ? `--ad-alert-color:${top.color || '#d99042'}` : '';
+}
+
+function adhocAlertTitle(alerts=[]) {
+  return (alerts || []).map(a => `${a.label || '预警'}｜${a.severityLabel || ''}：${a.reason || ''}`).join('\n');
+}
+
+function adhocAlertsFor(row, member=null) {
+  const alerts = Array.isArray(row?.__alerts) ? row.__alerts : [];
+  if (!member) return alerts;
+  return alerts.filter(a => !a.measure || a.measure === member || a.measureCode === member);
+}
+
+function adhocMergeAlerts(list) {
+  const out = [];
+  (list || []).flat().forEach(a => {
+    if (!a) return;
+    const key = `${a.type}|${a.measure}|${a.reason}`;
+    if (!out.some(x => `${x.type}|${x.measure}|${x.reason}` === key)) out.push(a);
+  });
+  return out;
+}
+
+function adhocAlertSummaryHtml(summary) {
+  if (!summary?.count) return '';
+  const items = (summary.items || []).slice(0, 3);
+  const max = summary.maxLevel || 1;
+  const tone = max >= 3 ? '#c84b4b' : max >= 2 ? '#d99042' : '#9b7b24';
+  return `<div class="d-flex flex-wrap align-items-center gap-1 mb-2 small" style="color:${tone}">
+    <span class="ad-alert-badge" style="border-color:${tone};color:${tone}"><i class="bi bi-exclamation-triangle me-1"></i>${summary.count} 个智能预警</span>
+    ${items.map(a => `<span class="ad-alert-badge">${escHtml(a.label || '')} · ${escHtml(a.severityLabel || '')}</span>`).join('')}
+  </div>`;
+}
+
 async function runAdhocQuery(extraFilters=[]) {
   const status = document.getElementById('adhoc-status');
   try {
@@ -4449,7 +4965,10 @@ async function runAdhocQuery(extraFilters=[]) {
     if (!r.ok) throw new Error(d.error || 'Ad-Hoc 查询失败');
     _adhocLastResult = d;
     renderAdhocResult(d, query);
-    if (status) status.textContent = `${d.diagnostics?.rowCount ?? (d.data || []).length} 行 · ${d.diagnostics?.elapsedMs ?? '-'} ms`;
+    if (status) {
+      const alertText = d.alerts?.count ? ` · ${d.alerts.count} 个预警` : '';
+      status.textContent = `${d.diagnostics?.rowCount ?? (d.data || []).length} 行 · ${d.diagnostics?.elapsedMs ?? '-'} ms${alertText}`;
+    }
   } catch(e) {
     document.getElementById('adhoc-preview').innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
     if (status) status.textContent = '查询失败';
@@ -4459,6 +4978,7 @@ async function runAdhocQuery(extraFilters=[]) {
 function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler=adhocChartClicked) {
   const target = document.getElementById(targetId);
   if (!target) return;
+  ensureAdhocAlertStyles();
   const rows = result.data || [];
   adhocClearChartTarget(target);
   if (!rows.length) {
@@ -4466,8 +4986,8 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
     return;
   }
   const chartType = _adhocState.view.type === 'table' ? 'table' : adhocRecommendChart(query);
-  if (chartType === 'table') return renderAdhocTable(target, rows);
-  if (chartType === 'kpi') return renderAdhocKpi(target, rows, query);
+  if (chartType === 'table') return renderAdhocTable(target, rows, result.alerts);
+  if (chartType === 'kpi') return renderAdhocKpi(target, rows, query, result.alerts);
   const dim = query.dimensions[0];
   const meas = query.measures[0];
   if (chartType === 'funnel') return renderAdhocFunnel(target, rows, query, clickHandler, targetId);
@@ -4486,14 +5006,14 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
     return renderAdhocSvgChart(target, chartType, grouped, dim, meas, query, clickHandler);
   }
   if (chartType === 'donut') {
-    option = {tooltip:{trigger:'item'}, legend:{bottom:0}, series:[{type:'pie', radius:['45%','70%'], data:grouped.map(row=>({name:String(row.label), value:row.value, __member:dim, __value:row.label, __filterValues:row.filterValues}))}]};
+    option = {tooltip:{trigger:'item'}, legend:{bottom:0}, series:[{type:'pie', radius:['45%','70%'], data:grouped.map(row=>({name:String(row.label), value:row.value, __member:dim, __value:row.label, __filterValues:row.filterValues, itemStyle:adhocChartItemStyle(row.alerts)}))}]};
   } else {
     option = {
       tooltip:{trigger:'axis'},
       grid:{left:48,right:24,top:28,bottom:48},
       xAxis:{type:'category', data:labels, axisLabel:{interval:0, rotate:labels.length>8?25:0}},
       yAxis:{type:'value'},
-      series:[{type:chartType === 'line' ? 'line' : 'bar', smooth:chartType === 'line', data:grouped.map(row=>({value:row.value, __member:dim, __value:row.label, __filterValues:row.filterValues})), itemStyle:{borderRadius: chartType === 'bar' ? [4,4,0,0] : 0}}],
+      series:[{type:chartType === 'line' ? 'line' : 'bar', smooth:chartType === 'line', data:grouped.map(row=>({value:row.value, __member:dim, __value:row.label, __filterValues:row.filterValues, itemStyle:adhocChartItemStyle(row.alerts, chartType)})), itemStyle:{borderRadius: chartType === 'bar' ? [4,4,0,0] : 0}}],
     };
   }
   chart.setOption(option);
@@ -4562,6 +5082,7 @@ function renderAdhocFunnel(target, rows, query, clickHandler, targetId='adhoc-pr
         __member:dim,
         __value:row.label,
         __filterValues:row.filterValues,
+        itemStyle:adhocChartItemStyle(row.alerts, 'funnel'),
       })),
     }],
   });
@@ -4582,12 +5103,16 @@ function adhocBuildSankeyData(rows, query) {
       const value = row[dims[i]] ?? '-';
       const id = nodeId(i, value);
       if (!nodeMap.has(id)) {
+        const nodeAlerts = adhocMergeAlerts([adhocAlertsFor(row, meas)]);
+        const topAlert = adhocAlertTop(nodeAlerts);
         nodeMap.set(id, {
           name:id,
           label:{formatter:nodeLabel(i, value)},
           __member:dims[i],
           __value:value,
           __filterValues:[String(row.__filterValues?.[dims[i]] ?? value)],
+          itemStyle: topAlert ? {color:topAlert.color || '#d99042', borderColor:topAlert.color || '#d99042', borderWidth:2} : undefined,
+          __alerts: nodeAlerts,
         });
       }
       if (i >= dims.length - 1) continue;
@@ -4603,6 +5128,7 @@ function adhocBuildSankeyData(rows, query) {
         __member:dims[i],
         __value:sourceValue,
         __filterValues:[String(row.__filterValues?.[dims[i]] ?? sourceValue)],
+        lineStyle: adhocAlertTop(adhocAlertsFor(row, meas)) ? {color:adhocAlertTop(adhocAlertsFor(row, meas)).color || '#d99042', opacity:.72, curveness:.5} : undefined,
       };
       hit.value += Number(row[meas] || 0);
       linkMap.set(key, hit);
@@ -4703,7 +5229,10 @@ function renderAdhocSvgChart(target, chartType, grouped, dim, meas, query, click
       const large = angle > Math.PI ? 1 : 0;
       const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
       start = end;
-      return `<path class="adhoc-svg-point" data-idx="${i}" d="${path}" fill="${colors[i % colors.length]}"><title>${esc(g.label)}: ${esc(g.value)}</title></path>`;
+      const alert = adhocAlertTop(g.alerts);
+      const fill = alert ? (alert.color || colors[i % colors.length]) : colors[i % colors.length];
+      const stroke = alert ? ` stroke="${alert.color || '#d99042'}" stroke-width="3" ${alert.type === 'path' ? 'stroke-dasharray="5 3"' : ''}` : '';
+      return `<path class="adhoc-svg-point" data-idx="${i}" d="${path}" fill="${fill}"${stroke}><title>${esc(g.label)}: ${esc(g.value)}${alert ? '｜' + esc(adhocAlertTitle(g.alerts)) : ''}</title></path>`;
     }).join('');
     const legend = grouped.slice(0, 6).map((g,i)=>`<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px"><i style="width:9px;height:9px;background:${colors[i%colors.length]};display:inline-block"></i>${esc(g.label)}</span>`).join('');
     target.innerHTML = `<svg class="adhoc-svg-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">${arcs}<circle cx="${cx}" cy="${cy}" r="${r*0.58}" fill="#fff"></circle><text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="14" fill="#495057">${esc(adhocMemberLabel(meas))}</text></svg><div class="small text-muted px-2">${legend}</div>`;
@@ -4721,9 +5250,15 @@ function renderAdhocSvgChart(target, chartType, grouped, dim, meas, query, click
     const labelsSvg = points.map(p=>`<text x="${p.x}" y="${height-24}" text-anchor="end" transform="rotate(-25 ${p.x} ${height-24})" font-size="11" fill="#64748b">${esc(p.g.label).slice(0,16)}</text>`).join('');
     if (chartType === 'line') {
       const d = points.map((p,i)=>`${i?'L':'M'} ${p.x} ${p.y}`).join(' ');
-      svg = `<path d="${d}" fill="none" stroke="#2563eb" stroke-width="2.5"/>` + points.map(p=>`<circle class="adhoc-svg-point" data-idx="${p.i}" cx="${p.x}" cy="${p.y}" r="5" fill="#2563eb"><title>${esc(p.g.label)}: ${esc(p.g.value)}</title></circle>`).join('');
+      svg = `<path d="${d}" fill="none" stroke="#2563eb" stroke-width="2.5"/>` + points.map(p=>{
+        const alert = adhocAlertTop(p.g.alerts);
+        return `<circle class="adhoc-svg-point" data-idx="${p.i}" cx="${p.x}" cy="${p.y}" r="${alert ? 7 : 5}" fill="${alert ? (alert.color || '#d99042') : '#2563eb'}" stroke="${alert ? '#fff' : 'none'}" stroke-width="${alert ? 2 : 0}"><title>${esc(p.g.label)}: ${esc(p.g.value)}${alert ? '｜' + esc(adhocAlertTitle(p.g.alerts)) : ''}</title></circle>`;
+      }).join('');
     } else {
-      svg = points.map(p=>`<rect class="adhoc-svg-point" data-idx="${p.i}" x="${p.x-barW/2}" y="${p.y}" width="${barW}" height="${pad.top+plotH-p.y}" rx="4" fill="#2563eb"><title>${esc(p.g.label)}: ${esc(p.g.value)}</title></rect>`).join('');
+      svg = points.map(p=>{
+        const alert = adhocAlertTop(p.g.alerts);
+        return `<rect class="adhoc-svg-point" data-idx="${p.i}" x="${p.x-barW/2}" y="${p.y}" width="${barW}" height="${pad.top+plotH-p.y}" rx="4" fill="${alert ? (alert.color || '#d99042') : '#2563eb'}" stroke="${alert ? (alert.color || '#d99042') : 'none'}" stroke-width="${alert ? 2 : 0}" ${alert?.type === 'path' ? 'stroke-dasharray="5 3"' : ''}><title>${esc(p.g.label)}: ${esc(p.g.value)}${alert ? '｜' + esc(adhocAlertTitle(p.g.alerts)) : ''}</title></rect>`;
+      }).join('');
     }
     target.innerHTML = `<svg class="adhoc-svg-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">${axes}${svg}${labelsSvg}<text x="${pad.left}" y="16" font-size="12" fill="#475569">${esc(adhocMemberLabel(meas))}</text></svg>`;
   }
@@ -4737,37 +5272,58 @@ function renderAdhocSvgChart(target, chartType, grouped, dim, meas, query, click
 
 function adhocGroupRowsForChart(rows, dim, meas) {
   if (!dim) {
-    return [{label: adhocMemberLabel(meas), value: rows.reduce((sum, row) => sum + Number(row[meas] || 0), 0)}];
+    return [{label: adhocMemberLabel(meas), value: rows.reduce((sum, row) => sum + Number(row[meas] || 0), 0), alerts:adhocMergeAlerts(rows.map(row => adhocAlertsFor(row, meas)))}];
   }
   const map = new Map();
   rows.forEach(row => {
     const label = String(row[dim] ?? '-');
-    const hit = map.get(label) || {value:0, filterValues:[]};
+    const hit = map.get(label) || {value:0, filterValues:[], alerts:[]};
     hit.value += Number(row[meas] || 0);
+    hit.alerts = adhocMergeAlerts([hit.alerts, adhocAlertsFor(row, meas)]);
     const filterValue = row.__filterValues?.[dim];
     if (filterValue !== undefined && filterValue !== null && !hit.filterValues.includes(String(filterValue))) {
       hit.filterValues.push(String(filterValue));
     }
     map.set(label, hit);
   });
-  return Array.from(map.entries()).map(([label, item]) => ({label, value:item.value, filterValues:item.filterValues.length ? item.filterValues : [label]}));
+  return Array.from(map.entries()).map(([label, item]) => ({label, value:item.value, filterValues:item.filterValues.length ? item.filterValues : [label], alerts:item.alerts || []}));
 }
 
-function renderAdhocKpi(target, rows, query) {
+function adhocChartItemStyle(alerts=[], chartType='bar') {
+  const alert = adhocAlertTop(alerts);
+  if (!alert) return {};
+  const color = alert.color || '#d99042';
+  return {
+    color,
+    borderColor: color,
+    borderWidth: alert.type === 'self' ? 0 : 2,
+    borderType: alert.type === 'path' ? 'dashed' : 'solid',
+    borderRadius: chartType === 'bar' ? [4,4,0,0] : 0,
+  };
+}
+
+function renderAdhocKpi(target, rows, query, alertSummary=null) {
   const meas = query.measures[0];
   const value = rows[0]?.[meas] ?? '-';
-  target.innerHTML = `<div class="h-100 d-flex flex-column justify-content-center align-items-start px-4">
+  const alerts = adhocAlertsFor(rows[0], meas);
+  const cls = adhocAlertClasses(alerts);
+  const title = adhocAlertTitle(alerts);
+  target.innerHTML = `<div class="h-100 d-flex flex-column justify-content-center align-items-start px-4 ${cls}" style="${adhocAlertStyle(alerts)}" title="${escHtml(title)}">
+    ${adhocAlertSummaryHtml(alertSummary)}
     <div class="text-muted mb-2">${escHtml(adhocMemberLabel(meas))}</div>
     <div class="adhoc-kpi">${escHtml(value)}</div>
   </div>`;
 }
 
-function renderAdhocTable(target, rows) {
+function renderAdhocTable(target, rows, alertSummary=null) {
   const cols = Object.keys(rows[0] || {}).filter(c => !c.startsWith('__'));
-  target.innerHTML = `<div class="table-responsive" style="max-height:100%;overflow:auto">
+  target.innerHTML = `${adhocAlertSummaryHtml(alertSummary)}<div class="table-responsive" style="max-height:100%;overflow:auto">
     <table class="table table-sm table-hover mb-0">
       <thead class="table-light"><tr>${cols.map(c=>`<th>${escHtml(adhocMemberLabel(c))}</th>`).join('')}</tr></thead>
-      <tbody>${rows.map(row=>`<tr>${cols.map(c=>`<td>${escHtml(row[c] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody>
+      <tbody>${rows.map(row=>`<tr>${cols.map(c=>{
+        const alerts = adhocAlertsFor(row, c);
+        return `<td class="${adhocAlertClasses(alerts)}" style="${adhocAlertStyle(alerts)}" title="${escHtml(adhocAlertTitle(alerts))}">${escHtml(row[c] ?? '')}</td>`;
+      }).join('')}</tr>`).join('')}</tbody>
     </table>
   </div>`;
 }
@@ -4778,6 +5334,10 @@ function adhocChartClicked(params, query) {
   const value = data.__value ?? params.name;
   const filterValues = data.__filterValues?.length ? data.__filterValues : [String(value)];
   _adhocSelectedPoint = {member, value, filterValues};
+  if (adhocDrillMode(_adhocState) === 'dynamic' && member) {
+    openDynamicDrillChooser({kind:'adhoc', member, value, filterValues});
+    return;
+  }
   if (adhocHasNextDrillLevel() && member) {
     _adhocState.drill.stack.push({member, operator:'equals', values:filterValues, label:String(value)});
     renderAdhocConfig();
@@ -4801,13 +5361,53 @@ function adhocResetDrill() {
 
 async function adhocOpenSelectedDetail() {
   if (!_adhocState.query.measures.length) return showToast('请先选择指标', 'warning');
-  const filters = [...(_adhocState.query.filters || []), ...(_adhocState.drill.stack || [])];
+  const filters = [...(_adhocState.query.filters || []), ...adhocDrillFilters(_adhocState)];
   if (_adhocSelectedPoint?.member) filters.push({member:_adhocSelectedPoint.member, operator:'equals', values:_adhocSelectedPoint.filterValues || [String(_adhocSelectedPoint.value)]});
   await openAdhocDetail(_adhocState.query.measures[0], filters, _adhocSelectedPoint);
 }
 
+function adhocDetailFilterText(filter) {
+  if (!filter?.member) return '';
+  const member = adhocMemberLabel(filter.member);
+  if (filter.filterMode === 'date' || filter.filterMode === 'week' || filter.filterMode === 'time') {
+    return `${member} ${dashboardFilterDescription(filter)}`;
+  }
+  const values = (filter.values || []).filter(v => v !== undefined && v !== null && String(v) !== '').map(String);
+  const opMap = {
+    equals: '=',
+    in: '=',
+    contains: '包含',
+    like: '包含',
+    gt: '>',
+    greater_than: '>',
+    gte: '>=',
+    greater_than_or_equal: '>=',
+    lt: '<',
+    less_than: '<',
+    lte: '<=',
+    less_than_or_equal: '<=',
+    between: '介于',
+  };
+  const op = opMap[filter.operator] || filter.operator || '=';
+  const valueText = filter.operator === 'between' && values.length >= 2 ? `${values[0]} ~ ${values[1]}` : values.join('、');
+  return `${member} ${op} ${valueText}`;
+}
+
+function renderAdhocDetailContext(measure, filters) {
+  const out = document.getElementById('adhoc-detail-context');
+  const chips = (filters || []).map(adhocDetailFilterText).filter(Boolean);
+  if (!chips.length) {
+    out.innerHTML = `<span>${escHtml(adhocMemberLabel(measure))}</span>`;
+    return;
+  }
+  out.innerHTML = `<div class="d-flex flex-wrap align-items-center gap-1">
+    <span class="text-muted me-1">筛选条件</span>
+    ${chips.map(text => `<span class="badge bg-light text-dark border">${escHtml(text)}</span>`).join('')}
+  </div>`;
+}
+
 async function openAdhocDetail(measure, filters, point) {
-  document.getElementById('adhoc-detail-context').textContent = point ? `${adhocMemberLabel(point.member)} = ${point.value}` : adhocMemberLabel(measure);
+  renderAdhocDetailContext(measure, filters);
   document.getElementById('adhoc-detail-result').innerHTML = '<div class="text-muted text-center py-5"><span class="spinner-border spinner-border-sm me-1"></span>加载明细...</div>';
   bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('adhoc-detail-drawer')).show();
   try {
@@ -4951,7 +5551,8 @@ function loadAdhocSpecIntoEditor(spec) {
   _adhocState.query = _adhocState.query || {measures:[], dimensions:[], filters:[], order:{}, limit:1000};
   _adhocState.view = _adhocState.view || {type:'chart', chartType:'auto', encoding:{}};
   _adhocState.view.encoding = _adhocState.view.encoding || {};
-  _adhocState.drill = _adhocState.drill || {path:[], stack:[]};
+  _adhocState.drill = _adhocState.drill || {mode:'path', path:[], stack:[]};
+  _adhocState.drill.mode = _adhocState.drill.mode || 'path';
   document.getElementById('adhoc-name').value = d.name || d.id || '未命名组件';
   document.getElementById('adhoc-view-type').value = d.view?.type || 'chart';
   document.getElementById('adhoc-chart-type').value = d.view?.chartType || 'auto';
@@ -5097,11 +5698,33 @@ function dashboardRestoreDraft() {
       name: draft.name || '销售经营总览',
       globalFilters: draft.globalFilters || [],
       linkedFilter: draft.linkedFilter || null,
+      aiInsightEnabled: Boolean(draft.aiInsightEnabled),
       widgets: draft.widgets || [],
     };
     const nameInput = document.getElementById('dashboard-name');
     if (nameInput) nameInput.value = _dashboardState.name;
+    renderDashboardAiToggle();
   } catch(e) {}
+}
+
+function renderDashboardAiToggle() {
+  const btn = document.getElementById('dashboard-ai-toggle');
+  const panel = document.getElementById('dashboard-ai-insight-panel');
+  if (btn) {
+    const enabled = Boolean(_dashboardState.aiInsightEnabled);
+    btn.classList.toggle('btn-info', enabled);
+    btn.classList.toggle('text-white', enabled);
+    btn.classList.toggle('btn-outline-info', !enabled);
+    btn.innerHTML = `<i class="bi bi-stars me-1"></i>AI 解读：${enabled ? '开启' : '关闭'}`;
+  }
+  if (panel && !_dashboardState.aiInsightEnabled) panel.classList.add('d-none');
+}
+
+function dashboardToggleAiInsight() {
+  _dashboardState.aiInsightEnabled = !_dashboardState.aiInsightEnabled;
+  renderDashboardAiToggle();
+  dashboardPersistDraft();
+  if (_dashboardState.aiInsightEnabled) dashboardGenerateAiInsight();
 }
 
 async function loadDashboardAssets(force=false) {
@@ -5298,7 +5921,7 @@ function renderDashboardFilterOptions() {
     .filter(x => adhocItemMatchesTerm(x, term));
   const availabilityFor = x => dashboardFilterMemberAvailability(kind, x.name);
   sel.innerHTML = adhocSortByAvailability(items, availabilityFor).map(({item:x, availability}) =>
-    `<option value="${escHtml(x.name)}" ${availability.enabled?'':'disabled'}>${escHtml(x.title || x.name)}${availability.enabled?'':'（无可用组件）'}</option>`
+    `<option value="${escHtml(x.name)}" title="${escHtml(availability.reason || '')}" ${availability.enabled?'':'disabled'}>${escHtml(x.title || x.name)}${availability.enabled?'':'（无可用组件）'}</option>`
   ).join('') || '<option value="" disabled>无匹配字段</option>';
   const firstEnabled = Array.from(sel.options).find(opt => !opt.disabled);
   if (firstEnabled && sel.selectedOptions[0]?.disabled) sel.value = firstEnabled.value;
@@ -5317,8 +5940,17 @@ function dashboardFilterMemberAvailability(kind, member) {
   const widgets = _dashboardState.widgets || [];
   if (!widgets.length) return {enabled:true, reason:''};
   const draftFilter = {kind, member, operator:'equals', values:['__probe__']};
-  const enabled = widgets.some(widget => dashboardFilterAppliesToSpec(draftFilter, widget.spec || {}));
-  return enabled ? {enabled:true, reason:''} : {enabled:false, reason:'无可用组件'};
+  const applicable = widgets.filter(widget => dashboardFilterAppliesToSpec(draftFilter, widget.spec || {}));
+  if (applicable.length) return {enabled:true, reason:`可作用于 ${applicable.length} 个组件`};
+  if (kind === 'dimension') {
+    const reasons = widgets.slice(0, 2).map(widget => {
+      const measures = dashboardSpecMeasures(widget.spec || {});
+      const bad = measures.map(measure => adhocDimensionCompatibilityInfo(member, measure)).find(info => !info.enabled);
+      return `${widget.name || widget.id}: ${bad?.reason || '组件没有可匹配指标'}`;
+    });
+    return {enabled:false, reason: reasons.join('；') || '没有任何组件的指标与该维度兼容'};
+  }
+  return {enabled:false, reason:'没有任何组件包含该指标'};
 }
 
 function dashboardSelectedFilterMemberMeta() {
@@ -5536,10 +6168,7 @@ function dashboardMeasureMatches(filterMember, specMeasure) {
 }
 
 function dashboardDimensionCompatibleWithMeasure(dimensionMember, measureMeta) {
-  const dim = dashboardFindDimension(dimensionMember);
-  if (!dim || !measureMeta) return false;
-  const sourceCodes = new Set([dim.code, ...(dim.sourceCodes || [])].filter(Boolean));
-  return (measureMeta.dimensionCodes || []).some(code => sourceCodes.has(code));
+  return adhocDimensionCompatibilityInfo(dimensionMember, measureMeta).enabled;
 }
 
 function dashboardFilterAppliesToSpec(filter, spec) {
@@ -5574,6 +6203,222 @@ function dashboardFilterDescription(filter) {
     return `${meta.rangeLabel}-${dashboardTimeRangeLabel(filter.periodRangeType)}：${labels.join(' ~ ')}`;
   }
   return `${filter.operator} ${(filter.values || []).join(',')}`;
+}
+
+function dashboardAiFilterLabel(filter) {
+  if (!filter?.member) return '';
+  return `${adhocMemberLabel(filter.member)} ${dashboardFilterDescription(filter)}`;
+}
+
+function dashboardAiRows(rows, query) {
+  const cols = [
+    ...((query?.dimensions) || []),
+    ...((query?.measures) || []),
+  ].filter((c, idx, arr) => c && arr.indexOf(c) === idx);
+  return (rows || []).slice(0, 50).map(row => {
+    const out = {};
+    (cols.length ? cols : Object.keys(row || {}).filter(k => !k.startsWith('__'))).forEach(col => {
+      out[adhocMemberLabel(col)] = row[col];
+    });
+    return out;
+  });
+}
+
+function dashboardAiPayload() {
+  const widgets = (_dashboardState.widgets || []).map(widget => {
+    const stored = _dashboardWidgetResults[widget.id] || {};
+    const query = stored.query || widget.spec?.query || {};
+    return dashboardAiWidgetSummary(widget, stored, query);
+  }).filter(item => item.rowCount || item.measures.length || item.dimensions.length);
+  return {
+    dashboardName: _dashboardState.name || document.getElementById('dashboard-name')?.value || 'Dashboard',
+    globalFilters: (_dashboardState.globalFilters || []).map(dashboardAiFilterLabel).filter(Boolean),
+    linkedFilter: _dashboardState.linkedFilter?.filter ? dashboardAiFilterLabel(_dashboardState.linkedFilter.filter) : '',
+    widgets,
+  };
+}
+
+function dashboardAiWidgetSummary(widget, stored=null, query=null) {
+  const actualStored = stored || _dashboardWidgetResults[widget?.id] || {};
+  const actualQuery = query || actualStored.query || widget?.spec?.query || {};
+  return {
+    id: widget?.id || '',
+    name: widget?.name || actualStored.name || '未命名图表',
+    measures: (actualQuery.measures || []).map(adhocMemberLabel),
+    dimensions: (actualQuery.dimensions || []).map(adhocMemberLabel),
+    filters: (actualQuery.filters || []).map(dashboardAiFilterLabel).filter(Boolean),
+    rowCount: (actualStored.rows || []).length,
+    rows: dashboardAiRows(actualStored.rows || [], actualQuery),
+  };
+}
+
+function dashboardWidgetAiPayload(widgetId) {
+  const widget = (_dashboardState.widgets || []).find(w => w.id === widgetId);
+  if (!widget) return null;
+  const summary = dashboardAiWidgetSummary(widget);
+  return {
+    dashboardName: widget.name || _dashboardState.name || 'Dashboard 图表',
+    globalFilters: (_dashboardState.globalFilters || []).map(dashboardAiFilterLabel).filter(Boolean),
+    linkedFilter: _dashboardState.linkedFilter?.filter ? dashboardAiFilterLabel(_dashboardState.linkedFilter.filter) : '',
+    widgets: [summary],
+  };
+}
+
+function dashboardAiHighlightLevel(text) {
+  const raw = String(text || '').replace(/\s+/g, '');
+  if (!raw) return null;
+  const isPositive = /(增长|上升|提升|反弹|领先|高于|主导|稳健|稳定|贡献|峰值|优势|表现较好|做得好|亮点|改善|恢复)/.test(raw);
+  const isRed = /(严重|骤降|暴跌|大幅下滑|极低|异常低点|创.*新低|远低于|业务中断|断崖|显著低于|低于均值.*明显|风险较高)/.test(raw);
+  const isOrange = /(异常|明显下降|连续下滑|低于均值|下滑|下降|回落|不及|短板|波动较大|需要排查|建议排查)/.test(raw);
+  const isYellow = /(关注|警惕|可能|建议|需|不足|样本不足|季节性|波动|观察|验证)/.test(raw);
+  if (isRed) return {className:'ai-severity-red', label:'严重'};
+  if (isOrange) return {className:'ai-severity-orange', label:'异常'};
+  if (isYellow && !isPositive) return {className:'ai-severity-yellow', label:'关注'};
+  if (isPositive) return {className:'ai-positive-blue', label:'亮点'};
+  return null;
+}
+
+function dashboardApplyAiHighlights(panel) {
+  const root = panel?.querySelector('.dashboard-ai-content');
+  if (!root) return;
+  root.querySelectorAll('li, p').forEach(el => {
+    if (el.closest('pre, code')) return;
+    const level = dashboardAiHighlightLevel(el.textContent || '');
+    if (!level) return;
+    el.classList.add('ai-highlight', level.className);
+    if (!el.querySelector(':scope > .ai-severity-badge')) {
+      const badge = document.createElement('span');
+      badge.className = 'ai-severity-badge';
+      badge.textContent = level.label;
+      el.prepend(badge);
+    }
+  });
+}
+
+async function dashboardGenerateAiInsight(options={}) {
+  if (!_dashboardState.aiInsightEnabled) return;
+  if (options.debounced) {
+    clearTimeout(_dashboardAiTimer);
+    _dashboardAiTimer = setTimeout(() => dashboardGenerateAiInsight(), 800);
+    return;
+  }
+  const panel = document.getElementById('dashboard-ai-insight-panel');
+  if (!panel) return;
+  const payload = dashboardAiPayload();
+  panel.classList.remove('d-none');
+  if (!payload.widgets.length) {
+    panel.innerHTML = '<div class="text-muted">暂无可解读的组件数据，请先添加组件并刷新看板。</div>';
+    return;
+  }
+  const requestId = ++_dashboardAiRequestId;
+  panel.innerHTML = '<div class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>AI 数据分析专家正在解读当前看板...</div>';
+  try {
+    const r = await fetch('/api/dashboard/v1/ai-interpret', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (requestId !== _dashboardAiRequestId) return;
+    if (!r.ok) throw new Error(d.error || 'AI 解读失败');
+    const text = d.text || '暂无解读结果';
+    const source = d.source === 'llm' ? 'AI 解读' : '本地规则解读';
+    const warning = d.warning ? `<div class="small text-muted mt-2">LLM 暂不可用，已使用本地规则解读。</div>` : '';
+    panel.innerHTML = `<div class="d-flex align-items-center gap-2 mb-1">
+      <i class="bi bi-stars text-info"></i>
+      <strong>AI 解读</strong>
+      <span class="badge bg-light text-dark border">${escHtml(source)}</span>
+    </div>
+    <div class="dashboard-ai-meta">基于当前看板的指标、维度、筛选条件和组件结果生成。</div>
+    <div class="markdown-body dashboard-ai-content">${window.marked ? marked.parse(text) : escHtml(text)}</div>
+    ${warning}`;
+    dashboardApplyAiHighlights(panel);
+  } catch(e) {
+    if (requestId !== _dashboardAiRequestId) return;
+    panel.innerHTML = `<div class="alert alert-warning mb-0">AI 解读失败：${escHtml(e.message || e)}</div>`;
+  }
+}
+
+async function dashboardOpenWidgetAiInsight(widgetId) {
+  const widget = (_dashboardState.widgets || []).find(w => w.id === widgetId);
+  if (!widget) return showToast('组件不存在', 'warning');
+  const titleEl = document.getElementById('dashboard-widget-ai-title');
+  const bodyEl = document.getElementById('dashboard-widget-ai-body');
+  if (titleEl) titleEl.textContent = widget.name || '未命名图表';
+  if (bodyEl) {
+    bodyEl.innerHTML = '<div class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>正在解读当前图表数据...</div>';
+  }
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('dashboard-widget-ai-modal')).show();
+  if (!_dashboardWidgetResults[widgetId]) {
+    await dashboardRenderWidget(widgetId);
+  }
+  const payload = dashboardWidgetAiPayload(widgetId);
+  if (!payload?.widgets?.length) {
+    if (bodyEl) bodyEl.innerHTML = '<div class="text-muted">当前图表暂无可解读的数据，请先刷新组件。</div>';
+    return;
+  }
+  try {
+    const r = await fetch('/api/dashboard/v1/ai-interpret', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'AI 解读失败');
+    const text = d.text || '暂无解读结果';
+    const source = d.source === 'llm' ? 'AI 解读' : '本地规则解读';
+    const warning = d.warning ? `<div class="small text-muted mt-2">LLM 暂不可用，已使用本地规则解读。</div>` : '';
+    if (bodyEl) {
+      bodyEl.innerHTML = `<div class="d-flex align-items-center gap-2 mb-1">
+        <i class="bi bi-stars text-info"></i>
+        <strong>图表 AI 解读</strong>
+        <span class="badge bg-light text-dark border">${escHtml(source)}</span>
+      </div>
+      <div class="dashboard-ai-meta">基于当前图表的指标、维度、筛选条件和返回数据生成。</div>
+      <div class="markdown-body dashboard-ai-content">${window.marked ? marked.parse(text) : escHtml(text)}</div>
+      ${warning}`;
+      dashboardApplyAiHighlights(bodyEl);
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('dashboard-widget-ai-modal')).show();
+    }
+  } catch(e) {
+    if (bodyEl) bodyEl.innerHTML = `<div class="alert alert-warning mb-0">AI 解读失败：${escHtml(e.message || e)}</div>`;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('dashboard-widget-ai-modal')).show();
+  }
+}
+
+function dashboardWidgetDimensionRecommendations(widget) {
+  const spec = widget?.spec || {};
+  const selected = [
+    ...(spec.query?.dimensions || []),
+    ...((spec.view?.encoding?.pivotColumns) || []),
+    ...(spec.drill?.path || []),
+  ];
+  return adhocRecommendedDimensions(5, spec.query?.measures || [], selected);
+}
+
+function dashboardWidgetRecommendationHtml(widget) {
+  if (_dashboardViewMode) return '';
+  const recs = dashboardWidgetDimensionRecommendations(widget);
+  if (!recs.length) return '';
+  return `<div class="px-2 py-1 border-bottom bg-light small d-flex flex-wrap gap-1 align-items-center">
+    <span class="text-muted me-1">推荐维度</span>
+    ${recs.map(({dim, infos}) => {
+      const title = infos.map(info => info.reason).filter(Boolean).join(' / ');
+      return `<button class="btn btn-sm btn-outline-success py-0 px-1" title="${escHtml(title)}" onclick="dashboardAddRecommendedDimension('${escHtml(widget.id)}','${escHtml(dim.name)}')">${escHtml(dim.title || dim.name)}</button>`;
+    }).join('')}
+  </div>`;
+}
+
+function dashboardAddRecommendedDimension(widgetId, member) {
+  const widget = _dashboardState.widgets.find(w => w.id === widgetId);
+  if (!widget) return;
+  widget.spec = widget.spec || {};
+  widget.spec.query = widget.spec.query || {measures:[], dimensions:[], filters:[], order:{}, limit:1000};
+  widget.spec.query.dimensions = widget.spec.query.dimensions || [];
+  if (!widget.spec.query.dimensions.includes(member)) widget.spec.query.dimensions.push(member);
+  dashboardPersistDraft();
+  renderDashboardCanvas();
+  showToast(`已为组件添加维度：${adhocMemberLabel(member)}`, 'success');
 }
 
 function renderDashboardFilters() {
@@ -5612,6 +6457,7 @@ async function dashboardAddWidget(adhocId) {
 function renderDashboardCanvas() {
   const canvas = document.getElementById('dashboard-canvas');
   if (!canvas) return;
+  renderDashboardAiToggle();
   if (_dashboardGrid) _dashboardGrid.removeAll(false);
   canvas.innerHTML = '';
   _dashboardWidgetResults = {};
@@ -5656,6 +6502,7 @@ function renderDashboardCanvas() {
           <span class="fw-semibold text-truncate">${escHtml(widget.name)}</span>
           <div class="d-flex gap-1">
             ${editControls}
+            <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="dashboardOpenWidgetAiInsight('${escHtml(widget.id)}')" title="AI 解读"><i class="bi bi-stars"></i></button>
             <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="dashboardRollUpWidget('${escHtml(widget.id)}')" title="上卷"><i class="bi bi-arrow-up-circle"></i></button>
             <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="dashboardResetWidgetDrill('${escHtml(widget.id)}')" title="重置下钻"><i class="bi bi-arrow-counterclockwise"></i></button>
             <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="downloadDashboardWidgetCSV('${escHtml(widget.id)}')" title="下载 CSV"><i class="bi bi-download"></i></button>
@@ -5663,12 +6510,15 @@ function renderDashboardCanvas() {
             ${deleteControls}
           </div>
         </div>
+        ${dashboardWidgetRecommendationHtml(widget)}
         <div class="dashboard-widget-body"><div id="dash-chart-${escHtml(widget.id)}" class="dashboard-widget-chart"></div></div>
       </div>
     </div>`;
     canvas.appendChild(item);
     if (_dashboardGrid && !_dashboardViewMode) _dashboardGrid.makeWidget(item);
-    dashboardRenderWidget(widget.id);
+    dashboardRenderWidget(widget.id).then(() => {
+      if (_dashboardState.aiInsightEnabled) dashboardGenerateAiInsight({debounced:true});
+    });
   });
 }
 
@@ -5718,7 +6568,8 @@ async function dashboardRenderWidget(widgetId) {
     if (target) target.innerHTML = '<div class="alert alert-warning m-2">源 Ad-Hoc 组件不存在，也没有可用快照。请从组件库重新添加。</div>';
     return;
   }
-  spec.drill = spec.drill || {path:[], stack:[]};
+  spec.drill = spec.drill || {mode:'path', path:[], stack:[]};
+  spec.drill.mode = spec.drill.mode || 'path';
   const extraFilters = [...dashboardApplicableGlobalFilters(spec)];
   if (_dashboardState.linkedFilter && _dashboardState.linkedFilter.sourceWidgetId !== widgetId && dashboardFilterAppliesToSpec(_dashboardState.linkedFilter.filter, spec)) {
     extraFilters.push(_dashboardState.linkedFilter.filter);
@@ -5749,12 +6600,11 @@ function dashboardBuildWidgetQuery(spec, extraFilters=[]) {
   _adhocState = spec;
   adhocNormalizeDrillPath();
   const dimensions = adhocCurrentDimensions();
-  const drillStack = spec.drill?.stack || [];
   _adhocState = oldState;
   return {
     ...(spec.query || {}),
     dimensions,
-    filters: [...(spec.query?.filters || []), ...drillStack, ...extraFilters],
+    filters: [...(spec.query?.filters || []), ...adhocDrillFilters(spec), ...extraFilters],
     limit: parseInt(spec.query?.limit || 1000, 10),
   };
 }
@@ -5774,6 +6624,12 @@ function dashboardWidgetClicked(widgetId, params, query) {
   const value = data.__value ?? params.name;
   const filterValues = data.__filterValues?.length ? data.__filterValues : [String(value)];
   if (!member) return;
+  widget.spec = widget.spec || {};
+  widget.spec.drill = widget.spec.drill || {mode:'path', path:[], stack:[]};
+  if (adhocDrillMode(widget.spec) === 'dynamic') {
+    openDynamicDrillChooser({kind:'dashboard', widgetId, member, value, filterValues});
+    return;
+  }
   if (widget?.spec?.drill?.path?.length && dashboardWidgetHasNextDrill(widget.spec)) {
     widget.spec.drill.stack = widget.spec.drill.stack || [];
     widget.spec.drill.stack.push({member, operator:'equals', values:filterValues, label:String(value)});
@@ -5814,8 +6670,14 @@ function dashboardResetAllWidgetDrills() {
 }
 
 
-function dashboardRefreshAll() {
-  _dashboardState.widgets.forEach(w => dashboardRenderWidget(w.id));
+async function dashboardRefreshAll() {
+  const panel = document.getElementById('dashboard-ai-insight-panel');
+  if (_dashboardState.aiInsightEnabled && panel) {
+    panel.classList.remove('d-none');
+    panel.innerHTML = '<div class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>正在刷新组件并准备 AI 解读...</div>';
+  }
+  await Promise.all((_dashboardState.widgets || []).map(w => dashboardRenderWidget(w.id)));
+  if (_dashboardState.aiInsightEnabled) await dashboardGenerateAiInsight();
 }
 
 function dashboardCaptureLayout() {
@@ -5856,8 +6718,10 @@ async function loadDashboardSpec(id, options={}) {
   _dashboardState = d;
   _dashboardState.globalFilters = _dashboardState.globalFilters || [];
   _dashboardState.widgets = _dashboardState.widgets || [];
+  _dashboardState.aiInsightEnabled = Boolean(_dashboardState.aiInsightEnabled);
   document.getElementById('dashboard-name').value = d.name || d.id;
   if (!options.skipPersist) dashboardPersistDraft();
+  renderDashboardAiToggle();
   renderDashboardFilters();
   renderDashboardCanvas();
   renderDashboardAssetLists();
@@ -6664,7 +7528,7 @@ async function runPivotQuery(btn) {
     if (!r.ok) throw new Error(d.error || '透视查询失败');
     _pivotResult = d;
     renderPivotResult();
-    status.textContent = `${d.diagnostics.rowCount} 条聚合记录 · ${d.diagnostics.elapsedMs ?? '-'} ms`;
+    status.textContent = `${d.diagnostics.rowCount} 条聚合记录 · ${d.diagnostics.elapsedMs ?? '-'} ms${d.alerts?.count ? ` · ${d.alerts.count} 个预警` : ''}`;
   } catch(e) {
     out.innerHTML = `<div class="alert alert-danger m-3">${escHtml(e.message || e)}</div>`;
     status.textContent = '查询失败';
@@ -6706,6 +7570,7 @@ function pivotColumnGroups(columns, level) {
 function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=_pivotConfig) {
   const out = document.getElementById(targetId);
   const d = result;
+  ensureAdhocAlertStyles();
   if (!d || !d.cells.length) {
     out.innerHTML = '<div class="text-muted text-center py-5">查询成功，但当前条件下没有数据</div>';
     return;
@@ -6726,7 +7591,7 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
   });
   const columnLevels = config.columns.length;
   const rowHeaders = config.rows.length ? config.rows : [{name:'数值'}];
-  let html = '<table class="table table-sm table-bordered mb-0 pivot-table"><thead>';
+  let html = adhocAlertSummaryHtml(d.alerts) + '<table class="table table-sm table-bordered mb-0 pivot-table"><thead>';
   if (columnLevels) {
     for (let level = 0; level < columnLevels; level++) {
       html += '<tr>';
@@ -6756,7 +7621,7 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
     d.columns.forEach(col => d.measures.forEach(measure => {
       const hit = cellMap.get(`${row.key}|${col.key}|${measure.code}`);
       html += hit
-        ? `<td class="text-end"><span class="pivot-value" title="点击钻取明细" onclick="${targetId === 'pivot-result' ? `openPivotDrill(${hit.idx})` : `openAdhocPivotDrillFromRendered('${escHtml(targetId)}', ${hit.idx})`}">${escHtml(hit.cell.value ?? '-')}</span></td>`
+        ? `<td class="text-end ${adhocAlertClasses(hit.cell.alerts || [])}" style="${adhocAlertStyle(hit.cell.alerts || [])}" title="${escHtml(adhocAlertTitle(hit.cell.alerts || []))}"><span class="pivot-value" title="点击钻取明细${hit.cell.alerts?.length ? '\n' + adhocAlertTitle(hit.cell.alerts) : ''}" onclick="${targetId === 'pivot-result' ? `openPivotDrill(${hit.idx})` : `openAdhocPivotDrillFromRendered('${escHtml(targetId)}', ${hit.idx})`}">${escHtml(hit.cell.value ?? '-')}</span></td>`
         : '<td class="text-end text-muted">-</td>';
     }));
     html += '</tr>';
@@ -7683,6 +8548,10 @@ function renderMeasureList(list) {
          </button>`
       : '<span class="text-muted" style="font-size:11px">—</span>';
     const dimCodes = m.dimensionCodes || [];
+    const detailBtn = `<button class="btn btn-xs py-0 px-1 me-1" style="font-size:11px;border:1px solid #6e9280;color:#526d60;background:transparent;border-radius:3px;white-space:nowrap"
+         onclick="showMeasureReasoningModal('${escHtml(m.code)}')" title="查看推演详情">
+         <i class="bi bi-diagram-3 me-1"></i>详情
+       </button>`;
     const anaBtn = `<button class="btn btn-xs py-0 px-1" style="font-size:11px;border:1px solid #8ca0b4;color:#8ca0b4;background:transparent;border-radius:3px;white-space:nowrap"
          data-meas-code="${m.code}" data-dim-codes='${JSON.stringify(dimCodes).replace(/'/g,"&#39;")}'
          onclick="openAnalysisModal(this.dataset.measCode, JSON.parse(this.dataset.dimCodes))" title="分析此指标">
@@ -7698,9 +8567,46 @@ function renderMeasureList(list) {
       <td style="font-size:12px">${tbls}</td>
       <td style="font-size:12px">${dims}</td>
       <td class="text-center">${sqlBtn}</td>
-      <td class="text-center">${anaBtn}</td>
+      <td class="text-center">${detailBtn}${anaBtn}</td>
     </tr>`;
   }).join('');
+}
+
+async function showMeasureReasoningModal(code) {
+  document.getElementById('measure-reasoning-title').textContent = code;
+  const body = document.getElementById('measure-reasoning-body');
+  body.innerHTML = '<div class="text-muted text-center py-5"><span class="spinner-border spinner-border-sm me-1"></span>加载推演结果...</div>';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('measure-reasoning-modal')).show();
+  try {
+    const r = await fetch(`/api/business-kg/reasoning/measure/${encodeURIComponent(code)}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '加载失败');
+    const renderList = (title, items, color) => `
+      <div class="mb-3">
+        <div class="fw-semibold small mb-1">${title} <span class="text-muted fw-normal">(${items.length})</span></div>
+        ${items.length ? items.slice(0, 60).map(item => `
+          <div class="border rounded p-2 mb-1 bg-white">
+            <div><span class="badge me-1" style="background:${color}">${escHtml(item.code || '-')}</span>${escHtml(item.name || '')}</div>
+            <div class="text-muted small mt-1">${escHtml(item.evidencePath || item.ruleId || '无证据路径')}</div>
+          </div>`).join('') : '<div class="text-muted small">暂无</div>'}
+      </div>`;
+    const apps = d.measureApps || [];
+    body.innerHTML = `
+      <div class="mb-3">
+        <div class="fw-semibold">${escHtml(d.measure?.name || code)}</div>
+        <div class="text-muted small">${escHtml(d.definition || d.caliber || '')}</div>
+      </div>
+      <div class="mb-3">
+        <div class="fw-semibold small mb-1">数据血缘</div>
+        ${apps.length ? apps.map(app => `<div class="small border rounded p-2 mb-1"><code>${escHtml(app.table?.name || '-')}</code> · 聚合列 <code>${escHtml(app.factColumn || '-')}</code>${app.whereCondition ? ` · 过滤 <code>${escHtml(app.whereCondition)}</code>` : ''}</div>`).join('') : '<div class="text-muted small">暂无</div>'}
+      </div>
+      ${renderList('可分析维度', d.compatibleDimensions || [], '#6e9280')}
+      ${renderList('上游依赖', d.upstreamMeasures || [], '#8ca0b4')}
+      ${renderList('下游影响', d.downstreamMeasures || [], '#a58b61')}
+    `;
+  } catch(e) {
+    body.innerHTML = `<div class="alert alert-danger m-3">${escHtml(e.message || e)}</div>`;
+  }
 }
 
 function showSqlModal(idx) {
@@ -11159,6 +12065,15 @@ function statsRenderHistogram(r) {
   document.head.appendChild(s);
 })();
 
+// ── 监控预警 tab ──
+let _alertsLoaded = false;
+function initAlertsTab() {
+  if (_alertsLoaded) return;
+  _alertsLoaded = true;
+  const iframe = document.getElementById('alertsIframe');
+  iframe.src = '/alerts?embed=1';
+}
+
 </script>
 
 <!-- ── Toast 通知容器 ── -->
@@ -11262,6 +12177,25 @@ function statsRenderHistogram(r) {
       </div>
       <div class="modal-footer py-2" style="font-size:12px;color:#6c757d">
         <i class="bi bi-info-circle me-1"></i>此 SQL 根据图谱中的 MeasureApplication / DimensionApplication 推导生成，仅作参考。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 指标推演详情 Modal ── -->
+<div class="modal fade" id="measure-reasoning-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title mb-0">
+          <i class="bi bi-diagram-3 me-2 text-success"></i>
+          指标推演详情 — <span id="measure-reasoning-title" class="text-primary"></span>
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="measure-reasoning-body" style="background:#f7f9fb"></div>
+      <div class="modal-footer py-2 small text-muted">
+        推演结果来自 indicator-inferred.ttl，包含可分析维度、上游依赖、下游影响和证据路径。
       </div>
     </div>
   </div>
