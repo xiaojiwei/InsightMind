@@ -5454,7 +5454,7 @@ async def pivot_query(request: Request):
         }
         from kg_builder.alerts import annotate_pivot_result
 
-        return annotate_pivot_result(result, measures, rows, columns, body.get("alertRules") or [])
+        return annotate_pivot_result(result, measures, rows, columns)
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     except Exception as exc:

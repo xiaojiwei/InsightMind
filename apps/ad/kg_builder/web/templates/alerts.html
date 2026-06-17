@@ -68,7 +68,7 @@
     .rule-card .rc-actions { flex-shrink:0; display:flex; gap:4px; }
     .rule-card .rc-severity { flex-shrink:0; }
 
-    /* Detection method radio cards */
+    /* Detection method cards */
     .detect-cards { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     .detect-card {
       border:2px solid var(--ibm-border); border-radius:8px; padding:12px;
@@ -167,10 +167,9 @@
           <!-- Filters -->
           <div class="d-flex gap-2 mb-3">
             <input class="form-control form-control-sm" id="ruleSearch" placeholder="搜索规则名称或指标..." style="max-width:240px;" oninput="loadRules()">
-            <select class="form-select form-select-sm" id="ruleMethodFilter" style="width:130px;" onchange="loadRules()">
-              <option value="">全部检测方式</option>
+            <select class="form-select form-select-sm" id="ruleMethodFilter" style="width:150px;height:31px;" multiple onchange="loadRules()" title="可按住 Command/Ctrl 多选；不选表示全部">
               <option value="statistical">自动统计</option>
-              <option value="gt">固定阈值</option>
+              <option value="threshold">固定阈值</option>
               <option value="fluctuation">环比波动</option>
               <option value="zero">跌零检测</option>
             </select>
@@ -247,26 +246,26 @@
               <div class="form-section">
                 <div class="form-section-title"><i class="bi bi-graph-up"></i> 检测方式</div>
                 <div class="detect-cards" id="detectMethodCards">
-                  <div class="detect-card active" data-method="lt" onclick="selectDetectMethod('lt', this)">
-                    <input type="radio" name="detectMethod" value="lt" class="d-none" checked>
+                  <div class="detect-card active" data-method="threshold" onclick="selectDetectMethod('threshold', this)">
+                    <input type="checkbox" name="detectMethod" value="threshold" class="d-none" checked>
                     <div class="dc-icon">📈</div>
                     <div class="dc-title">固定阈值</div>
                     <div class="dc-desc">指定一个数值界限，超过或低于时触发</div>
                   </div>
                   <div class="detect-card" data-method="statistical" onclick="selectDetectMethod('statistical', this)">
-                    <input type="radio" name="detectMethod" value="statistical" class="d-none">
+                    <input type="checkbox" name="detectMethod" value="statistical" class="d-none">
                     <div class="dc-icon">🤖</div>
                     <div class="dc-title">自动统计异常</div>
                     <div class="dc-desc">自动学习历史模式，发现异常偏离</div>
                   </div>
                   <div class="detect-card" data-method="fluctuation" onclick="selectDetectMethod('fluctuation', this)">
-                    <input type="radio" name="detectMethod" value="fluctuation" class="d-none">
+                    <input type="checkbox" name="detectMethod" value="fluctuation" class="d-none">
                     <div class="dc-icon">📉</div>
                     <div class="dc-title">环比波动</div>
                     <div class="dc-desc">较上一周期变化超过设定比例时触发</div>
                   </div>
                   <div class="detect-card" data-method="zero" onclick="selectDetectMethod('zero', this)">
-                    <input type="radio" name="detectMethod" value="zero" class="d-none">
+                    <input type="checkbox" name="detectMethod" value="zero" class="d-none">
                     <div class="dc-icon">🪫</div>
                     <div class="dc-title">跌零检测</div>
                     <div class="dc-desc">数值骤降至接近零时立即告警</div>
@@ -527,7 +526,8 @@ const METHOD_LABELS = {
   gt:'固定阈值', lt:'固定阈值', gte:'固定阈值', lte:'固定阈值', eq:'固定阈值', between:'区间阈值', outside:'区间外阈值', always:'始终触发'
 };
 const OP_LABELS = {gt:'大于', lt:'小于', gte:'大于等于', lte:'小于等于', eq:'等于', between:'在区间内', outside:'在区间外'};
-const DETECT_CARDS = ['lt','statistical','fluctuation','zero'];
+const THRESHOLD_OPS = ['gt','lt','gte','lte','eq','between','outside'];
+const DETECT_CARDS = ['threshold','statistical','fluctuation','zero'];
 
 let _allMeasures = [];
 
@@ -733,26 +733,43 @@ function setDimFilters(dims) {
 
 // ── Detection method ──
 function selectDetectMethod(method, el) {
-  document.querySelectorAll('#detectMethodCards .detect-card').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  el.querySelector('input').checked = true;
+  const input = el.querySelector('input');
+  input.checked = !input.checked;
+  const checked = getSelectedDetectMethods();
+  if (!checked.length) input.checked = true;
+  syncDetectMethodUI();
+  updatePreview();
+}
+
+function getSelectedDetectMethods() {
+  return Array.from(document.querySelectorAll('input[name="detectMethod"]:checked')).map(x => x.value);
+}
+
+function setSelectedDetectMethods(methods) {
+  const selected = new Set(methods && methods.length ? methods : ['threshold']);
+  document.querySelectorAll('input[name="detectMethod"]').forEach(input => {
+    input.checked = selected.has(input.value);
+  });
+  syncDetectMethodUI();
+}
+
+function syncDetectMethodUI() {
+  document.querySelectorAll('#detectMethodCards .detect-card').forEach(c => {
+    c.classList.toggle('active', c.querySelector('input')?.checked);
+  });
+  const methods = getSelectedDetectMethods();
 
   // Show/hide condition config
-  document.getElementById('condThreshold').style.display = (['gt','lt','gte','lte','eq','between','outside'].includes(method)) ? '' : 'none';
-  document.getElementById('condFluctuation').style.display = (method === 'fluctuation') ? '' : 'none';
-  document.getElementById('condStatistical').style.display = (method === 'statistical') ? '' : 'none';
-  document.getElementById('condZero').style.display = (method === 'zero') ? '' : 'none';
+  document.getElementById('condThreshold').style.display = methods.includes('threshold') ? '' : 'none';
+  document.getElementById('condFluctuation').style.display = methods.includes('fluctuation') ? '' : 'none';
+  document.getElementById('condStatistical').style.display = methods.includes('statistical') ? '' : 'none';
+  document.getElementById('condZero').style.display = methods.includes('zero') ? '' : 'none';
 
   // Default op for threshold
-  if (method === 'lt') {
+  if (methods.includes('threshold') && !THRESHOLD_OPS.includes(document.getElementById('condThOp').value)) {
     document.getElementById('condThOp').value = 'lt';
     updateThVal2Visibility();
   }
-  if (method === 'statistical') {
-    // statistical maps operator to "statistical", not "lt"
-  }
-
-  updatePreview();
 }
 
 function selectSeverity(sev) {
@@ -785,29 +802,30 @@ function updateThVal2Visibility() {
 
 // ── Preview ──
 function updatePreview() {
-  const method = (document.querySelector('input[name="detectMethod"]:checked')||{}).value || 'lt';
+  const methods = getSelectedDetectMethods();
   const sev = (document.querySelector('input[name="severity"]:checked')||{}).value || 'warning';
   const sevName = {notice:'关注',warning:'异常',critical:'严重'}[sev]||'异常';
   const name = document.getElementById('editName').value || '（未命名）';
   const measure = document.getElementById('editMeasureCode').value || '（未选指标）';
 
-  let condText = '';
-  if (method === 'statistical') { condText = '出现自动检测的统计异常'; }
-  else if (method === 'fluctuation') {
+  const conds = [];
+  if (methods.includes('statistical')) conds.push('出现自动检测的统计异常');
+  if (methods.includes('fluctuation')) {
     const dir = document.getElementById('condFlucDir').value;
     const ratio = document.getElementById('condFlucRatio').value || '30';
     const dName = {drop:'下降',surge:'上升',both:'波动'}[dir]||'变化';
-    condText = `环比${dName}超过 ${ratio}%`;
+    conds.push(`环比${dName}超过 ${ratio}%`);
   }
-  else if (method === 'zero') { condText = '数值骤降至接近零'; }
-  else {
-    const op = document.getElementById('condThOp')?.value || method;
+  if (methods.includes('zero')) conds.push('数值骤降至接近零');
+  if (methods.includes('threshold')) {
+    const op = document.getElementById('condThOp')?.value || 'lt';
     const opName = OP_LABELS[op] || op;
     const th = document.getElementById('condThValue')?.value || '?';
-    if (op==='between') { const th2 = document.getElementById('condThValue2')?.value || '?'; condText = `${opName} [${th}, ${th2}]`; }
-    else if (op==='outside') { const th2 = document.getElementById('condThValue2')?.value || '?'; condText = `在区间 [${th}, ${th2}] 之外`; }
-    else { condText = `${opName} ${th}`; }
+    if (op==='between') { const th2 = document.getElementById('condThValue2')?.value || '?'; conds.push(`${opName} [${th}, ${th2}]`); }
+    else if (op==='outside') { const th2 = document.getElementById('condThValue2')?.value || '?'; conds.push(`在区间 [${th}, ${th2}] 之外`); }
+    else { conds.push(`${opName} ${th}`); }
   }
+  const condText = conds.join('，或 ') || '满足检测条件';
 
   const assignee = document.getElementById('editAssignee').value || '（未指定）';
   const cooldown = document.getElementById('editCooldown').value || '15';
@@ -829,7 +847,7 @@ async function loadRules(page=1) {
   const search = document.getElementById('ruleSearch').value;
   const status = document.getElementById('ruleStatusFilter').value;
   const sev = document.getElementById('ruleSeverityFilter').value;
-  const method = document.getElementById('ruleMethodFilter').value;
+  const methods = Array.from(document.getElementById('ruleMethodFilter').selectedOptions).map(o => o.value);
   const params = new URLSearchParams({page, page_size:20});
   if (status) params.set('status', status);
   if (sev) params.set('severity', sev);
@@ -842,7 +860,7 @@ async function loadRules(page=1) {
 
     r.items.forEach(rule => {
       // Filter by method on client side (API doesn't support operator filter)
-      if (method && rule.operator !== method) return;
+      if (methods.length && !methods.includes(methodGroupForOperator(rule.operator))) return;
 
       const isEnabled = rule.enabled === 1 || rule.enabled === true;
       const sev = rule.severity || 'warning';
@@ -904,8 +922,8 @@ function openRuleEditor(id) {
   document.querySelector('#severityRadio [data-sev="warning"]').classList.add('active');
   document.querySelector('input[name="severity"][value="warning"]').checked = true;
 
-  // Default method = 固定阈值 (lt)
-  selectDetectMethod('lt', document.querySelector('#detectMethodCards [data-method="lt"]'));
+  // Default method = 固定阈值
+  setSelectedDetectMethods(['threshold']);
   document.getElementById('condThOp').value = 'lt';
   document.getElementById('condThValue').value = '';
   document.getElementById('condThValue2').value = '';
@@ -929,9 +947,9 @@ function openRuleEditor(id) {
 
       // Detection method
       const op = rule.operator||'lt';
-      const cardMap = {lt:'lt',gt:'lt',gte:'lt',lte:'lt',eq:'lt',between:'lt',outside:'lt',statistical:'statistical',fluctuation:'fluctuation',zero:'zero'};
-      const card = cardMap[op]||'lt';
-      selectDetectMethod(card, document.querySelector(`#detectMethodCards [data-method="${card}"]`));
+      const cardMap = {lt:'threshold',gt:'threshold',gte:'threshold',lte:'threshold',eq:'threshold',between:'threshold',outside:'threshold',statistical:'statistical',fluctuation:'fluctuation',zero:'zero'};
+      const card = cardMap[op]||'threshold';
+      setSelectedDetectMethods([card]);
 
       // Method-specific fields
       if (['gt','lt','gte','lte','eq'].includes(op)) {
@@ -967,47 +985,73 @@ function openRuleEditor(id) {
 
 async function saveRule() {
   const id = document.getElementById('editRuleId').value;
-  const card = document.querySelector('input[name="detectMethod"]:checked')?.value || 'lt';
-
-  // Determine operator and threshold based on method
-  let operator, threshold=null, threshold2=null;
-  if (card==='statistical') { operator='statistical'; }
-  else if (card==='fluctuation') { operator='fluctuation'; threshold=parseFloat(document.getElementById('condFlucRatio').value)/100||0.3; }
-  else if (card==='zero') { operator='zero'; }
-  else {
-    operator = document.getElementById('condThOp').value || 'gt';
-    threshold = document.getElementById('condThValue').value ? parseFloat(document.getElementById('condThValue').value) : null;
-    if (operator==='between'||operator==='outside') threshold2 = document.getElementById('condThValue2').value ? parseFloat(document.getElementById('condThValue2').value) : null;
-  }
-
+  const methods = getSelectedDetectMethods();
   const dims = getDimFilters();
   const sev = (document.querySelector('input[name="severity"]:checked')||{}).value || 'warning';
+  const baseName = document.getElementById('editName').value.trim() || '未命名规则';
 
-  const body = {
-    name: document.getElementById('editName').value.trim() || '未命名规则',
+  const baseBody = {
     type: 'custom',
     measure_code: document.getElementById('editMeasureCode').value.trim(),
-    operator: operator,
     severity: sev,
     assignee_name: document.getElementById('editAssignee').value.trim(),
     cooldown_minutes: parseInt(document.getElementById('editCooldown').value)||15,
     notify_enabled: 1,
     enabled: document.getElementById('editEnabled').checked,
   };
-  if (threshold !== null && threshold !== undefined) body.threshold = threshold;
-  if (threshold2 !== null && threshold2 !== undefined) body.threshold2 = threshold2;
-  if (Object.keys(dims).length) body.dimensions_json = JSON.stringify(dims);
+  if (Object.keys(dims).length) baseBody.dimensions_json = JSON.stringify(dims);
 
   // Validation
-  if (!body.measure_code) { showToast('请选择监控指标','error'); return; }
-  if (['gt','lt','gte','lte','eq','between','outside'].includes(operator) && threshold===null) { showToast('请填写阈值','error'); return; }
+  if (!baseBody.measure_code) { showToast('请选择监控指标','error'); return; }
+  if (!methods.length) { showToast('请选择至少一种检测方式','error'); return; }
 
   try {
-    if (id) await api(API+'/rules/'+id, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    else await api(API+'/rules', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const bodies = methods.map((method, idx) => buildRuleBodyForMethod(baseBody, baseName, method, methods.length > 1 && idx > 0));
+    if (bodies.some(x => x.error)) { showToast(bodies.find(x => x.error).error, 'error'); return; }
+    if (id) {
+      await api(API+'/rules/'+id, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(bodies[0])});
+      for (const body of bodies.slice(1)) await api(API+'/rules', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    } else {
+      for (const body of bodies) await api(API+'/rules', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    }
     bootstrap.Offcanvas.getInstance(document.getElementById('ruleEditor')).hide();
     loadRules(); showToast('保存成功');
   } catch(e) { showToast(e.message, 'error'); }
+}
+
+function buildRuleBodyForMethod(baseBody, baseName, method, suffixName=false) {
+  const body = {...baseBody};
+  if (method === 'threshold') {
+    const operator = document.getElementById('condThOp').value || 'gt';
+    const threshold = document.getElementById('condThValue').value ? parseFloat(document.getElementById('condThValue').value) : null;
+    const threshold2 = document.getElementById('condThValue2').value ? parseFloat(document.getElementById('condThValue2').value) : null;
+    if (threshold === null) return {error:'请填写固定阈值'};
+    body.operator = operator;
+    body.threshold = threshold;
+    if (operator==='between'||operator==='outside') {
+      if (threshold2 === null) return {error:'请填写阈值上限'};
+      body.threshold2 = threshold2;
+    }
+  } else if (method === 'statistical') {
+    body.operator = 'statistical';
+  } else if (method === 'fluctuation') {
+    body.operator = 'fluctuation';
+    body.threshold = parseFloat(document.getElementById('condFlucRatio').value)/100||0.3;
+  } else if (method === 'zero') {
+    body.operator = 'zero';
+  }
+  body.name = suffixName ? `${baseName} - ${methodNameForSave(body.operator)}` : baseName;
+  return body;
+}
+
+function methodNameForSave(operator) {
+  if (THRESHOLD_OPS.includes(operator)) return '固定阈值';
+  return METHOD_LABELS[operator] || operator;
+}
+
+function methodGroupForOperator(operator) {
+  if (THRESHOLD_OPS.includes(operator)) return 'threshold';
+  return operator || '';
 }
 
 function editRule(id) { openRuleEditor(id); }

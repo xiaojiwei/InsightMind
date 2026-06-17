@@ -3003,6 +3003,29 @@
   </div>
 </div>
 
+<!-- Pivot cell action chooser -->
+<div class="modal fade" id="pivot-action-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-cursor me-1 text-primary"></i>选择钻取方式</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="pivot-action-context" class="small text-muted mb-3"></div>
+        <div class="d-grid gap-2 mb-3">
+          <button class="btn btn-outline-primary text-start" onclick="openPivotActionDetail()">
+            <i class="bi bi-list-ul me-1"></i> 明细钻取
+            <div class="small text-muted mt-1">查看当前指标单元格背后的明细记录。</div>
+          </button>
+        </div>
+        <div class="small fw-semibold mb-2"><i class="bi bi-diagram-3 me-1 text-success"></i>维度下钻路径</div>
+        <div id="pivot-action-dimensions" class="d-grid gap-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Pivot filter modal -->
 <div class="modal fade" id="pivot-filter-modal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -4082,9 +4105,11 @@ function adhocDimensionTimeGranularity(dim) {
 
 function adhocBusinessRecommendation(candidate, currentMember=null) {
   const dim = candidate.dim || candidate;
-  const current = adhocFindDimension(currentMember);
-  const title = dim.title || dim.name;
-  const currentTitle = current ? (current.title || current.name) : '';
+  const current = currentMember && typeof currentMember === 'object'
+    ? (currentMember.dim || currentMember)
+    : adhocFindDimension(currentMember);
+  const title = dim.title || dim.name || dim.code;
+  const currentTitle = current ? (current.title || current.name || current.code) : '';
   const dimTokens = adhocDimensionTokens(dim);
   const curTokens = adhocDimensionTokens(current);
   const overlap = [...dimTokens].filter(token => curTokens.has(token));
@@ -4234,7 +4259,7 @@ function renderAdhocDimensionRecommendations() {
     <span class="text-muted me-1">推荐维度</span>
     ${recs.map(item => {
       const rec = adhocBusinessRecommendation(item);
-      return `<button class="btn btn-sm btn-outline-success py-0 px-1" title="${escHtml(`${rec.score}%推荐：${rec.reason}`)}" onclick="adhocAddField('dimension','${escHtml(item.dim.name)}')">${escHtml(item.dim.title || item.dim.name)}</button>`;
+      return `<button class="btn btn-sm btn-outline-success py-0 px-1" title="${escHtml(`${rec.score}%推荐：${rec.reason}`)}" onclick="adhocAddField('dimension','${escHtml(item.dim.name)}')">${escHtml(item.dim.title || item.dim.name)} · ${escHtml(rec.score)}%</button>`;
     }).join('')}
   </div>`;
 }
@@ -4815,7 +4840,6 @@ function adhocBuildPivotConfig(extraFilters=[]) {
     rows,
     columns,
     filters,
-    alertRules: _adhocState.query.alertRules || [],
     limit: parseInt(_adhocState.query.limit || document.getElementById('adhoc-limit')?.value || 1000, 10),
   };
 }
@@ -6400,11 +6424,17 @@ function dashboardWidgetRecommendationHtml(widget) {
   if (_dashboardViewMode) return '';
   const recs = dashboardWidgetDimensionRecommendations(widget);
   if (!recs.length) return '';
+  const contextMember = [
+    ...((widget?.spec?.query?.dimensions) || []),
+    ...((widget?.spec?.view?.encoding?.pivotColumns) || []),
+    ...((widget?.spec?.drill?.path) || []),
+  ].filter(Boolean).slice(-1)[0] || null;
   return `<div class="px-2 py-1 border-bottom bg-light small d-flex flex-wrap gap-1 align-items-center">
     <span class="text-muted me-1">推荐维度</span>
     ${recs.map(({dim, infos}) => {
+      const rec = adhocBusinessRecommendation(dim, contextMember);
       const title = infos.map(info => info.reason).filter(Boolean).join(' / ');
-      return `<button class="btn btn-sm btn-outline-success py-0 px-1" title="${escHtml(title)}" onclick="dashboardAddRecommendedDimension('${escHtml(widget.id)}','${escHtml(dim.name)}')">${escHtml(dim.title || dim.name)}</button>`;
+      return `<button class="btn btn-sm btn-outline-success py-0 px-1" title="${escHtml(`${rec.score}%推荐：${rec.reason || title}`)}" onclick="dashboardAddRecommendedDimension('${escHtml(widget.id)}','${escHtml(dim.name)}')">${escHtml(dim.title || dim.name)} · ${escHtml(rec.score)}%</button>`;
     }).join('')}
   </div>`;
 }
@@ -6777,6 +6807,7 @@ let _pivotDrillPage = 1;
 let _pivotFilterEditingCode = null;
 let _pivotEnumSearchTimer = null;
 let _pivotEnumOptions = [];
+let _pivotActionContext = null;
 
 function initPivotTab() {
   if (!_pivotCatalog.measures.length) loadPivotCatalog();
@@ -7621,7 +7652,7 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
     d.columns.forEach(col => d.measures.forEach(measure => {
       const hit = cellMap.get(`${row.key}|${col.key}|${measure.code}`);
       html += hit
-        ? `<td class="text-end ${adhocAlertClasses(hit.cell.alerts || [])}" style="${adhocAlertStyle(hit.cell.alerts || [])}" title="${escHtml(adhocAlertTitle(hit.cell.alerts || []))}"><span class="pivot-value" title="点击钻取明细${hit.cell.alerts?.length ? '\n' + adhocAlertTitle(hit.cell.alerts) : ''}" onclick="${targetId === 'pivot-result' ? `openPivotDrill(${hit.idx})` : `openAdhocPivotDrillFromRendered('${escHtml(targetId)}', ${hit.idx})`}">${escHtml(hit.cell.value ?? '-')}</span></td>`
+        ? `<td class="text-end ${adhocAlertClasses(hit.cell.alerts || [])}" style="${adhocAlertStyle(hit.cell.alerts || [])}" title="${escHtml(adhocAlertTitle(hit.cell.alerts || []))}"><span class="pivot-value" title="点击选择明细或维度下钻${hit.cell.alerts?.length ? '\n' + adhocAlertTitle(hit.cell.alerts) : ''}" onclick="${targetId === 'pivot-result' ? `openPivotCellAction(${hit.idx}, 'pivot-result')` : `openAdhocPivotActionFromRendered('${_escJs(targetId)}', ${hit.idx})`}">${escHtml(hit.cell.value ?? '-')}</span></td>`
         : '<td class="text-end text-muted">-</td>';
     }));
     html += '</tr>';
@@ -7630,12 +7661,156 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
   out.innerHTML = html;
 }
 
-async function openAdhocPivotDrillFromRendered(targetId, cellIndex) {
+async function openAdhocPivotActionFromRendered(targetId, cellIndex) {
   const cached = _adhocPivotRenderCache[targetId];
   if (!cached) return;
   _pivotResult = cached.result;
   _pivotConfig = cached.config;
-  await openPivotDrill(cellIndex);
+  await openPivotCellAction(cellIndex, targetId);
+}
+
+async function openPivotCellAction(cellIndex, targetId='pivot-result') {
+  const cell = _pivotResult?.cells?.[cellIndex];
+  if (!cell) return;
+  _pivotActionContext = {
+    cellIndex,
+    targetId,
+    cell,
+    result: _pivotResult,
+    config: JSON.parse(JSON.stringify(_pivotConfig || {})),
+  };
+  document.getElementById('pivot-action-context').textContent =
+    `${cell.measureName} · 行: ${pivotPathLabel(cell.rowPath)} · 列: ${pivotPathLabel(cell.columnPath)}`;
+  document.getElementById('pivot-action-dimensions').innerHTML = '<div class="text-muted small">正在加载可下钻维度...</div>';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('pivot-action-modal')).show();
+  await renderPivotActionDimensions();
+}
+
+function openPivotActionDetail() {
+  const ctx = _pivotActionContext;
+  if (!ctx) return;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('pivot-action-modal')).hide();
+  openPivotDrill(ctx.cellIndex);
+}
+
+async function ensurePivotCatalogReady() {
+  if (_pivotCatalog?.dimensions?.length) return;
+  const r = await fetch('/api/pivot/catalog');
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || '字段目录加载失败');
+  _pivotCatalog = d;
+}
+
+async function renderPivotActionDimensions() {
+  const out = document.getElementById('pivot-action-dimensions');
+  try {
+    await ensurePivotCatalogReady();
+    const ctx = _pivotActionContext;
+    const config = ctx?.config || {};
+    const measureCodes = new Set((config.measures || []).map(x => x.code));
+    const selectedCodes = new Set([
+      ...(config.rows || []).map(x => x.code),
+      ...(config.columns || []).map(x => x.code),
+      ...pivotActionPathItems(ctx?.cell).map(x => x.code),
+    ]);
+    const selectedMeasures = (_pivotCatalog.measures || []).filter(measure => measureCodes.has(measure.code));
+    const candidates = (_pivotCatalog.dimensions || [])
+      .filter(dim => !selectedCodes.has(dim.code))
+      .filter(dim => selectedMeasures.every(measure => pivotDimensionCompatibleWithMeasure(dim, measure)))
+      .map(dim => ({dim, recommendation: pivotDimensionRecommendation(dim, ctx)}))
+      .sort((a, b) => b.recommendation.score - a.recommendation.score
+        || String(a.dim.name || a.dim.code).localeCompare(String(b.dim.name || b.dim.code), 'zh-Hans-CN'))
+      .slice(0, 12);
+    out.innerHTML = candidates.length ? candidates.map(({dim, recommendation}) => `
+      <button class="btn btn-sm btn-outline-success text-start" title="${escHtml(recommendation.reason || '')}" onclick="applyPivotDimensionDrill('${_escJs(dim.code)}')">
+        <div class="d-flex align-items-center gap-2">
+          <span class="fw-semibold flex-fill"><i class="bi bi-arrow-down-right-circle me-1"></i>${escHtml(dim.name || dim.code)}</span>
+          <span class="badge bg-success-subtle text-success border border-success-subtle">${escHtml(recommendation.score)}% 推荐</span>
+        </div>
+        <div class="small text-muted text-truncate">${escHtml(recommendation.reason || dim.code)}</div>
+        <div class="small text-muted text-truncate">${escHtml(dim.code)}</div>
+      </button>
+    `).join('') : '<div class="text-muted small">当前指标和单元格路径下没有可继续下钻的维度。</div>';
+  } catch(e) {
+    out.innerHTML = `<div class="text-danger small">${escHtml(e.message || e)}</div>`;
+  }
+}
+
+function pivotSemanticDimension(dim) {
+  return adhocFindDimension(dim?.code) || adhocFindDimension(dim?.name) || dim || null;
+}
+
+function pivotDimensionRecommendation(dim, ctx) {
+  const pathItems = pivotActionPathItems(ctx?.cell);
+  const currentItem = pathItems.length ? pathItems[pathItems.length - 1] : null;
+  const semanticDim = pivotSemanticDimension(dim) || dim;
+  const currentDim = currentItem
+    ? (pivotSemanticDimension(currentItem) || {code:currentItem.code, name:currentItem.name || currentItem.code, title:currentItem.name || currentItem.code, viewType:currentItem.viewType || 0})
+    : null;
+  return adhocBusinessRecommendation(semanticDim, currentDim);
+}
+
+function pivotActionPathItems(cell) {
+  return [...(cell?.rowPath || []), ...(cell?.columnPath || [])].filter(x => x && x.code);
+}
+
+function pivotActionFilterFromPathItem(item) {
+  return {
+    code: item.code,
+    name: item.name || item.code,
+    type: 'dimension',
+    viewType: item.viewType || 0,
+    operator: 'in',
+    filterMode: 'enum',
+    conditionForm: 'single',
+    values: [String(item.filterValue ?? item.value ?? '')],
+    valueLabels: {[String(item.filterValue ?? item.value ?? '')]: String(item.value ?? item.filterValue ?? '')},
+  };
+}
+
+async function applyPivotDimensionDrill(code) {
+  const ctx = _pivotActionContext;
+  if (!ctx) return;
+  const dim = pivotFieldMeta(code);
+  const nextConfig = JSON.parse(JSON.stringify(ctx.config || {}));
+  nextConfig.rows = nextConfig.rows || [];
+  nextConfig.columns = nextConfig.columns || [];
+  nextConfig.filters = nextConfig.filters || [];
+
+  pivotActionPathItems(ctx.cell).forEach(item => {
+    const filter = pivotActionFilterFromPathItem(item);
+    const existingIdx = nextConfig.filters.findIndex(x => x.code === filter.code);
+    if (existingIdx >= 0) nextConfig.filters[existingIdx] = filter;
+    else nextConfig.filters.push(filter);
+  });
+  if (!nextConfig.rows.some(x => x.code === code) && !nextConfig.columns.some(x => x.code === code)) {
+    nextConfig.rows.push({code: dim.code, name: dim.name || dim.code});
+  }
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('pivot-action-modal')).hide();
+  const targetId = ctx.targetId || 'pivot-result';
+  const out = document.getElementById(targetId);
+  if (out) out.innerHTML = '<div class="text-muted text-center py-5"><span class="spinner-border spinner-border-sm me-1"></span>正在下钻...</div>';
+  try {
+    const r = await fetch('/api/pivot/query', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(nextConfig),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '维度下钻失败');
+    if (targetId === 'pivot-result') {
+      _pivotConfig = nextConfig;
+      _pivotResult = d;
+      renderPivotConfig();
+      renderPivotFields();
+    }
+    renderPivotResult(targetId, d, nextConfig);
+    showToast(`已按 ${dim.name || dim.code} 下钻`, 'info');
+  } catch(e) {
+    if (out) out.innerHTML = `<div class="alert alert-danger m-3">${escHtml(e.message || e)}</div>`;
+    showToast(e.message || String(e), 'error');
+  }
 }
 
 async function openPivotDrill(cellIndex) {

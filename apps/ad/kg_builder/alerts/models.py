@@ -75,11 +75,63 @@ CREATE TABLE IF NOT EXISTS alert_severity_level (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 """
 
+DEMO_ALERT_RULES = [
+    {
+        "name": "Demo｜Wuhan 网络销售低于 40 万",
+        "description": "演示规则：Wuhan 网络销售金额低于 40 万，标注为自身数据异常，使用底色提示。",
+        "builtin_type": "self",
+        "measure_code": "MEAS_web_sales_amount",
+        "operator": "lte",
+        "threshold": 400000,
+        "threshold2": None,
+        "dimensions_json": json.dumps({"DIM_warehouse_city": "Wuhan"}, ensure_ascii=False),
+        "severity": "critical",
+        "cooldown_minutes": 15,
+    },
+    {
+        "name": "Demo｜Guangzhou 月度销售路径异常",
+        "description": "演示规则：透视表中 Guangzhou 月度销售额超过 3 万，使用红色虚线边框。",
+        "builtin_type": "path",
+        "measure_code": "MEAS_web_sales_amount",
+        "operator": "gte",
+        "threshold": 30000,
+        "threshold2": None,
+        "dimensions_json": json.dumps({"DIM_warehouse_city": "Guangzhou"}, ensure_ascii=False),
+        "severity": "warning",
+        "cooldown_minutes": 15,
+    },
+    {
+        "name": "Demo｜Guangzhou 利润结构异常",
+        "description": "演示规则：父指标净利润整体正常，但假设内部收入/成本子项存在抵消，使用实线边框提示。",
+        "builtin_type": "expression",
+        "measure_code": "MEAS_web_net_profit",
+        "operator": "gte",
+        "threshold": 100000,
+        "threshold2": None,
+        "dimensions_json": json.dumps({"DIM_warehouse_city": "Guangzhou"}, ensure_ascii=False),
+        "severity": "warning",
+        "cooldown_minutes": 15,
+    },
+    {
+        "name": "Demo｜Guangzhou 销售路径分化",
+        "description": "演示规则：同一城市路径中 Guangzhou 明显高于其他路径，使用虚线边框提示路径异常。",
+        "builtin_type": "path",
+        "measure_code": "MEAS_web_sales_amount",
+        "operator": "gte",
+        "threshold": 500000,
+        "threshold2": None,
+        "dimensions_json": json.dumps({"DIM_warehouse_city": "Guangzhou"}, ensure_ascii=False),
+        "severity": "warning",
+        "cooldown_minutes": 15,
+    },
+]
+
 def init_db():
     conn = get_db()
     try:
         # Execute SEQUENCE command
         conn.execute(text("CREATE DATABASE IF NOT EXISTS tpcds CHARACTER SET utf8mb4"))
+        conn.commit()
         trans = conn.begin()
         try:
             for stmt in SCHEMA.split(";"):
@@ -120,8 +172,38 @@ def init_db():
                 "VALUES('feishu',0,'{}','22:00','08:00',:now)"
             ), {"now": _now()})
             conn.commit()
+        _seed_demo_alert_rules(conn)
     finally:
         conn.close()
+
+
+def _seed_demo_alert_rules(conn) -> None:
+    now = _now()
+    for rule in DEMO_ALERT_RULES:
+        exists = conn.execute(
+            text("SELECT COUNT(*) FROM alert_rule WHERE name=:name"),
+            {"name": rule["name"]},
+        ).scalar()
+        if exists:
+            continue
+        conn.execute(text(
+            "INSERT INTO alert_rule (name,description,rule_type,builtin_type,measure_code,operator,threshold,"
+            "threshold2,dimensions_json,severity,enabled,cooldown_minutes,notify_enabled,assignee_id,assignee_name,"
+            "created_at,updated_at) VALUES (:name,:desc,'custom',:btype,:mcode,:op,:th,:th2,:dims,:sev,1,:cool,1,'','',:now,:now)"
+        ), {
+            "name": rule["name"],
+            "desc": rule["description"],
+            "btype": rule["builtin_type"],
+            "mcode": rule["measure_code"],
+            "op": rule["operator"],
+            "th": rule["threshold"],
+            "th2": rule["threshold2"],
+            "dims": rule["dimensions_json"],
+            "sev": rule["severity"],
+            "cool": rule["cooldown_minutes"],
+            "now": now,
+        })
+    conn.commit()
 
 # -- Rules CRUD --
 def list_rules(page=1, page_size=20, status=None, severity=None, measure_code=None, search=None):

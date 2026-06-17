@@ -16,6 +16,7 @@ Detection methods (encoded in rule.operator):
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 from datetime import datetime, timezone
@@ -45,6 +46,15 @@ def init_scan_loader(fn: Callable) -> None:
     """
     global _load_fn
     _load_fn = fn
+
+
+async def _execute_load(query: dict) -> dict:
+    if _load_fn is None:
+        return {}
+    result = _load_fn(query)
+    if inspect.isawaitable(result):
+        result = await result
+    return result or {}
 
 
 async def start(interval: int = DEFAULT_SCAN_INTERVAL) -> None:
@@ -122,24 +132,26 @@ async def _scan_with_engine(rule: dict, now: datetime) -> None:
         "measures": [measure_member],
         "dimensions": [],
         "limit": 200,
-        "alertRules": [],
+        "alertRuleIds": [rule["id"]],
     }
 
     try:
-        result = _load_fn(query)
+        result = await _execute_load(query)
     except Exception:
         logger.exception("Engine scan query failed for rule %s", rule["id"])
         return
 
     alert_summary = result.get("alerts") or {}
     for alert_item in alert_summary.get("items", []):
-        severity_label = alert_item.get("severityLabel", "warning")
+        severity_label = alert_item.get("severity", "warning")
 
         models.insert_alert_log(
             rule_id=rule["id"],
+            rule_name=rule.get("name", ""),
             measure_code=measure_code,
             measure_name=rule.get("name", ""),
-            actual_value=str(alert_item.get("measure", "")),
+            dim_values=_alert_dim_values(alert_item),
+            actual_value=_alert_actual_value(alert_item),
             threshold_desc=alert_item.get("reason", "detection engine"),
             severity=severity_label,
             assignee_id=rule.get("assignee_id") or "",
@@ -164,7 +176,7 @@ async def _scan_with_engine(rule: dict, now: datetime) -> None:
             await notify.send_alert(n)
 
         models.update_rule(rule["id"], {
-            "last_triggered_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "last_triggered_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "trigger_count": (rule.get("trigger_count") or 0) + 1,
         })
 
@@ -181,43 +193,30 @@ async def _scan_threshold(rule: dict, now: datetime, operator: str) -> None:
     dimensions_json = rule.get("dimensions_json")
     dims = json.loads(dimensions_json) if dimensions_json else {}
 
-    severity_int = {"notice": 1, "warning": 2, "critical": 3}.get(
-        str(rule.get("severity") or "warning"), 2
-    )
-
-    custom_rules = [{
-        "type": "self",
-        "measure": measure_member,
-        "operator": operator,
-        "threshold": rule.get("threshold"),
-        "threshold2": rule.get("threshold2"),
-        "severity": severity_int,
-        "dimensions": dims,
-        "enabled": True,
-    }]
-
     query = {
         "measures": [measure_member],
-        "dimensions": list(dims.keys()),
+        "dimensions": [_code_to_member(str(dim)) for dim in dims.keys()],
         "limit": 200,
-        "alertRules": custom_rules,
+        "alertRuleIds": [rule["id"]],
     }
 
     try:
-        result = _load_fn(query)
+        result = await _execute_load(query)
     except Exception:
         logger.exception("Threshold scan query failed for rule %s", rule["id"])
         return
 
     alert_summary = result.get("alerts") or {}
     for alert_item in alert_summary.get("items", []):
-        severity_label = alert_item.get("severityLabel", "warning")
+        severity_label = alert_item.get("severity", "warning")
 
         models.insert_alert_log(
             rule_id=rule["id"],
+            rule_name=rule.get("name", ""),
             measure_code=measure_code,
             measure_name=rule.get("name", ""),
-            actual_value=str(alert_item.get("measure", "")),
+            dim_values=_alert_dim_values(alert_item),
+            actual_value=_alert_actual_value(alert_item),
             threshold_desc=alert_item.get("reason", "threshold rule"),
             severity=severity_label,
             assignee_id=rule.get("assignee_id") or "",
@@ -242,7 +241,7 @@ async def _scan_threshold(rule: dict, now: datetime, operator: str) -> None:
             await notify.send_alert(n)
 
         models.update_rule(rule["id"], {
-            "last_triggered_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "last_triggered_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "trigger_count": (rule.get("trigger_count") or 0) + 1,
         })
 
@@ -256,3 +255,23 @@ def _code_to_member(code: str) -> str:
     if code.startswith("DIM_"):
         return f"ad.{code[4:].lower()}"
     return code
+
+
+def _alert_actual_value(alert_item: dict) -> str:
+    row = alert_item.get("row") or {}
+    measure = alert_item.get("measure") or ""
+    if isinstance(row, dict) and measure in row:
+        return str(row.get(measure))
+    return str(alert_item.get("value") or "")
+
+
+def _alert_dim_values(alert_item: dict) -> str:
+    row = alert_item.get("row") or {}
+    if not isinstance(row, dict):
+        return "{}"
+    dims = {
+        key: value
+        for key, value in row.items()
+        if str(key).startswith("ad.") and key != alert_item.get("measure")
+    }
+    return json.dumps(dims, ensure_ascii=False)

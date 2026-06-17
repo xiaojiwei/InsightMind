@@ -23,6 +23,9 @@ SEVERITY = {
     3: {"code": "critical", "label": "严重", "color": "#c84b4b"},
 }
 
+_ENGINE_OPERATORS = {"statistical", "fluctuation"}
+_SEVERITY_TO_LEVEL = {"notice": 1, "warning": 2, "critical": 3}
+
 
 def annotate_semantic_result(
     result: dict[str, Any],
@@ -47,28 +50,42 @@ def annotate_semantic_result(
         for member in measure_members
     }
 
+    persisted_rules = _persisted_query_rules(query, set(member_to_code.values()), {v: k for k, v in member_to_code.items()})
+
     alerts: list[dict[str, Any]] = []
     for measure_member in measure_members:
+        measure_code = member_to_code.get(measure_member, "")
+        measure_rules = [rule for rule in persisted_rules if rule.get("measureCode") == measure_code]
+        if not measure_rules:
+            continue
         values = [_to_float(row.get(measure_member)) for row in rows]
-        row_alerts = _detect_self_alerts(values, measure_member, member_to_code.get(measure_member, ""))
-        _attach_row_alerts(rows, row_alerts)
-        alerts.extend(_inflate_alerts(rows, row_alerts))
 
-        path_alerts = _detect_path_alerts(
-            rows,
-            values,
-            measure_member,
-            member_to_code.get(measure_member, ""),
-            dimension_members,
-        )
-        _attach_row_alerts(rows, path_alerts)
-        alerts.extend(_inflate_alerts(rows, path_alerts))
+        if any(_is_engine_rule(rule, "self") for rule in measure_rules):
+            row_alerts = _filter_alerts_by_rules(
+                rows,
+                _detect_self_alerts(values, measure_member, measure_code),
+                [rule for rule in measure_rules if _is_engine_rule(rule, "self")],
+            )
+            _attach_row_alerts(rows, row_alerts)
+            alerts.extend(_inflate_alerts(rows, row_alerts))
 
-    if load_fn:
+        if any(_is_engine_rule(rule, "path") for rule in measure_rules):
+            path_alerts = _filter_alerts_by_rules(
+                rows,
+                _detect_path_alerts(rows, values, measure_member, measure_code, dimension_members),
+                [rule for rule in measure_rules if _is_engine_rule(rule, "path")],
+            )
+            _attach_row_alerts(rows, path_alerts)
+            alerts.extend(_inflate_alerts(rows, path_alerts))
+
+    if load_fn and any(_is_engine_rule(rule, "expression") for rule in persisted_rules):
         expression_alerts = _detect_expression_alerts(
             rows=rows,
-            query=query,
-            measure_members=measure_members,
+            query={**query, "enableAlerts": False},
+            measure_members=[
+                member for member in measure_members
+                if any(_is_engine_rule(rule, "expression") and rule.get("measure") == member for rule in persisted_rules)
+            ],
             member_to_code=member_to_code,
             catalog=catalog,
             ttl_path=ttl_path,
@@ -77,7 +94,7 @@ def annotate_semantic_result(
         _attach_row_alerts(rows, expression_alerts)
         alerts.extend(_inflate_alerts(rows, expression_alerts))
 
-    rule_alerts = _detect_configured_alerts(rows, query, member_to_code)
+    rule_alerts = _detect_configured_alerts(rows, persisted_rules)
     _attach_row_alerts(rows, rule_alerts)
     alerts.extend(_inflate_alerts(rows, rule_alerts))
 
@@ -97,23 +114,30 @@ def annotate_pivot_result(
         return _with_alert_summary(result, [])
 
     measure_codes = [str(item.get("code") or "") for item in measures if item.get("code")]
+    persisted_rules = _persisted_query_rules({}, set(measure_codes), {})
     alerts: list[dict[str, Any]] = []
     for code in measure_codes:
+        measure_rules = [rule for rule in persisted_rules if rule.get("measureCode") == code]
+        if not measure_rules:
+            continue
         indexes = [idx for idx, cell in enumerate(cells) if str(cell.get("measureCode") or "") == code]
         values = [_to_float(cells[idx].get("value")) for idx in indexes]
-        row_alerts = _detect_self_alerts(values, code, code)
-        for local_idx, alert in row_alerts.items():
-            alert["cellIndex"] = indexes[local_idx]
-            alert["rowKey"] = cells[indexes[local_idx]].get("rowKey")
-            alert["columnKey"] = cells[indexes[local_idx]].get("columnKey")
-        _attach_cell_alerts(cells, row_alerts, indexes)
-        alerts.extend(_inflate_cell_alerts(cells, row_alerts, indexes))
 
-        path_alerts = _detect_pivot_path_alerts(cells, indexes, values, rows, columns, code)
-        _attach_cell_alerts(cells, path_alerts, indexes)
-        alerts.extend(_inflate_cell_alerts(cells, path_alerts, indexes))
+        if any(_is_engine_rule(rule, "self") for rule in measure_rules):
+            row_alerts = _detect_self_alerts(values, code, code)
+            for local_idx, alert in row_alerts.items():
+                alert["cellIndex"] = indexes[local_idx]
+                alert["rowKey"] = cells[indexes[local_idx]].get("rowKey")
+                alert["columnKey"] = cells[indexes[local_idx]].get("columnKey")
+            _attach_cell_alerts(cells, row_alerts, indexes)
+            alerts.extend(_inflate_cell_alerts(cells, row_alerts, indexes))
 
-    configured = _detect_pivot_configured_alerts(cells, rules or [])
+        if any(_is_engine_rule(rule, "path") for rule in measure_rules):
+            path_alerts = _detect_pivot_path_alerts(cells, indexes, values, rows, columns, code)
+            _attach_cell_alerts(cells, path_alerts, indexes)
+            alerts.extend(_inflate_cell_alerts(cells, path_alerts, indexes))
+
+    configured = _detect_pivot_configured_alerts(cells, persisted_rules)
     for local_idx, alert in configured.items():
         cell = cells[local_idx]
         bucket = cell.setdefault("alerts", [])
@@ -391,23 +415,18 @@ def _pivot_rule_dimensions_match(cell: dict[str, Any], dim_match: Any) -> bool:
 
 def _detect_configured_alerts(
     rows: list[dict[str, Any]],
-    query: dict[str, Any],
-    member_to_code: dict[str, str],
+    rules: list[dict[str, Any]],
 ) -> dict[int, dict[str, Any]]:
-    """Apply explicit MVP rules embedded in an AD query spec.
-
-    Example:
-      {"type":"self","measure":"ad.sales","operator":"lte","threshold":100,
-       "severity":3,"dimensions":{"ad.city":"Wuhan"}}
-    """
-    rules = query.get("alertRules") or []
+    """Apply threshold-style rules loaded from the persistent alert_rule table."""
     if not isinstance(rules, list):
         return {}
     alerts: dict[int, dict[str, Any]] = {}
     for rule in rules:
         if not isinstance(rule, dict) or rule.get("enabled") is False:
             continue
-        measure = str(rule.get("measure") or (query.get("measures") or [""])[0] or "")
+        if str(rule.get("operator") or "").lower() in _ENGINE_OPERATORS:
+            continue
+        measure = str(rule.get("measure") or "")
         if not measure:
             continue
         kind = str(rule.get("type") or "self")
@@ -438,7 +457,7 @@ def _detect_configured_alerts(
                 level,
                 label,
                 measure,
-                member_to_code.get(measure, ""),
+                str(rule.get("measureCode") or ""),
                 reason,
                 style=style,
                 ruleId=str(rule.get("id") or ""),
@@ -491,6 +510,111 @@ def _rule_reason(operator: str, threshold: float | None, threshold2: float | Non
     if operator in {"zero", "drop_to_zero"}:
         return "命中跌零规则"
     return f"命中规则 {operator} {threshold}"
+
+
+def _persisted_query_rules(
+    query: dict[str, Any],
+    measure_codes: set[str],
+    code_to_member: dict[str, str],
+) -> list[dict[str, Any]]:
+    try:
+        from . import models
+
+        rows = models.list_enabled_rules()
+    except Exception:
+        return []
+
+    requested_ids = {int(item) for item in (query.get("alertRuleIds") or []) if str(item).isdigit()}
+    rules: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            rule_id = int(row.get("id"))
+        except Exception:
+            rule_id = 0
+        if requested_ids and rule_id not in requested_ids:
+            continue
+        measure_code = str(row.get("measure_code") or "")
+        if measure_codes and measure_code not in measure_codes:
+            continue
+        rules.append(_runtime_rule_from_persisted(row, code_to_member))
+    return rules
+
+
+def _runtime_rule_from_persisted(row: dict[str, Any], code_to_member: dict[str, str]) -> dict[str, Any]:
+    measure_code = str(row.get("measure_code") or "")
+    severity = str(row.get("severity") or "warning")
+    operator = str(row.get("operator") or "always").lower()
+    kind = str(row.get("builtin_type") or "").lower()
+    if kind not in {"self", "path", "expression"}:
+        kind = "path" if operator == "fluctuation" else "self"
+    return {
+        "id": row.get("id"),
+        "type": kind,
+        "measure": code_to_member.get(measure_code) or _catalog_member_name_from_code(measure_code),
+        "measureCode": measure_code,
+        "operator": operator,
+        "threshold": row.get("threshold"),
+        "threshold2": row.get("threshold2"),
+        "severity": _SEVERITY_TO_LEVEL.get(severity, 2),
+        "dimensions": _dimensions_from_persisted(row.get("dimensions_json")),
+        "reason": row.get("description") or _rule_reason(operator, row.get("threshold"), row.get("threshold2")),
+        "enabled": bool(row.get("enabled", True)),
+    }
+
+
+def _dimensions_from_persisted(raw: Any) -> dict[str, Any]:
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    out = {}
+    for key, value in data.items():
+        member = _dimension_member_from_code(str(key))
+        if isinstance(value, str) and "," in value:
+            out[member] = [part.strip() for part in value.split(",") if part.strip()]
+        else:
+            out[member] = value
+    return out
+
+
+def _dimension_member_from_code(code: str) -> str:
+    if code.startswith("ad."):
+        return code
+    if code.startswith("DIM_"):
+        return f"ad.{_normalize_member_key(code)}"
+    return code
+
+
+def _catalog_member_name_from_code(code: str) -> str:
+    if not code:
+        return ""
+    return f"ad.{_normalize_member_key(code)}"
+
+
+def _is_engine_rule(rule: dict[str, Any], kind: str) -> bool:
+    return str(rule.get("operator") or "").lower() in _ENGINE_OPERATORS and str(rule.get("type") or "self") == kind
+
+
+def _filter_alerts_by_rules(
+    rows: list[dict[str, Any]],
+    alerts: dict[int, dict[str, Any]],
+    rules: list[dict[str, Any]],
+) -> dict[int, dict[str, Any]]:
+    if not rules:
+        return {}
+    out = {}
+    for idx, alert in alerts.items():
+        row = rows[idx] if idx < len(rows) else {}
+        matching = [rule for rule in rules if _rule_dimensions_match(row, rule.get("dimensions") or {})]
+        if not matching:
+            continue
+        rule = matching[0]
+        out[idx] = {**alert, "ruleId": str(rule.get("id") or "")}
+    return out
 
 
 def _attach_row_alerts(rows: list[dict[str, Any]], alerts: dict[int, dict[str, Any]]) -> None:
