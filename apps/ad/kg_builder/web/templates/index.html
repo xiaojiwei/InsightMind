@@ -546,7 +546,7 @@
     .dashboard-fallback-grid .dashboard-view-grid-item { min-height:260px; }
     .dashboard-view-grid-item { min-width:0; }
     .dashboard-view-grid-item-content { width:100%; height:100%; padding:4px; box-sizing:border-box; }
-    .dashboard-widget { height:100%; background:#fff; border:1px solid var(--ibm-border); border-radius:0; box-shadow:none; overflow:hidden; }
+    .dashboard-widget { height:100%; background:#fff; border:1px solid var(--ibm-border); border-radius:0; box-shadow:none; overflow:hidden; display:flex; flex-direction:column; }
     .dashboard-card-active {
       border-color:#CBD0D6 !important;
       box-shadow:inset 3px 0 0 #D8DCE0;
@@ -558,7 +558,9 @@
     }
     .dashboard-widget-header { height:36px; padding:6px 10px; border-bottom:1px solid #eef1f5; display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12.5px; }
     .dashboard-widget-body {
-      height:calc(100% - 36px);
+      flex:1 1 auto;
+      height:auto;
+      min-height:0;
       min-width:0;
       padding:6px;
       overflow:auto;
@@ -575,6 +577,38 @@
       width:max-content;
       min-width:100%;
       max-width:none;
+    }
+    .pivot-table {
+      border-collapse:separate !important;
+      border-spacing:0;
+      background:#fff;
+      border:1px solid #b7c0cb !important;
+    }
+    .pivot-table th,
+    .pivot-table td {
+      border-right:1px solid #c2cad4 !important;
+      border-bottom:1px solid #c2cad4 !important;
+      vertical-align:middle;
+    }
+    .pivot-table th {
+      background:#dfe5ec !important;
+      color:#1f2933;
+      font-weight:700;
+    }
+    .pivot-table tbody td {
+      background:#fbfcfd;
+      color:#27313f;
+    }
+    .pivot-table tbody td.fw-semibold,
+    .pivot-table tbody td.bg-light {
+      background:#edf2f6 !important;
+      color:#1f2933;
+    }
+    .pivot-table tbody tr:nth-child(even) td:not(.fw-semibold):not(.bg-light) {
+      background:#f5f7fa;
+    }
+    .pivot-table .ad-doc-alert-cell {
+      padding-right:24px !important;
     }
     .dashboard-ai-panel {
       margin-top:8px;
@@ -2675,7 +2709,7 @@
         <div class="col-xl-9 col-lg-8">
           <div class="adhoc-toolbar mb-3">
             <div class="row g-2 align-items-end">
-              <div class="col-lg-3 col-md-6">
+              <div class="col-lg-2 col-md-6">
                 <label class="form-label small fw-semibold mb-1">组件名称</label>
                 <input id="adhoc-name" class="form-control form-control-sm" value="渠道销售额分析">
               </div>
@@ -2704,7 +2738,14 @@
                 <label class="form-label small fw-semibold mb-1">结果行数</label>
                 <input id="adhoc-limit" type="number" min="1" max="10000" class="form-control form-control-sm" value="1000">
               </div>
-              <div class="col-lg-3 col-md-12 d-flex gap-2">
+              <div class="col-lg-2 col-md-6">
+                <label class="form-label small fw-semibold mb-1">监控预警</label>
+                <div class="form-check form-switch mt-1">
+                  <input class="form-check-input" type="checkbox" id="adhoc-alert-render-enabled" onchange="adhocAlertRenderChanged()">
+                  <label class="form-check-label small" for="adhoc-alert-render-enabled">渲染预警</label>
+                </div>
+              </div>
+              <div class="col-lg-2 col-md-12 d-flex gap-2">
                 <button class="btn btn-sm btn-primary flex-fill" onclick="runAdhocQuery()"><i class="bi bi-play-fill me-1"></i>运行</button>
                 <button class="btn btn-sm btn-outline-success flex-fill" onclick="saveAdhocSpec()"><i class="bi bi-save me-1"></i>保存组件</button>
               </div>
@@ -2986,7 +3027,7 @@
 <div class="offcanvas offcanvas-end" tabindex="-1" id="pivot-drill-drawer" style="width:min(92vw,1100px)">
   <div class="offcanvas-header border-bottom">
     <div>
-      <h5 class="offcanvas-title mb-1"><i class="bi bi-list-ul me-1 text-primary"></i>指标明细钻取</h5>
+      <h5 class="offcanvas-title mb-1" id="pivot-drill-title"><i class="bi bi-list-ul me-1 text-primary"></i>指标明细钻取</h5>
       <div id="pivot-drill-context" class="small text-muted"></div>
     </div>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
@@ -2997,8 +3038,10 @@
     </div>
     <div class="d-flex align-items-center gap-2 px-3 py-2 border-top">
       <span id="pivot-drill-page" class="small text-muted me-auto"></span>
-      <button class="btn btn-sm btn-outline-secondary" onclick="changePivotDrillPage(-1)">上一页</button>
-      <button class="btn btn-sm btn-outline-secondary" onclick="changePivotDrillPage(1)">下一页</button>
+      <span id="pivot-drill-pager-actions" class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="changePivotDrillPage(-1)">上一页</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="changePivotDrillPage(1)">下一页</button>
+      </span>
     </div>
   </div>
 </div>
@@ -3908,15 +3951,25 @@ let _adhocLastResult = null;
 let _adhocSelectedPoint = null;
 let _adhocDetailColumns = [];
 let _adhocDetailRecords = [];
+let _adhocDetailDocumentContext = null;
+let _adhocDetailOnlyDocumentAnomalies = false;
 let _adhocFilterTimeDraft = null;
 let _adhocPivotRenderCache = {};
+let _adhocRenderedQueries = {};
 let _dynamicDrillPending = null;
+let _documentAlertRulesCache = null;
+let _documentAlertRulesLoadedAt = 0;
+let _documentAlertScanTokens = {};
+let _documentAlertResultsByTarget = {};
+let _documentAlertPivotCellResults = {};
+let _documentAlertLoadingCounts = {};
 let _adhocState = {
   id: '',
   name: '渠道销售额分析',
   query: {measures:[], dimensions:[], filters:[], order:{}, limit:1000},
   view: {type:'chart', chartType:'auto', encoding:{}},
-  drill: {mode:'path', path:[], stack:[]}
+  drill: {mode:'path', path:[], stack:[]},
+  settings: {monitoringAlertRenderEnabled:false}
 };
 
 let _dashboardGrid = null;
@@ -4844,13 +4897,19 @@ function adhocBuildPivotConfig(extraFilters=[]) {
   };
 }
 
-async function runAdhocPivotQuery(extraFilters=[], targetId='adhoc-preview', statusEl=null, spec=null) {
+async function runAdhocPivotQuery(extraFilters=[], targetId='adhoc-preview', statusEl=null, spec=null, options={}) {
   const oldState = _adhocState;
+  let alertRenderEnabled = false;
   if (spec) _adhocState = spec;
   try {
     const pivotConfig = adhocBuildPivotConfig(extraFilters);
     if (!pivotConfig.measures.length) throw new Error('请至少选择一个指标');
     if (!pivotConfig.rows.length && !pivotConfig.columns.length) throw new Error('透视表请至少选择一个行轴或列轴维度');
+    alertRenderEnabled = adhocMonitoringAlertRenderEnabled(_adhocState);
+    if (alertRenderEnabled) {
+      resetDocumentAlertRender(targetId, {forceRules: options.forceAlertRefresh});
+      documentAlertLoadingStart(targetId);
+    }
     const r = await fetch('/api/pivot/query', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -4859,13 +4918,21 @@ async function runAdhocPivotQuery(extraFilters=[], targetId='adhoc-preview', sta
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || '透视查询失败');
     _adhocLastResult = d;
-    renderPivotResult(targetId, d, pivotConfig);
+    const renderResult = adhocResultForAlertRender(d, alertRenderEnabled);
+    renderPivotResult(targetId, renderResult, pivotConfig);
+    if (alertRenderEnabled) {
+      scheduleDocumentAlertScans(targetId, documentAlertMeasureCodesFromPivot(pivotConfig), {forceRules: options.forceAlertRefresh});
+      schedulePivotDocumentAlertScans(targetId, d, pivotConfig, {forceRules: options.forceAlertRefresh});
+    } else {
+      resetDocumentAlertRender(targetId);
+    }
     if (statusEl) {
-      const alertText = d.alerts?.count ? ` · ${d.alerts.count} 个预警` : '';
+      const alertText = renderResult.alerts?.count ? ` · ${renderResult.alerts.count} 个预警` : '';
       statusEl.textContent = `${d.diagnostics?.rowCount ?? 0} 条聚合记录 · ${d.diagnostics?.elapsedMs ?? '-'} ms${alertText}`;
     }
     return d;
   } finally {
+    if (alertRenderEnabled) documentAlertLoadingEnd(targetId);
     if (spec) _adhocState = oldState;
   }
 }
@@ -4912,6 +4979,17 @@ function ensureAdhocAlertStyles() {
     .ad-alert-path::before{content:"";position:absolute;inset:3px;border:var(--ad-alert-path-width,1px) dashed var(--ad-alert-path-color,#dc2626);border-radius:2px;pointer-events:none;z-index:1}
     .ad-alert-cell::after{content:"";position:absolute;right:3px;top:3px;width:5px;height:5px;border-radius:50%;background:var(--ad-alert-color,#d99042);z-index:2}
     .ad-alert-badge{font-size:10px;border-radius:999px;padding:2px 7px;border:1px solid rgba(0,0,0,.08);background:#fff}
+    .ad-doc-alert-cell{position:relative;background-clip:padding-box;cursor:pointer}
+    .ad-doc-alert-cell::after{content:"!";position:absolute;right:5px;top:50%;transform:translateY(-50%);width:13px;height:13px;border-radius:999px;background:var(--ad-doc-alert-color,#d99042);color:#fff;font-size:9px;font-weight:800;line-height:13px;text-align:center;z-index:3;box-shadow:0 0 0 1px #fff}
+    .ad-doc-alert-cell.ad-alert-cell::after{right:5px;top:50%;transform:translateY(-50%);width:13px;height:13px;border-radius:999px}
+    .ad-doc-detail-row{background:#fff7ed!important;box-shadow:inset 0 0 0 9999px #fff7ed!important}
+    .ad-doc-detail-row td{border-top-color:#f2c79a!important}
+    .ad-doc-detail-cell{background:#ffe5d2!important;box-shadow:inset 0 0 0 9999px #ffe5d2!important;color:#9a3412!important;font-weight:600}
+    .ad-doc-detail-tag{font-size:10px;border-radius:999px;padding:2px 7px;background:#fff7ed;border:1px solid #f2c79a;color:#9a3412}
+    .ad-doc-alert-panel{margin:8px 8px 0;border-left:4px solid var(--ad-doc-alert-color,#d99042);background:#fffdf8;color:#343a40}
+    .ad-doc-alert-action{font-size:11px;padding:2px 8px}
+    .ad-alert-loading-indicator{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;pointer-events:none;animation:ad-alert-loading-pulse .9s ease-in-out infinite}
+    @keyframes ad-alert-loading-pulse{0%,100%{opacity:.42;box-shadow:none}45%{opacity:1;box-shadow:0 0 0 2px rgba(217,144,66,.16)}}
   `;
   document.head.appendChild(style);
 }
@@ -4968,6 +5046,368 @@ function adhocAlertSummaryHtml(summary) {
   </div>`;
 }
 
+function documentAlertSeverityColor(severity='warning') {
+  return {notice:'#9b7b24', warning:'#d99042', critical:'#c84b4b'}[severity] || '#d99042';
+}
+
+function documentAlertSeverityLabel(severity='warning') {
+  return {notice:'关注', warning:'异常', critical:'严重'}[severity] || severity;
+}
+
+function documentAlertConfig(rule) {
+  try {
+    const data = typeof rule.dimensions_json === 'string' ? JSON.parse(rule.dimensions_json || '{}') : (rule.dimensions_json || {});
+    return data.__document || {};
+  } catch(e) {
+    return {};
+  }
+}
+
+function invalidateDocumentAlertRulesCache() {
+  _documentAlertRulesCache = null;
+  _documentAlertRulesLoadedAt = 0;
+}
+
+async function loadDocumentAlertRules(force=false) {
+  const now = Date.now();
+  if (!force && _documentAlertRulesCache && now - _documentAlertRulesLoadedAt < 30000) return _documentAlertRulesCache;
+  try {
+    const r = await fetch('/api/alerts/rules?page_size=200&status=enabled');
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || d.error || '加载单据规则失败');
+    _documentAlertRulesCache = (d.items || []).filter(rule => rule.operator === 'document' && (rule.enabled === 1 || rule.enabled === true));
+    _documentAlertRulesLoadedAt = now;
+  } catch(e) {
+    _documentAlertRulesCache = [];
+    _documentAlertRulesLoadedAt = now;
+  }
+  return _documentAlertRulesCache;
+}
+
+function documentAlertMeasureCodesFromQuery(query) {
+  return (query?.measures || []).map(member => {
+    const meta = adhocFindMeasure(member);
+    return meta?.code || member;
+  }).filter(Boolean);
+}
+
+function documentAlertMeasureCodesFromPivot(config) {
+  return (config?.measures || []).map(item => item.code || item).filter(Boolean);
+}
+
+function documentAlertMemberCode(member) {
+  const meta = adhocFindMeasure(member);
+  return meta?.code || member || '';
+}
+
+function documentAlertHitsForMeasure(targetId, measureCode) {
+  const code = documentAlertMemberCode(measureCode);
+  return (_documentAlertResultsByTarget[targetId] || []).filter(item =>
+    item.result?.summary?.matchedRows > 0 && documentAlertMemberCode(item.rule.measure_code) === code
+  );
+}
+
+function documentAlertPivotCellKey(targetId, cellIndex) {
+  return `${targetId}|${cellIndex}`;
+}
+
+function clearPivotDocumentAlertResults(targetId) {
+  const prefix = `${targetId}|`;
+  Object.keys(_documentAlertPivotCellResults || {}).forEach(key => {
+    if (key.startsWith(prefix)) delete _documentAlertPivotCellResults[key];
+  });
+}
+
+function clearDocumentAlertPanel(targetId) {
+  const panel = document.getElementById(`doc-alert-${targetId}`);
+  if (panel) panel.remove();
+  const target = document.getElementById(targetId);
+  target?.querySelectorAll('.ad-doc-alert-cell').forEach(cell => {
+    if (cell.dataset.docMarkerScope === 'pivot-cell') return;
+    cell.classList.remove('ad-doc-alert-cell');
+    cell.style.removeProperty('--ad-doc-alert-color');
+    cell.removeAttribute('data-doc-alert-count');
+  });
+}
+
+function documentAlertPanelHost(targetId) {
+  const target = document.getElementById(targetId);
+  if (!target) return null;
+  const widget = target.closest('.dashboard-widget');
+  if (widget) return widget;
+  const card = target.closest('.card');
+  if (card) return card;
+  return target.parentElement || target;
+}
+
+function documentAlertLoadingHost(targetId) {
+  const target = document.getElementById(targetId);
+  return target?.closest('.dashboard-widget')?.querySelector('.dashboard-widget-actions') || null;
+}
+
+function documentAlertSetLoading(targetId, active) {
+  const host = documentAlertLoadingHost(targetId);
+  if (!host) return;
+  let indicator = [...host.querySelectorAll('.ad-alert-loading-indicator')]
+    .find(el => el.dataset.docAlertLoadingTarget === targetId);
+  if (active) {
+    if (!indicator) {
+      indicator = document.createElement('span');
+      indicator.className = 'btn btn-sm btn-outline-warning py-0 px-1 ad-alert-loading-indicator';
+      indicator.dataset.docAlertLoadingTarget = targetId;
+      indicator.title = '监控预警加载中';
+      indicator.innerHTML = '<i class="bi bi-exclamation-triangle"></i>';
+      host.insertBefore(indicator, host.firstChild);
+    }
+    return;
+  }
+  indicator?.remove();
+}
+
+function documentAlertLoadingStart(targetId) {
+  _documentAlertLoadingCounts[targetId] = (_documentAlertLoadingCounts[targetId] || 0) + 1;
+  documentAlertSetLoading(targetId, true);
+}
+
+function documentAlertLoadingEnd(targetId) {
+  _documentAlertLoadingCounts[targetId] = Math.max(0, (_documentAlertLoadingCounts[targetId] || 0) - 1);
+  if (_documentAlertLoadingCounts[targetId] <= 0) {
+    delete _documentAlertLoadingCounts[targetId];
+    documentAlertSetLoading(targetId, false);
+  }
+}
+
+function clearDocumentAlertLoading(targetId) {
+  delete _documentAlertLoadingCounts[targetId];
+  documentAlertSetLoading(targetId, false);
+}
+
+function resetDocumentAlertRender(targetId, options={}) {
+  cancelDocumentAlertScans(targetId);
+  _documentAlertResultsByTarget[targetId] = [];
+  clearPivotDocumentAlertResults(targetId);
+  clearDocumentAlertPanel(targetId);
+  if (options.forceRules) invalidateDocumentAlertRulesCache();
+}
+
+function cancelDocumentAlertScans(targetId) {
+  _documentAlertScanTokens[targetId] = `cancel-${Date.now()}-${Math.random()}`;
+  _documentAlertScanTokens[`pivot:${targetId}`] = `cancel-${Date.now()}-${Math.random()}`;
+  clearDocumentAlertLoading(targetId);
+}
+
+function renderDocumentAlertPanel(targetId, results) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  clearDocumentAlertPanel(targetId);
+  const hits = (results || [])
+    .map((item, index) => ({...item, index}))
+    .filter(item => item.result?.summary?.matchedRows > 0);
+  if (!hits.length) return;
+  const maxSeverity = hits.some(x => x.rule.severity === 'critical') ? 'critical'
+    : hits.some(x => x.rule.severity === 'warning') ? 'warning'
+    : 'notice';
+  const color = documentAlertSeverityColor(maxSeverity);
+  const html = `<div id="doc-alert-${targetId}" class="ad-doc-alert-panel px-3 py-2 rounded small" style="--ad-doc-alert-color:${color}">
+    <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+      <span class="fw-semibold" style="color:${color}"><i class="bi bi-receipt-cutoff me-1"></i>单据级异常</span>
+      <span class="badge" style="background:${color}">${documentAlertSeverityLabel(maxSeverity)}</span>
+      ${hits.map(({rule, result, index}) => `<button class="btn btn-sm btn-outline-warning ad-doc-alert-action" onclick="openDocumentAlertMatchedDetail('${_escJs(targetId)}', ${index})">
+        ${escHtml(rule.name || '单据追踪')}：命中 ${escHtml(result.summary.matchedRows)} 条
+      </button>`).join('')}
+    </div>
+    <div class="mt-1 text-muted">
+      ${hits.map(({result}) => {
+        const orders = (result.matches || []).map(x => x.orderNumber).filter(Boolean).slice(0, 5).join('、');
+        return `${escHtml(result.targetColumnName || result.targetColumn || '明细列')} 命中规则${orders ? `，订单：${escHtml(orders)}` : ''}`;
+      }).join('；')}
+    </div>
+  </div>`;
+  documentAlertPanelHost(targetId)?.insertAdjacentHTML('beforeend', html);
+}
+
+function documentAlertMatchedColumns(result) {
+  const columns = (result?.columns || []).filter(col => col?.code);
+  if (columns.length) return columns;
+  const record = (result?.matches || [])[0]?.record || {};
+  return Object.keys(record).map(code => ({code, name:code}));
+}
+
+function openDocumentAlertMatchedDetail(targetId, resultIndex) {
+  const item = (_documentAlertResultsByTarget[targetId] || [])[resultIndex];
+  if (!item?.result) return showToast('未找到命中明细', 'warning');
+  const result = item.result;
+  const matches = result.matches || [];
+  const cols = documentAlertMatchedColumns(result);
+  const targetColumn = result.targetColumn || '';
+  const orderText = matches.map(x => x.orderNumber).filter(Boolean).slice(0, 8).join('、');
+  const titleEl = document.getElementById('pivot-drill-title');
+  if (titleEl) titleEl.innerHTML = '<i class="bi bi-receipt-cutoff me-1 text-warning"></i>单据追踪命中明细';
+  document.getElementById('pivot-drill-context').textContent =
+    `${item.rule?.name || '单据追踪'} · 命中 ${matches.length} 条${orderText ? ` · 订单：${orderText}` : ''}`;
+  document.getElementById('pivot-drill-page').textContent =
+    `单据追踪命中明细 · 已显示 ${matches.length} 条`;
+  const pager = document.getElementById('pivot-drill-pager-actions');
+  if (pager) pager.classList.add('d-none');
+  const out = document.getElementById('pivot-drill-result');
+  if (!matches.length) {
+    out.innerHTML = '<div class="text-muted text-center py-5">没有命中明细</div>';
+  } else {
+    out.innerHTML = `<table class="table table-sm table-striped table-hover mb-0">
+      <thead><tr>${cols.map(col => `<th class="text-nowrap">${escHtml(col.name || col.code)}</th>`).join('')}</tr></thead>
+      <tbody>${matches.map(match => {
+        const row = match.record || {};
+        return `<tr class="ad-doc-detail-row">${cols.map(col => `<td class="text-nowrap ${col.code === targetColumn ? 'ad-doc-detail-cell' : ''}">${escHtml(row[col.code] ?? '')}</td>`).join('')}</tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  }
+  bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('pivot-drill-drawer')).show();
+}
+
+function applyDocumentAlertMarkers(targetId, results) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  target.querySelectorAll('.ad-doc-alert-cell').forEach(cell => {
+    if (cell.dataset.docMarkerScope === 'pivot-cell') return;
+    cell.classList.remove('ad-doc-alert-cell');
+    cell.style.removeProperty('--ad-doc-alert-color');
+    cell.removeAttribute('data-doc-alert-count');
+  });
+  const hits = (results || []).filter(item => item.result?.summary?.matchedRows > 0);
+  hits.forEach(({rule, result}) => {
+    const code = documentAlertMemberCode(rule.measure_code);
+    const color = documentAlertSeverityColor(rule.severity || 'warning');
+    const title = `单据级异常｜${rule.name || '单据追踪'}：命中 ${result.summary.matchedRows} 条`;
+    target.querySelectorAll('[data-doc-measure-code]').forEach(cell => {
+      if (cell.dataset.docMarkerScope === 'pivot-cell') return;
+      if (cell.dataset.docMeasureCode !== code) return;
+      cell.classList.add('ad-doc-alert-cell');
+      cell.style.setProperty('--ad-doc-alert-color', color);
+      cell.dataset.docAlertCount = String(result.summary.matchedRows || 0);
+      const oldTitle = cell.getAttribute('title') || '';
+      cell.setAttribute('title', oldTitle ? `${oldTitle}\n${title}` : title);
+    });
+  });
+}
+
+async function scheduleDocumentAlertScans(targetId, measureCodes, options={}) {
+  const codes = [...new Set(measureCodes || [])].filter(Boolean);
+  if (!codes.length) {
+    _documentAlertResultsByTarget[targetId] = [];
+    return clearDocumentAlertPanel(targetId);
+  }
+  const token = `${Date.now()}-${Math.random()}`;
+  _documentAlertScanTokens[targetId] = token;
+  documentAlertLoadingStart(targetId);
+  try {
+    const rules = (await loadDocumentAlertRules(Boolean(options.forceRules))).filter(rule => codes.includes(rule.measure_code));
+    if (!rules.length) {
+      _documentAlertResultsByTarget[targetId] = [];
+      return clearDocumentAlertPanel(targetId);
+    }
+    clearDocumentAlertPanel(targetId);
+    const results = await Promise.all(rules.map(async rule => {
+      const cfg = documentAlertConfig(rule);
+      try {
+        const r = await fetch('/api/alerts/document-scan', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            measureCode: rule.measure_code,
+            columnCode: cfg.columnCode || '',
+            operator: cfg.operator || 'eq',
+            value: cfg.value ?? rule.threshold ?? 0,
+            maxRows: cfg.maxRows || 5000,
+            maxMatches: 20,
+            pageSize: 500,
+          }),
+        });
+        const result = await r.json();
+        if (!r.ok) throw new Error(result.error || result.detail || '单据追踪失败');
+        return {rule, result};
+      } catch(e) {
+        return {rule, result:{summary:{matchedRows:0}, error:String(e.message || e)}};
+      }
+    }));
+    if (_documentAlertScanTokens[targetId] !== token) return;
+    _documentAlertResultsByTarget[targetId] = results;
+    renderDocumentAlertPanel(targetId, results);
+    applyDocumentAlertMarkers(targetId, results);
+  } finally {
+    documentAlertLoadingEnd(targetId);
+  }
+}
+
+async function schedulePivotDocumentAlertScans(targetId, result, config, options={}) {
+  if (!result?.cells?.length) return;
+  clearPivotDocumentAlertResults(targetId);
+  const codes = documentAlertMeasureCodesFromPivot(config);
+  const token = `${Date.now()}-${Math.random()}`;
+  _documentAlertScanTokens[`pivot:${targetId}`] = token;
+  documentAlertLoadingStart(targetId);
+  try {
+    const rules = (await loadDocumentAlertRules(Boolean(options.forceRules))).filter(rule => codes.includes(rule.measure_code));
+    if (!rules.length) return;
+    const target = document.getElementById(targetId);
+    const visibleCells = (result.cells || []).slice(0, 120);
+    await Promise.all(visibleCells.map(async (cell, idx) => {
+      const cellResults = await scanDocumentAlertsForPivotCell(targetId, idx, cell, rules);
+      if (_documentAlertScanTokens[`pivot:${targetId}`] !== token) return;
+      const hits = cellResults.filter(item => item.result?.summary?.matchedRows > 0);
+      const el = target?.querySelector(`[data-pivot-cell-index="${idx}"]`);
+      if (!el || !hits.length) return;
+      const maxSeverity = hits.some(x => x.rule.severity === 'critical') ? 'critical'
+        : hits.some(x => x.rule.severity === 'warning') ? 'warning'
+        : 'notice';
+      const color = documentAlertSeverityColor(maxSeverity);
+      el.classList.add('ad-doc-alert-cell');
+      el.style.setProperty('--ad-doc-alert-color', color);
+      el.dataset.docAlertCount = String(hits.reduce((sum, item) => sum + Number(item.result?.summary?.matchedRows || 0), 0));
+      const title = hits.map(({rule, result}) => `单据级异常｜${rule.name || '单据追踪'}：命中 ${result.summary.matchedRows} 条`).join('\n');
+      const oldTitle = el.getAttribute('title') || '';
+      el.setAttribute('title', oldTitle ? `${oldTitle}\n${title}` : title);
+    }));
+  } finally {
+    documentAlertLoadingEnd(targetId);
+  }
+}
+
+async function scanDocumentAlertsForPivotCell(targetId, cellIndex, cell, rules=null) {
+  const cacheKey = documentAlertPivotCellKey(targetId, cellIndex);
+  const scopedRules = (rules || await loadDocumentAlertRules())
+    .filter(rule => documentAlertMemberCode(rule.measure_code) === documentAlertMemberCode(cell?.measureCode));
+  if (!scopedRules.length) {
+    _documentAlertPivotCellResults[cacheKey] = [];
+    return [];
+  }
+  const cellResults = await Promise.all(scopedRules.map(async rule => {
+    const cfg = documentAlertConfig(rule);
+    try {
+      const r = await fetch('/api/alerts/document-scan', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          measureCode: rule.measure_code,
+          columnCode: cfg.columnCode || '',
+          operator: cfg.operator || 'eq',
+          value: cfg.value ?? rule.threshold ?? 0,
+          maxRows: cfg.maxRows || 5000,
+          maxMatches: 20,
+          pageSize: 500,
+          pivotPaths: pivotActionPathItems(cell),
+        }),
+      });
+      const scan = await r.json();
+      if (!r.ok) throw new Error(scan.error || scan.detail || '单据追踪失败');
+      return {rule, result: scan};
+    } catch(e) {
+      return {rule, result:{summary:{matchedRows:0}, error:String(e.message || e)}};
+    }
+  }));
+  _documentAlertPivotCellResults[cacheKey] = cellResults;
+  return cellResults;
+}
+
 async function runAdhocQuery(extraFilters=[]) {
   const status = document.getElementById('adhoc-status');
   try {
@@ -4988,9 +5428,18 @@ async function runAdhocQuery(extraFilters=[]) {
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Ad-Hoc 查询失败');
     _adhocLastResult = d;
-    renderAdhocResult(d, query);
+    const alertRenderEnabled = adhocMonitoringAlertRenderEnabled(_adhocState);
+    renderAdhocResult(adhocResultForAlertRender(d, alertRenderEnabled), query);
+    if (alertRenderEnabled) {
+      scheduleDocumentAlertScans('adhoc-preview', documentAlertMeasureCodesFromQuery(query));
+    } else {
+      cancelDocumentAlertScans('adhoc-preview');
+      _documentAlertResultsByTarget['adhoc-preview'] = [];
+      clearDocumentAlertPanel('adhoc-preview');
+    }
     if (status) {
-      const alertText = d.alerts?.count ? ` · ${d.alerts.count} 个预警` : '';
+      const renderResult = adhocResultForAlertRender(d, alertRenderEnabled);
+      const alertText = renderResult.alerts?.count ? ` · ${renderResult.alerts.count} 个预警` : '';
       status.textContent = `${d.diagnostics?.rowCount ?? (d.data || []).length} 行 · ${d.diagnostics?.elapsedMs ?? '-'} ms${alertText}`;
     }
   } catch(e) {
@@ -5003,6 +5452,7 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
   const target = document.getElementById(targetId);
   if (!target) return;
   ensureAdhocAlertStyles();
+  _adhocRenderedQueries[targetId] = query;
   const rows = result.data || [];
   adhocClearChartTarget(target);
   if (!rows.length) {
@@ -5010,8 +5460,8 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
     return;
   }
   const chartType = _adhocState.view.type === 'table' ? 'table' : adhocRecommendChart(query);
-  if (chartType === 'table') return renderAdhocTable(target, rows, result.alerts);
-  if (chartType === 'kpi') return renderAdhocKpi(target, rows, query, result.alerts);
+  if (chartType === 'table') return renderAdhocTable(target, rows, result.alerts, query, clickHandler, targetId);
+  if (chartType === 'kpi') return renderAdhocKpi(target, rows, query, result.alerts, targetId);
   const dim = query.dimensions[0];
   const meas = query.measures[0];
   if (chartType === 'funnel') return renderAdhocFunnel(target, rows, query, clickHandler, targetId);
@@ -5326,30 +5776,52 @@ function adhocChartItemStyle(alerts=[], chartType='bar') {
   };
 }
 
-function renderAdhocKpi(target, rows, query, alertSummary=null) {
+function renderAdhocKpi(target, rows, query, alertSummary=null, targetId='adhoc-preview') {
   const meas = query.measures[0];
   const value = rows[0]?.[meas] ?? '-';
   const alerts = adhocAlertsFor(rows[0], meas);
   const cls = adhocAlertClasses(alerts);
   const title = adhocAlertTitle(alerts);
-  target.innerHTML = `<div class="h-100 d-flex flex-column justify-content-center align-items-start px-4 ${cls}" style="${adhocAlertStyle(alerts)}" title="${escHtml(title)}">
+  const measureCode = documentAlertMemberCode(meas);
+  target.innerHTML = `<div class="h-100 d-flex flex-column justify-content-center align-items-start px-4 ${cls}" data-doc-measure-code="${escHtml(measureCode)}" style="${adhocAlertStyle(alerts)}" title="${escHtml(title)}">
     ${adhocAlertSummaryHtml(alertSummary)}
     <div class="text-muted mb-2">${escHtml(adhocMemberLabel(meas))}</div>
     <div class="adhoc-kpi">${escHtml(value)}</div>
   </div>`;
+  applyDocumentAlertMarkers(targetId, _documentAlertResultsByTarget[targetId] || []);
 }
 
-function renderAdhocTable(target, rows, alertSummary=null) {
+function renderAdhocTable(target, rows, alertSummary=null, query=null, clickHandler=adhocChartClicked, targetId='adhoc-preview') {
   const cols = Object.keys(rows[0] || {}).filter(c => !c.startsWith('__'));
+  const measures = new Set((query?.measures || []).map(m => documentAlertMemberCode(m)));
+  const dimMember = query?.dimensions?.[0] || '';
   target.innerHTML = `${adhocAlertSummaryHtml(alertSummary)}<div class="table-responsive" style="max-height:100%;overflow:auto">
     <table class="table table-sm table-hover mb-0">
       <thead class="table-light"><tr>${cols.map(c=>`<th>${escHtml(adhocMemberLabel(c))}</th>`).join('')}</tr></thead>
-      <tbody>${rows.map(row=>`<tr>${cols.map(c=>{
+      <tbody>${rows.map((row,rowIdx)=>`<tr>${cols.map(c=>{
         const alerts = adhocAlertsFor(row, c);
-        return `<td class="${adhocAlertClasses(alerts)}" style="${adhocAlertStyle(alerts)}" title="${escHtml(adhocAlertTitle(alerts))}">${escHtml(row[c] ?? '')}</td>`;
+        const measureCode = documentAlertMemberCode(c);
+        const isMeasure = measures.has(measureCode);
+        return `<td class="${adhocAlertClasses(alerts)} ${isMeasure ? 'adhoc-measure-cell' : ''}" data-row-index="${rowIdx}" data-member="${escHtml(c)}" ${isMeasure ? `data-doc-measure-code="${escHtml(measureCode)}"` : ''} style="${adhocAlertStyle(alerts)}" title="${escHtml(adhocAlertTitle(alerts))}">${escHtml(row[c] ?? '')}</td>`;
       }).join('')}</tr>`).join('')}</tbody>
     </table>
   </div>`;
+  target.querySelectorAll('.adhoc-measure-cell').forEach(cell => {
+    cell.addEventListener('click', () => {
+      const row = rows[Number(cell.dataset.rowIndex)] || {};
+      const member = dimMember || query?.dimensions?.[0] || '';
+      const rawValue = member ? row[member] : cell.textContent;
+      const filterValue = member ? (row.__filterValues?.[member] ?? rawValue) : rawValue;
+      _adhocSelectedPoint = {
+        member,
+        value: rawValue,
+        filterValues: filterValue !== undefined && filterValue !== null ? [String(filterValue)] : [],
+        docTargetId: targetId,
+        docMeasureCode: cell.dataset.docMeasureCode || documentAlertMemberCode(cell.dataset.member),
+      };
+    });
+  });
+  applyDocumentAlertMarkers(targetId, _documentAlertResultsByTarget[targetId] || []);
 }
 
 function adhocChartClicked(params, query) {
@@ -5387,7 +5859,7 @@ async function adhocOpenSelectedDetail() {
   if (!_adhocState.query.measures.length) return showToast('请先选择指标', 'warning');
   const filters = [...(_adhocState.query.filters || []), ...adhocDrillFilters(_adhocState)];
   if (_adhocSelectedPoint?.member) filters.push({member:_adhocSelectedPoint.member, operator:'equals', values:_adhocSelectedPoint.filterValues || [String(_adhocSelectedPoint.value)]});
-  await openAdhocDetail(_adhocState.query.measures[0], filters, _adhocSelectedPoint);
+  await openAdhocDetail(_adhocSelectedPoint?.docMeasureCode || _adhocState.query.measures[0], filters, _adhocSelectedPoint);
 }
 
 function adhocDetailFilterText(filter) {
@@ -5434,6 +5906,7 @@ async function openAdhocDetail(measure, filters, point) {
   renderAdhocDetailContext(measure, filters);
   document.getElementById('adhoc-detail-result').innerHTML = '<div class="text-muted text-center py-5"><span class="spinner-border spinner-border-sm me-1"></span>加载明细...</div>';
   bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('adhoc-detail-drawer')).show();
+  _adhocDetailOnlyDocumentAnomalies = false;
   try {
     const r = await fetch('/api/ad/v1/drilldown', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({measure, filters, pageSize:80})});
     const d = await r.json();
@@ -5442,16 +5915,102 @@ async function openAdhocDetail(measure, filters, point) {
     const records = d.records || [];
     _adhocDetailColumns = cols;
     _adhocDetailRecords = records;
-    document.getElementById('adhoc-detail-result').innerHTML = records.length ? `
-      <table class="table table-sm table-striped table-hover mb-0">
-        <thead><tr>${cols.map(x=>`<th class="text-nowrap">${escHtml(x.name || x.code)}</th>`).join('')}</tr></thead>
-        <tbody>${records.map(row=>`<tr>${cols.map(x=>`<td class="text-nowrap">${escHtml(row[x.code] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody>
-      </table>` : '<div class="text-muted text-center py-5">没有明细记录</div>';
+    _adhocDetailDocumentContext = documentAlertDetailContext(point, measure, cols, records);
+    renderAdhocDetailTable();
     renderAdhocDetailPivot();
   } catch(e) {
     document.getElementById('adhoc-detail-result').innerHTML = `<div class="alert alert-danger m-3">${escHtml(e.message || e)}</div>`;
     document.getElementById('adhoc-detail-pivot').innerHTML = `<div class="alert alert-danger m-3">${escHtml(e.message || e)}</div>`;
   }
+}
+
+function documentAlertDetailContext(point, measure, cols, records) {
+  const targetId = point?.docTargetId || 'adhoc-preview';
+  const measureCode = documentAlertMemberCode(point?.docMeasureCode || measure);
+  const hits = (point?.docAlertResults || documentAlertHitsForMeasure(targetId, measureCode))
+    .filter(item => item.result?.summary?.matchedRows > 0 && documentAlertMemberCode(item.rule?.measure_code) === measureCode);
+  const contexts = hits.map(({rule, result}) => {
+    const orderColumn = result.orderColumn || (cols || []).find(col => /order/i.test(col.code) || /订单/.test(col.name || ''))?.code || '';
+    const targetColumn = result.targetColumn || '';
+    const orderNumbers = new Set((result.matches || []).map(x => String(x.orderNumber ?? '')).filter(Boolean));
+    return {
+      rule,
+      result,
+      orderColumn,
+      targetColumn,
+      orderNumbers,
+      color: documentAlertSeverityColor(rule.severity || 'warning'),
+    };
+  }).filter(ctx => ctx.orderNumbers.size || ctx.targetColumn);
+  if (!contexts.length) return null;
+  const abnormalRows = new Set();
+  records.forEach((row, idx) => {
+    if (documentAlertRowMatches(row, contexts)) abnormalRows.add(idx);
+  });
+  return {contexts, abnormalRows};
+}
+
+function documentAlertRowMatches(row, contexts) {
+  return (contexts || []).some(ctx => {
+    return documentAlertOrderMatches(row, ctx) || documentAlertRuleValueMatches(row, ctx);
+  });
+}
+
+function documentAlertOrderMatches(row, ctx) {
+  return !!(ctx?.orderColumn && ctx.orderNumbers?.has(String(row[ctx.orderColumn] ?? '')));
+}
+
+function documentAlertRuleValueMatches(row, ctx) {
+  if (!ctx?.targetColumn) return false;
+  const expected = ctx.result?.value;
+  const actual = row[ctx.targetColumn];
+  const op = ctx.result?.operator || ctx.rule?.operator || 'eq';
+  const left = Number(actual);
+  const right = Number(expected);
+  if (Number.isNaN(left) || Number.isNaN(right)) return op === 'eq' && String(actual) === String(expected);
+  if (op === 'eq') return left === right;
+  if (op === 'lt') return left < right;
+  if (op === 'lte') return left <= right;
+  if (op === 'gt') return left > right;
+  if (op === 'gte') return left >= right;
+  return false;
+}
+
+function documentAlertCellMatches(row, colCode, contexts) {
+  return (contexts || []).some(ctx =>
+    ctx.targetColumn === colCode && (documentAlertRuleValueMatches(row, ctx) || documentAlertOrderMatches(row, ctx))
+  );
+}
+
+function toggleAdhocDetailDocumentOnly() {
+  _adhocDetailOnlyDocumentAnomalies = !_adhocDetailOnlyDocumentAnomalies;
+  renderAdhocDetailTable();
+}
+
+function renderAdhocDetailTable() {
+  const out = document.getElementById('adhoc-detail-result');
+  const cols = _adhocDetailColumns || [];
+  const records = _adhocDetailRecords || [];
+  const ctx = _adhocDetailDocumentContext;
+  if (!records.length) {
+    out.innerHTML = '<div class="text-muted text-center py-5">没有明细记录</div>';
+    return;
+  }
+  const abnormalRows = ctx?.abnormalRows || new Set();
+  const visibleRecords = records
+    .map((row, idx) => ({row, idx}))
+    .filter(item => !_adhocDetailOnlyDocumentAnomalies || abnormalRows.has(item.idx));
+  const toolbar = ctx ? `<div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom bg-light small">
+    <span class="ad-doc-detail-tag"><i class="bi bi-exclamation-triangle me-1"></i>异常明细 ${abnormalRows.size} 条</span>
+    <button class="btn btn-sm ${_adhocDetailOnlyDocumentAnomalies ? 'btn-warning' : 'btn-outline-warning'} py-0" onclick="toggleAdhocDetailDocumentOnly()">
+      ${_adhocDetailOnlyDocumentAnomalies ? '显示全部明细' : '只看异常数据'}
+    </button>
+    <span class="text-muted">${ctx.contexts.map(x => escHtml(x.rule.name || '单据追踪')).join('；')}</span>
+  </div>` : '';
+  out.innerHTML = `${toolbar}<table class="table table-sm table-striped table-hover mb-0">
+    <thead><tr>${cols.map(x=>`<th class="text-nowrap">${escHtml(x.name || x.code)}</th>`).join('')}</tr></thead>
+    <tbody>${visibleRecords.map(({row, idx})=>`<tr class="${abnormalRows.has(idx) ? 'ad-doc-detail-row' : ''}">${cols.map(x=>`<td class="text-nowrap ${documentAlertCellMatches(row, x.code, ctx?.contexts || []) ? 'ad-doc-detail-cell' : ''}">${escHtml(row[x.code] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table>`;
 }
 
 function adhocNumericDetailColumns() {
@@ -5524,8 +6083,32 @@ function adhocCurrentSpec() {
   _adhocState.view.type = document.getElementById('adhoc-view-type')?.value || _adhocState.view.type || 'chart';
   _adhocState.view.chartType = document.getElementById('adhoc-chart-type')?.value || _adhocState.view.chartType || 'auto';
   _adhocState.view.encoding = _adhocState.view.encoding || {};
+  _adhocState.settings = _adhocState.settings || {};
+  _adhocState.settings.monitoringAlertRenderEnabled = !!document.getElementById('adhoc-alert-render-enabled')?.checked;
   _adhocState.query.limit = parseInt(document.getElementById('adhoc-limit')?.value || _adhocState.query.limit || 1000, 10);
   return JSON.parse(JSON.stringify(_adhocState));
+}
+
+function adhocMonitoringAlertRenderEnabled(spec=_adhocState) {
+  return !!(spec?.settings?.monitoringAlertRenderEnabled || spec?.monitoringAlertRenderEnabled);
+}
+
+function adhocAlertRenderChanged() {
+  _adhocState.settings = _adhocState.settings || {};
+  _adhocState.settings.monitoringAlertRenderEnabled = !!document.getElementById('adhoc-alert-render-enabled')?.checked;
+}
+
+function adhocResultForAlertRender(result, enabled) {
+  if (enabled) return result;
+  const copy = JSON.parse(JSON.stringify(result || {}));
+  delete copy.alerts;
+  (copy.data || []).forEach(row => {
+    if (row && typeof row === 'object') delete row.__alerts;
+  });
+  (copy.cells || []).forEach(cell => {
+    if (cell && typeof cell === 'object') cell.alerts = [];
+  });
+  return copy;
 }
 
 async function saveAdhocSpec() {
@@ -5575,12 +6158,15 @@ function loadAdhocSpecIntoEditor(spec) {
   _adhocState.query = _adhocState.query || {measures:[], dimensions:[], filters:[], order:{}, limit:1000};
   _adhocState.view = _adhocState.view || {type:'chart', chartType:'auto', encoding:{}};
   _adhocState.view.encoding = _adhocState.view.encoding || {};
+  _adhocState.settings = _adhocState.settings || {};
   _adhocState.drill = _adhocState.drill || {mode:'path', path:[], stack:[]};
   _adhocState.drill.mode = _adhocState.drill.mode || 'path';
   document.getElementById('adhoc-name').value = d.name || d.id || '未命名组件';
   document.getElementById('adhoc-view-type').value = d.view?.type || 'chart';
   document.getElementById('adhoc-chart-type').value = d.view?.chartType || 'auto';
   document.getElementById('adhoc-limit').value = d.query?.limit || 1000;
+  const alertRenderToggle = document.getElementById('adhoc-alert-render-enabled');
+  if (alertRenderToggle) alertRenderToggle.checked = adhocMonitoringAlertRenderEnabled(_adhocState);
   renderAdhocFields();
   renderAdhocConfig();
   runAdhocQuery();
@@ -6530,13 +7116,13 @@ function renderDashboardCanvas() {
       <div class="dashboard-widget">
         <div class="dashboard-widget-header">
           <span class="fw-semibold text-truncate">${escHtml(widget.name)}</span>
-          <div class="d-flex gap-1">
+          <div class="d-flex gap-1 dashboard-widget-actions">
             ${editControls}
             <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="dashboardOpenWidgetAiInsight('${escHtml(widget.id)}')" title="AI 解读"><i class="bi bi-stars"></i></button>
             <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="dashboardRollUpWidget('${escHtml(widget.id)}')" title="上卷"><i class="bi bi-arrow-up-circle"></i></button>
             <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="dashboardResetWidgetDrill('${escHtml(widget.id)}')" title="重置下钻"><i class="bi bi-arrow-counterclockwise"></i></button>
             <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="downloadDashboardWidgetCSV('${escHtml(widget.id)}')" title="下载 CSV"><i class="bi bi-download"></i></button>
-            <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="dashboardRenderWidget('${escHtml(widget.id)}')" title="刷新"><i class="bi bi-arrow-repeat"></i></button>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="dashboardRenderWidget('${escHtml(widget.id)}', {forceAlertRefresh:true})" title="刷新"><i class="bi bi-arrow-repeat"></i></button>
             ${deleteControls}
           </div>
         </div>
@@ -6581,7 +7167,7 @@ async function dashboardEditWidget(widgetId) {
   }, 80);
 }
 
-async function dashboardRenderWidget(widgetId) {
+async function dashboardRenderWidget(widgetId, options={}) {
   const widget = _dashboardState.widgets.find(w=>w.id===widgetId);
   if (!widget) return;
   const targetId = `dash-chart-${widget.id}`;
@@ -6605,12 +7191,17 @@ async function dashboardRenderWidget(widgetId) {
     extraFilters.push(_dashboardState.linkedFilter.filter);
   }
   const query = dashboardBuildWidgetQuery(spec, extraFilters);
+  const alertRenderEnabledForRefresh = adhocMonitoringAlertRenderEnabled(spec);
   try {
     if (spec.view?.type === 'pivot') {
       const pivotSpec = JSON.parse(JSON.stringify(spec));
       pivotSpec.query = {...(pivotSpec.query || {}), filters: query.filters};
-      await runAdhocPivotQuery([], targetId, null, pivotSpec);
+      await runAdhocPivotQuery([], targetId, null, pivotSpec, options);
       return;
+    }
+    if (alertRenderEnabledForRefresh) {
+      resetDocumentAlertRender(targetId, {forceRules: options.forceAlertRefresh});
+      documentAlertLoadingStart(targetId);
     }
     const r = await fetch('/api/ad/v1/load', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(query)});
     const d = await r.json();
@@ -6618,10 +7209,17 @@ async function dashboardRenderWidget(widgetId) {
     _dashboardWidgetResults[widgetId] = {rows:d.data || [], query, name:widget.name};
     const oldState = _adhocState;
     _adhocState = spec;
-    renderAdhocResult(d, query, targetId, (params, q) => dashboardWidgetClicked(widgetId, params, q));
+    renderAdhocResult(adhocResultForAlertRender(d, alertRenderEnabledForRefresh), query, targetId, (params, q) => dashboardWidgetClicked(widgetId, params, q));
+    if (alertRenderEnabledForRefresh) {
+      scheduleDocumentAlertScans(targetId, documentAlertMeasureCodesFromQuery(query), {forceRules: options.forceAlertRefresh});
+    } else {
+      resetDocumentAlertRender(targetId);
+    }
     _adhocState = oldState;
   } catch(e) {
     document.getElementById(targetId).innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
+  } finally {
+    if (alertRenderEnabledForRefresh && spec.view?.type !== 'pivot') documentAlertLoadingEnd(targetId);
   }
 }
 
@@ -6706,7 +7304,7 @@ async function dashboardRefreshAll() {
     panel.classList.remove('d-none');
     panel.innerHTML = '<div class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>正在刷新组件并准备 AI 解读...</div>';
   }
-  await Promise.all((_dashboardState.widgets || []).map(w => dashboardRenderWidget(w.id)));
+  await Promise.all((_dashboardState.widgets || []).map(w => dashboardRenderWidget(w.id, {forceAlertRefresh:true})));
   if (_dashboardState.aiInsightEnabled) await dashboardGenerateAiInsight();
 }
 
@@ -6804,6 +7402,10 @@ let _pivotConfig = {measures:[], rows:[], columns:[], filters:[]};
 let _pivotResult = null;
 let _pivotDrillContext = null;
 let _pivotDrillPage = 1;
+let _pivotDrillColumns = [];
+let _pivotDrillRecords = [];
+let _pivotDrillDocumentContext = null;
+let _pivotDrillOnlyDocumentAnomalies = false;
 let _pivotFilterEditingCode = null;
 let _pivotEnumSearchTimer = null;
 let _pivotEnumOptions = [];
@@ -7559,6 +8161,8 @@ async function runPivotQuery(btn) {
     if (!r.ok) throw new Error(d.error || '透视查询失败');
     _pivotResult = d;
     renderPivotResult();
+    scheduleDocumentAlertScans('pivot-result', documentAlertMeasureCodesFromPivot(_pivotConfig));
+    schedulePivotDocumentAlertScans('pivot-result', d, _pivotConfig);
     status.textContent = `${d.diagnostics.rowCount} 条聚合记录 · ${d.diagnostics.elapsedMs ?? '-'} ms${d.alerts?.count ? ` · ${d.alerts.count} 个预警` : ''}`;
   } catch(e) {
     out.innerHTML = `<div class="alert alert-danger m-3">${escHtml(e.message || e)}</div>`;
@@ -7651,14 +8255,16 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
     }
     d.columns.forEach(col => d.measures.forEach(measure => {
       const hit = cellMap.get(`${row.key}|${col.key}|${measure.code}`);
+      const docMeasureCode = documentAlertMemberCode(measure.code);
       html += hit
-        ? `<td class="text-end ${adhocAlertClasses(hit.cell.alerts || [])}" style="${adhocAlertStyle(hit.cell.alerts || [])}" title="${escHtml(adhocAlertTitle(hit.cell.alerts || []))}"><span class="pivot-value" title="点击选择明细或维度下钻${hit.cell.alerts?.length ? '\n' + adhocAlertTitle(hit.cell.alerts) : ''}" onclick="${targetId === 'pivot-result' ? `openPivotCellAction(${hit.idx}, 'pivot-result')` : `openAdhocPivotActionFromRendered('${_escJs(targetId)}', ${hit.idx})`}">${escHtml(hit.cell.value ?? '-')}</span></td>`
+        ? `<td class="text-end ${adhocAlertClasses(hit.cell.alerts || [])}" data-doc-marker-scope="pivot-cell" data-pivot-cell-index="${hit.idx}" data-doc-measure-code="${escHtml(docMeasureCode)}" style="${adhocAlertStyle(hit.cell.alerts || [])}" title="${escHtml(adhocAlertTitle(hit.cell.alerts || []))}"><span class="pivot-value" title="点击选择明细或维度下钻${hit.cell.alerts?.length ? '\n' + adhocAlertTitle(hit.cell.alerts) : ''}" onclick="${targetId === 'pivot-result' ? `openPivotCellAction(${hit.idx}, 'pivot-result')` : `openAdhocPivotActionFromRendered('${_escJs(targetId)}', ${hit.idx})`}">${escHtml(hit.cell.value ?? '-')}</span></td>`
         : '<td class="text-end text-muted">-</td>';
     }));
     html += '</tr>';
   });
   html += '</tbody></table>';
   out.innerHTML = html;
+  applyDocumentAlertMarkers(targetId, _documentAlertResultsByTarget[targetId] || []);
 }
 
 async function openAdhocPivotActionFromRendered(targetId, cellIndex) {
@@ -7806,6 +8412,8 @@ async function applyPivotDimensionDrill(code) {
       renderPivotFields();
     }
     renderPivotResult(targetId, d, nextConfig);
+    scheduleDocumentAlertScans(targetId, documentAlertMeasureCodesFromPivot(nextConfig));
+    schedulePivotDocumentAlertScans(targetId, d, nextConfig);
     showToast(`已按 ${dim.name || dim.code} 下钻`, 'info');
   } catch(e) {
     if (out) out.innerHTML = `<div class="alert alert-danger m-3">${escHtml(e.message || e)}</div>`;
@@ -7815,8 +8423,13 @@ async function applyPivotDimensionDrill(code) {
 
 async function openPivotDrill(cellIndex) {
   const cell = _pivotResult.cells[cellIndex];
-  _pivotDrillContext = {...cell, filters:_pivotResult.filters || []};
+  _pivotDrillContext = {...cell, filters:_pivotResult.filters || [], targetId:_pivotActionContext?.targetId || 'pivot-result'};
   _pivotDrillPage = 1;
+  _pivotDrillOnlyDocumentAnomalies = false;
+  const titleEl = document.getElementById('pivot-drill-title');
+  if (titleEl) titleEl.innerHTML = '<i class="bi bi-list-ul me-1 text-primary"></i>指标明细钻取';
+  const pager = document.getElementById('pivot-drill-pager-actions');
+  if (pager) pager.classList.remove('d-none');
   document.getElementById('pivot-drill-context').textContent =
     `${cell.measureName} · 行: ${pivotPathLabel(cell.rowPath)} · 列: ${pivotPathLabel(cell.columnPath)}`;
   bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('pivot-drill-drawer')).show();
@@ -7835,17 +8448,60 @@ async function loadPivotDrill() {
     if (!r.ok) throw new Error(d.error || '明细钻取失败');
     const cols = d.columns || [];
     const records = d.records || [];
-    out.innerHTML = records.length ? `
-      <table class="table table-sm table-striped table-hover mb-0">
-        <thead><tr>${cols.map(x=>`<th class="text-nowrap">${escHtml(x.name || x.code)}</th>`).join('')}</tr></thead>
-        <tbody>${records.map(row=>`<tr>${cols.map(x=>`<td class="text-nowrap">${escHtml(row[x.code] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody>
-      </table>` : '<div class="text-muted text-center py-5">当前单元格没有明细记录</div>';
+    _pivotDrillColumns = cols;
+    _pivotDrillRecords = records;
+    const pivotDocKey = documentAlertPivotCellKey(_pivotDrillContext.targetId || 'pivot-result', _pivotDrillContext.cellIndex);
+    let pivotDocResults = _documentAlertPivotCellResults[pivotDocKey] || [];
+    if (!pivotDocResults.length) {
+      pivotDocResults = await scanDocumentAlertsForPivotCell(
+        _pivotDrillContext.targetId || 'pivot-result',
+        _pivotDrillContext.cellIndex,
+        _pivotDrillContext,
+      );
+    }
+    _pivotDrillDocumentContext = documentAlertDetailContext({
+      docTargetId: _pivotDrillContext.targetId || 'pivot-result',
+      docMeasureCode: _pivotDrillContext.measureCode,
+      docAlertResults: pivotDocResults,
+    }, _pivotDrillContext.measureCode, cols, records);
+    renderPivotDrillTable();
     const page = d.pageInfo || {};
     document.getElementById('pivot-drill-page').textContent =
       `第 ${page.currentPage || _pivotDrillPage} 页 · 当前 ${records.length} 条 · 共 ${page.totalRows ?? '-'} 条`;
   } catch(e) {
     out.innerHTML = `<div class="alert alert-danger m-3">${escHtml(e.message || e)}</div>`;
   }
+}
+
+function togglePivotDrillDocumentOnly() {
+  _pivotDrillOnlyDocumentAnomalies = !_pivotDrillOnlyDocumentAnomalies;
+  renderPivotDrillTable();
+}
+
+function renderPivotDrillTable() {
+  const out = document.getElementById('pivot-drill-result');
+  const cols = _pivotDrillColumns || [];
+  const records = _pivotDrillRecords || [];
+  const ctx = _pivotDrillDocumentContext;
+  if (!records.length) {
+    out.innerHTML = '<div class="text-muted text-center py-5">当前单元格没有明细记录</div>';
+    return;
+  }
+  const abnormalRows = ctx?.abnormalRows || new Set();
+  const visibleRecords = records
+    .map((row, idx) => ({row, idx}))
+    .filter(item => !_pivotDrillOnlyDocumentAnomalies || abnormalRows.has(item.idx));
+  const toolbar = ctx ? `<div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom bg-light small">
+    <span class="ad-doc-detail-tag"><i class="bi bi-exclamation-triangle me-1"></i>异常明细 ${abnormalRows.size} 条</span>
+    <button class="btn btn-sm ${_pivotDrillOnlyDocumentAnomalies ? 'btn-warning' : 'btn-outline-warning'} py-0" onclick="togglePivotDrillDocumentOnly()">
+      ${_pivotDrillOnlyDocumentAnomalies ? '显示全部明细' : '只看异常数据'}
+    </button>
+    <span class="text-muted">${ctx.contexts.map(x => escHtml(x.rule.name || '单据追踪')).join('；')}</span>
+  </div>` : '';
+  out.innerHTML = `${toolbar}<table class="table table-sm table-striped table-hover mb-0">
+    <thead><tr>${cols.map(x=>`<th class="text-nowrap">${escHtml(x.name || x.code)}</th>`).join('')}</tr></thead>
+    <tbody>${visibleRecords.map(({row, idx})=>`<tr class="${abnormalRows.has(idx) ? 'ad-doc-detail-row' : ''}">${cols.map(x=>`<td class="text-nowrap ${documentAlertCellMatches(row, x.code, ctx?.contexts || []) ? 'ad-doc-detail-cell' : ''}">${escHtml(row[x.code] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table>`;
 }
 
 function changePivotDrillPage(step) {

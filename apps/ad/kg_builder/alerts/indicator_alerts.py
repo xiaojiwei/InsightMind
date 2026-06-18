@@ -424,7 +424,7 @@ def _detect_configured_alerts(
     for rule in rules:
         if not isinstance(rule, dict) or rule.get("enabled") is False:
             continue
-        if str(rule.get("operator") or "").lower() in _ENGINE_OPERATORS:
+        if str(rule.get("operator") or "").lower() in _ENGINE_OPERATORS | {"document"}:
             continue
         measure = str(rule.get("measure") or "")
         if not measure:

@@ -145,6 +145,7 @@
       <ul class="nav flex-column" id="alertTabs">
         <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-rules"><i class="bi bi-sliders2"></i>规则管理</a></li>
         <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs"><i class="bi bi-list-ul"></i>预警日志</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-documents"><i class="bi bi-receipt"></i>单据追踪</a></li>
         <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-stats"><i class="bi bi-bar-chart"></i>统计看板</a></li>
         <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-settings"><i class="bi bi-gear"></i>通知设置</a></li>
       </ul>
@@ -172,6 +173,7 @@
               <option value="threshold">固定阈值</option>
               <option value="fluctuation">环比波动</option>
               <option value="zero">跌零检测</option>
+              <option value="document">单据追踪</option>
             </select>
             <select class="form-select form-select-sm" id="ruleSeverityFilter" style="width:110px;" onchange="loadRules()">
               <option value="">全部级别</option>
@@ -270,6 +272,12 @@
                     <div class="dc-title">跌零检测</div>
                     <div class="dc-desc">数值骤降至接近零时立即告警</div>
                   </div>
+                  <div class="detect-card" data-method="document" onclick="selectDetectMethod('document', this)">
+                    <input type="checkbox" name="detectMethod" value="document" class="d-none">
+                    <div class="dc-icon">🧾</div>
+                    <div class="dc-title">单据追踪</div>
+                    <div class="dc-desc">异步扫描原始明细，定位问题订单或行项目</div>
+                  </div>
                 </div>
 
                 <!-- Threshold method condition config -->
@@ -322,6 +330,35 @@
                 </div>
                 <div id="condZero" class="mt-3 p-3 rounded" style="background:#f8fafc; display:none;">
                   <small class="text-muted"><i class="bi bi-info-circle"></i> 当指标值突降至接近零时自动触发，无需额外配置。</small>
+                </div>
+                <div id="condDocument" class="mt-3 p-3 rounded" style="background:#f8fafc; display:none;">
+                  <div class="row g-2 align-items-end">
+                    <div class="col-3">
+                      <label class="form-label small">明细列</label>
+                      <input class="form-control form-control-sm" id="condDocColumn" placeholder="留空自动识别">
+                    </div>
+                    <div class="col-2">
+                      <label class="form-label small">比较方式</label>
+                      <select class="form-select form-select-sm" id="condDocOp">
+                        <option value="eq">等于</option>
+                        <option value="lte">小于等于</option>
+                        <option value="lt">小于</option>
+                        <option value="gte">大于等于</option>
+                        <option value="gt">大于</option>
+                      </select>
+                    </div>
+                    <div class="col-2">
+                      <label class="form-label small">值</label>
+                      <input class="form-control form-control-sm" id="condDocValue" type="number" step="any" value="0">
+                    </div>
+                    <div class="col-2">
+                      <label class="form-label small">扫描行数</label>
+                      <input class="form-control form-control-sm" id="condDocMaxRows" type="number" min="100" max="50000" value="5000">
+                    </div>
+                    <div class="col-3">
+                      <small class="text-muted">查询渲染后异步执行，不阻塞首页和看板加载。</small>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -377,6 +414,66 @@
               </div>
             </div>
             <div class="card-footer d-flex justify-content-between align-items-center" id="logsPagination"></div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════ Document Trace Tab ═════════════ -->
+        <div class="tab-pane fade" id="tab-documents">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h6 class="mb-0">单据追踪</h6>
+              <small class="text-muted">直接扫描指标背后的原始明细，定位异常订单、行项目或业务单据</small>
+            </div>
+          </div>
+
+          <div class="card mb-3">
+            <div class="card-header">问题单据筛查</div>
+            <div class="card-body">
+              <div class="row g-2 align-items-end">
+                <div class="col-lg-4 col-md-6">
+                  <label class="form-label small fw-bold">指标</label>
+                  <select id="docMeasureCode" class="form-select form-select-sm"></select>
+                </div>
+                <div class="col-lg-2 col-md-3">
+                  <label class="form-label small fw-bold">明细列</label>
+                  <input id="docColumnCode" class="form-control form-control-sm" placeholder="自动识别">
+                </div>
+                <div class="col-lg-2 col-md-3">
+                  <label class="form-label small fw-bold">条件</label>
+                  <select id="docOperator" class="form-select form-select-sm">
+                    <option value="eq">等于</option>
+                    <option value="lte">小于等于</option>
+                    <option value="lt">小于</option>
+                    <option value="gte">大于等于</option>
+                    <option value="gt">大于</option>
+                  </select>
+                </div>
+                <div class="col-lg-2 col-md-3">
+                  <label class="form-label small fw-bold">值</label>
+                  <input id="docValue" class="form-control form-control-sm" type="number" step="any" value="0">
+                </div>
+                <div class="col-lg-2 col-md-3">
+                  <label class="form-label small fw-bold">扫描行数</label>
+                  <input id="docMaxRows" class="form-control form-control-sm" type="number" min="100" max="50000" value="5000">
+                </div>
+              </div>
+              <div class="d-flex align-items-center gap-2 mt-3">
+                <button class="btn btn-sm btn-primary" onclick="runDocumentScan(this)"><i class="bi bi-search me-1"></i>查找问题单据</button>
+                <span id="docScanStatus" class="small text-muted">默认示例：网络销售金额明细中的销售金额 = 0。</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header d-flex align-items-center gap-2">
+              <span>命中单据</span>
+              <span id="docScanBadge" class="badge bg-secondary ms-auto">未扫描</span>
+            </div>
+            <div class="card-body p-0">
+              <div id="docScanResult" class="table-responsive">
+                <div class="empty-state"><i class="bi bi-receipt"></i>选择指标和条件后开始扫描</div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -483,7 +580,7 @@ function sevIcon(s) {
 }
 async function api(url, opts) {
   const res = await fetch(url, opts);
-  if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.detail||res.statusText); }
+  if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.detail||err.error||res.statusText); }
   return res.json();
 }
 function showToast(msg, type='success') {
@@ -499,6 +596,7 @@ document.querySelectorAll('#alertTabs .nav-link').forEach(el => {
     const t = e.target.getAttribute('href');
     if (t==='#tab-rules') loadRules();
     if (t==='#tab-logs') loadLogs();
+    if (t==='#tab-documents') initDocumentTrace();
     if (t==='#tab-stats') loadStats();
     if (t==='#tab-settings') loadSettings();
   });
@@ -523,11 +621,12 @@ async function loadSummary() {
 
 const METHOD_LABELS = {
   statistical:'自动统计异常', fluctuation:'环比波动', zero:'跌零检测',
+  document:'单据追踪',
   gt:'固定阈值', lt:'固定阈值', gte:'固定阈值', lte:'固定阈值', eq:'固定阈值', between:'区间阈值', outside:'区间外阈值', always:'始终触发'
 };
 const OP_LABELS = {gt:'大于', lt:'小于', gte:'大于等于', lte:'小于等于', eq:'等于', between:'在区间内', outside:'在区间外'};
 const THRESHOLD_OPS = ['gt','lt','gte','lte','eq','between','outside'];
-const DETECT_CARDS = ['threshold','statistical','fluctuation','zero'];
+const DETECT_CARDS = ['threshold','statistical','fluctuation','zero','document'];
 
 let _allMeasures = [];
 
@@ -720,9 +819,30 @@ function getDimFilters() {
   return dims;
 }
 
+function parseDocumentRuleConfig(raw) {
+  let data = raw || {};
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch(e) { data = {}; }
+  }
+  return data.__document || {};
+}
+
+function attachDocumentRuleConfig(dims) {
+  return {
+    ...(dims || {}),
+    __document: {
+      columnCode: document.getElementById('condDocColumn').value.trim(),
+      operator: document.getElementById('condDocOp').value || 'eq',
+      value: document.getElementById('condDocValue').value === '' ? 0 : Number(document.getElementById('condDocValue').value),
+      maxRows: parseInt(document.getElementById('condDocMaxRows').value, 10) || 5000,
+    },
+  };
+}
+
 function setDimFilters(dims) {
   document.getElementById('dimFilters').innerHTML = '';
   if (typeof dims === 'string') { try { dims = JSON.parse(dims); } catch(e) { dims = {}; } }
+  if (dims && typeof dims === 'object') delete dims.__document;
   if (!dims || !Object.keys(dims).length) return;
   // Try to resolve Chinese names from cached dims
   for (const [k,v] of Object.entries(dims)) {
@@ -764,6 +884,7 @@ function syncDetectMethodUI() {
   document.getElementById('condFluctuation').style.display = methods.includes('fluctuation') ? '' : 'none';
   document.getElementById('condStatistical').style.display = methods.includes('statistical') ? '' : 'none';
   document.getElementById('condZero').style.display = methods.includes('zero') ? '' : 'none';
+  document.getElementById('condDocument').style.display = methods.includes('document') ? '' : 'none';
 
   // Default op for threshold
   if (methods.includes('threshold') && !THRESHOLD_OPS.includes(document.getElementById('condThOp').value)) {
@@ -787,6 +908,7 @@ function selectSeverity(sev) {
 document.addEventListener('change', e => {
   if (e.target.id === 'condThOp') { updateThVal2Visibility(); updatePreview(); }
   if (e.target.matches('#condThValue, #condThValue2, #condFlucDir, #condFlucRatio')) updatePreview();
+  if (e.target.matches('#condDocColumn, #condDocOp, #condDocValue, #condDocMaxRows')) updatePreview();
 });
 
 function updateThVal2Visibility() {
@@ -817,6 +939,12 @@ function updatePreview() {
     conds.push(`环比${dName}超过 ${ratio}%`);
   }
   if (methods.includes('zero')) conds.push('数值骤降至接近零');
+  if (methods.includes('document')) {
+    const col = document.getElementById('condDocColumn')?.value || '指标明细金额列';
+    const op = document.getElementById('condDocOp')?.value || 'eq';
+    const value = document.getElementById('condDocValue')?.value || '0';
+    conds.push(`明细单据 ${col} ${OP_LABELS[op] || op} ${value}`);
+  }
   if (methods.includes('threshold')) {
     const op = document.getElementById('condThOp')?.value || 'lt';
     const opName = OP_LABELS[op] || op;
@@ -837,7 +965,7 @@ function updatePreview() {
 }
 
 // Attach preview updates
-['editName','editAssignee','editCooldown'].forEach(id => {
+['editName','editAssignee','editCooldown','condDocColumn','condDocValue','condDocMaxRows'].forEach(id => {
   document.getElementById(id).addEventListener('input', updatePreview);
 });
 document.querySelectorAll('#severityRadio input').forEach(r => r.addEventListener('change', updatePreview));
@@ -879,6 +1007,9 @@ async function loadRules(page=1) {
         cond = '跌零检测';
       } else if (op === 'statistical') {
         cond = '自动统计异常';
+      } else if (op === 'document') {
+        const doc = parseDocumentRuleConfig(rule.dimensions_json);
+        cond = `单据追踪 ${doc.columnCode || '自动识别列'} ${OP_LABELS[doc.operator] || doc.operator || '等于'} ${doc.value ?? 0}`;
       }
 
       html += `<div class="rule-card ${isEnabled?'':'disabled'}">
@@ -929,6 +1060,10 @@ function openRuleEditor(id) {
   document.getElementById('condThValue2').value = '';
   document.getElementById('condFlucDir').value = 'drop';
   document.getElementById('condFlucRatio').value = '30';
+  document.getElementById('condDocColumn').value = '';
+  document.getElementById('condDocOp').value = 'eq';
+  document.getElementById('condDocValue').value = '0';
+  document.getElementById('condDocMaxRows').value = '5000';
 
   if (id) {
     api(API+'/rules/'+id).then(rule => {
@@ -947,7 +1082,7 @@ function openRuleEditor(id) {
 
       // Detection method
       const op = rule.operator||'lt';
-      const cardMap = {lt:'threshold',gt:'threshold',gte:'threshold',lte:'threshold',eq:'threshold',between:'threshold',outside:'threshold',statistical:'statistical',fluctuation:'fluctuation',zero:'zero'};
+      const cardMap = {lt:'threshold',gt:'threshold',gte:'threshold',lte:'threshold',eq:'threshold',between:'threshold',outside:'threshold',statistical:'statistical',fluctuation:'fluctuation',zero:'zero',document:'document'};
       const card = cardMap[op]||'threshold';
       setSelectedDetectMethods([card]);
 
@@ -961,6 +1096,12 @@ function openRuleEditor(id) {
         document.getElementById('condThValue').value = rule.threshold||'';
         document.getElementById('condThValue2').value = rule.threshold2||'';
         updateThVal2Visibility();
+      } else if (op==='document') {
+        const doc = parseDocumentRuleConfig(rule.dimensions_json);
+        document.getElementById('condDocColumn').value = doc.columnCode || '';
+        document.getElementById('condDocOp').value = doc.operator || 'eq';
+        document.getElementById('condDocValue').value = doc.value ?? 0;
+        document.getElementById('condDocMaxRows').value = doc.maxRows || 5000;
       }
 
       // Dimension filters
@@ -1039,6 +1180,11 @@ function buildRuleBodyForMethod(baseBody, baseName, method, suffixName=false) {
     body.threshold = parseFloat(document.getElementById('condFlucRatio').value)/100||0.3;
   } else if (method === 'zero') {
     body.operator = 'zero';
+  } else if (method === 'document') {
+    body.operator = 'document';
+    body.builtin_type = 'document';
+    body.threshold = document.getElementById('condDocValue').value === '' ? 0 : Number(document.getElementById('condDocValue').value);
+    body.dimensions_json = JSON.stringify(attachDocumentRuleConfig(getDimFilters()));
   }
   body.name = suffixName ? `${baseName} - ${methodNameForSave(body.operator)}` : baseName;
   return body;
@@ -1107,6 +1253,103 @@ async function resolveLog(id) {
   const note = prompt('处理说明（可选）:');
   await api(API+'/logs/'+id+'/resolve', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note||''})});
   loadLogs(); showToast('已关闭');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Document trace
+// ═══════════════════════════════════════════════════════════════════════════
+
+let _documentTraceReady = false;
+
+async function initDocumentTrace() {
+  if (!_allMeasures.length) await loadMeasures();
+  const select = document.getElementById('docMeasureCode');
+  if (!select) return;
+  select.innerHTML = _allMeasures.map(m =>
+    `<option value="${m.code}" ${m.code==='MEAS_web_sales_amount'?'selected':''}>${fmt(m.name||m.code)} (${m.code})</option>`
+  ).join('');
+  if (!select.value && _allMeasures.length) select.value = _allMeasures[0].code;
+  _documentTraceReady = true;
+}
+
+async function runDocumentScan(btn) {
+  if (!_documentTraceReady) await initDocumentTrace();
+  const measureCode = document.getElementById('docMeasureCode').value;
+  const columnCode = document.getElementById('docColumnCode').value.trim();
+  const operator = document.getElementById('docOperator').value;
+  const value = document.getElementById('docValue').value || 0;
+  const maxRows = parseInt(document.getElementById('docMaxRows').value, 10) || 5000;
+  const status = document.getElementById('docScanStatus');
+  const badge = document.getElementById('docScanBadge');
+  const out = document.getElementById('docScanResult');
+  btn.disabled = true;
+  status.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>正在扫描明细单据...';
+  badge.className = 'badge bg-secondary ms-auto';
+  badge.textContent = '扫描中';
+  out.innerHTML = '<div class="text-muted text-center py-5"><span class="spinner-border spinner-border-sm me-1"></span>正在查询原始明细...</div>';
+  try {
+    const payload = {measureCode, columnCode, operator, value, maxRows, pageSize:500};
+    const r = await api('/api/alerts/document-scan', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+    });
+    renderDocumentScanResult(r);
+    const matched = r.summary?.matchedRows || 0;
+    const scanned = r.summary?.scannedRows || 0;
+    status.textContent = `已扫描 ${scanned} 行，命中 ${matched} 条；识别列：${r.targetColumnName || r.targetColumn || '-'}`;
+    badge.className = `badge ${matched ? 'bg-danger' : 'bg-success'} ms-auto`;
+    badge.textContent = matched ? `命中 ${matched}` : '未命中';
+  } catch(e) {
+    out.innerHTML = `<div class="alert alert-danger m-3">${fmt(e.message)}</div>`;
+    status.textContent = '扫描失败';
+    badge.className = 'badge bg-danger ms-auto';
+    badge.textContent = '失败';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderDocumentScanResult(result) {
+  const out = document.getElementById('docScanResult');
+  const matches = result.matches || [];
+  if (!matches.length) {
+    out.innerHTML = `<div class="empty-state"><i class="bi bi-check-circle"></i>未找到符合条件的问题单据<br><small>扫描 ${result.summary?.scannedRows || 0} 行，条件：${fmt(result.targetColumnName || result.targetColumn)} ${fmt(result.operator)} ${fmt(result.value)}</small></div>`;
+    return;
+  }
+  const columns = result.columns || [];
+  const importantCodes = [
+    result.orderColumn,
+    result.targetColumn,
+    ...columns.map(c => c.code).filter(code => /date|customer|item|warehouse|quantity|price|amount|profit/i.test(code)).slice(0, 8),
+  ].filter((code, idx, arr) => code && arr.indexOf(code) === idx);
+  const colName = code => (columns.find(c => c.code === code)?.name || code);
+  let html = `<div class="px-3 py-2 border-bottom small text-muted">
+    指标：<code>${fmt(result.measure?.code)}</code> · 条件：<strong>${fmt(result.targetColumnName || result.targetColumn)} ${fmt(result.operator)} ${fmt(result.value)}</strong>
+    · 订单列：<code>${fmt(result.orderColumn || '未识别')}</code>
+  </div>`;
+  html += '<table class="table table-sm table-hover mb-0"><thead><tr>';
+  html += '<th>#</th><th>订单编号</th><th>命中值</th>';
+  importantCodes.filter(code => code !== result.orderColumn && code !== result.targetColumn).forEach(code => {
+    html += `<th>${fmt(colName(code))}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+  matches.forEach((item, idx) => {
+    const record = item.record || {};
+    html += `<tr>
+      <td>${idx + 1}</td>
+      <td><code>${fmt(item.orderNumber || record[result.orderColumn] || '-')}</code></td>
+      <td><strong class="text-danger">${fmt(item.targetValue)}</strong></td>`;
+    importantCodes.filter(code => code !== result.orderColumn && code !== result.targetColumn).forEach(code => {
+      html += `<td>${fmt(record[code])}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  if (result.diagnostics?.reviewSql) {
+    html += `<details class="m-3"><summary class="small text-muted" style="cursor:pointer">查看执行 SQL</summary><pre class="small mt-2 p-2 rounded" style="background:#f8fafc;white-space:pre-wrap">${fmt(result.diagnostics.reviewSql)}</pre></details>`;
+  }
+  out.innerHTML = html;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

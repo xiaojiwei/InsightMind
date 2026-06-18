@@ -4871,6 +4871,172 @@ async def ad_semantic_drilldown(request: Request):
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+def _detail_records_from_da_result(da_result: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, Any]], dict[str, Any]]:
+    da_data = da_result.get("data") or {}
+    raw_rows = da_data.get("cellList") or []
+    columns: list[dict[str, str]] = []
+    records: list[dict[str, Any]] = []
+    column_labels = _pivot_detail_column_labels()
+    if raw_rows and isinstance(raw_rows[0], list):
+        header = raw_rows[0]
+        if all(isinstance(cell, dict) and str(cell.get("code") or "") == str(cell.get("data") or "") for cell in header):
+            columns = [
+                {
+                    "code": str(cell.get("code") or ""),
+                    "name": column_labels.get(str(cell.get("code") or ""), str(cell.get("name") or cell.get("code") or "")),
+                }
+                for cell in header if isinstance(cell, dict)
+            ]
+            data_rows = raw_rows[1:]
+        else:
+            columns = [{"code": f"col_{idx}", "name": f"col_{idx}"} for idx in range(len(header))]
+            data_rows = raw_rows
+        for row in data_rows:
+            records.append({
+                columns[idx]["code"]: cell.get("data")
+                for idx, cell in enumerate(row)
+                if idx < len(columns) and isinstance(cell, dict)
+            })
+    return columns, records, da_data
+
+
+def _detail_column_score(column: dict[str, str], measure: dict[str, Any]) -> int:
+    code = str(column.get("code") or "").lower()
+    name = str(column.get("name") or "").lower()
+    measure_code = str(measure.get("code") or "").lower()
+    measure_name = str(measure.get("name") or measure.get("title") or "").lower()
+    score = 0
+    if name and (name in measure_name or measure_name in name):
+        score += 60
+    if "金额" in str(column.get("name") or "") and "金额" in str(measure.get("name") or measure.get("title") or ""):
+        score += 35
+    for token in [t for t in measure_code.replace("meas_", "").split("_") if len(t) > 2]:
+        if token in code:
+            score += 8
+    if any(key in code for key in ("sales_price", "net_paid", "amount", "amt", "price")):
+        score += 10
+    return score
+
+
+def _infer_detail_value_column(columns: list[dict[str, str]], measure: dict[str, Any]) -> str:
+    if not columns:
+        return ""
+    ranked = sorted(columns, key=lambda col: _detail_column_score(col, measure), reverse=True)
+    return str(ranked[0].get("code") or "")
+
+
+def _infer_order_column(columns: list[dict[str, str]]) -> str:
+    for col in columns:
+        code = str(col.get("code") or "").lower()
+        name = str(col.get("name") or "")
+        if "order" in code or "订单" in name:
+            return str(col.get("code") or "")
+    return ""
+
+
+def _numeric_compare(actual: Any, operator: str, expected: Any) -> bool:
+    try:
+        left = float(actual)
+        right = float(expected)
+    except Exception:
+        return str(actual) == str(expected) if operator == "eq" else False
+    if operator == "eq":
+        return left == right
+    if operator == "lt":
+        return left < right
+    if operator == "lte":
+        return left <= right
+    if operator == "gt":
+        return left > right
+    if operator == "gte":
+        return left >= right
+    return False
+
+
+@app.post("/api/alerts/document-scan")
+async def alert_document_scan(request: Request):
+    body = await request.json()
+    try:
+        service = _ad_semantic_service()
+        measure_member = body.get("measure") or body.get("measureCode")
+        measure = service._resolve_member(measure_member, "measure")
+        if not measure:
+            return JSONResponse({"error": "缺少或无法识别 measureCode"}, status_code=400)
+
+        page_size = max(1, min(int(body.get("pageSize") or 500), 500))
+        max_rows = max(1, min(int(body.get("maxRows") or 5000), 50000))
+        max_matches = max(1, min(int(body.get("maxMatches") or 200), 1000))
+        operator = str(body.get("operator") or "eq").lower()
+        expected = body.get("value", 0)
+        target_column = str(body.get("columnCode") or "").strip()
+        filters = service._convert_filters(body.get("filters") or [], [measure])
+        pivot_paths = body.get("pivotPaths")
+        pivot_filter_list = None
+        if isinstance(pivot_paths, list) and pivot_paths:
+            pivot_filter_list = _pivot_drill_filter_list(body.get("pivotFilters") or [], pivot_paths, measure["code"])
+
+        matches: list[dict[str, Any]] = []
+        columns: list[dict[str, str]] = []
+        order_column = ""
+        scanned = 0
+        page_no = 1
+        review_sql = ""
+
+        while scanned < max_rows and len(matches) < max_matches:
+            payload = {
+                "chartType": 0,
+                "sourceType": 0,
+                "operaType": 1,
+                "cacheStrategy": body.get("cacheStrategy", 1),
+                "configureList": [{"code": measure["code"]}],
+                "filterList": pivot_filter_list if pivot_filter_list is not None else _pivot_da_filters(filters),
+                "measureDetail": True,
+                "pageNo": page_no,
+                "pageSize": min(page_size, max_rows - scanned),
+            }
+            da_result = await asyncio.to_thread(_pivot_da_query, payload)
+            page_columns, records, da_data = await asyncio.to_thread(_detail_records_from_da_result, da_result)
+            if page_columns:
+                columns = page_columns
+            if not target_column and columns:
+                target_column = _infer_detail_value_column(columns, measure)
+            if not order_column and columns:
+                order_column = _infer_order_column(columns)
+            review_sql = da_data.get("reviewSql") or review_sql
+            scanned += len(records)
+
+            for record in records:
+                if target_column and _numeric_compare(record.get(target_column), operator, expected):
+                    matches.append({
+                        "orderNumber": record.get(order_column) if order_column else "",
+                        "targetValue": record.get(target_column),
+                        "record": record,
+                    })
+                    if len(matches) >= max_matches:
+                        break
+            if len(records) < payload["pageSize"]:
+                break
+            page_no += 1
+
+        return {
+            "measure": {"code": measure["code"], "name": measure.get("name") or measure.get("title") or measure["code"]},
+            "targetColumn": target_column,
+            "targetColumnName": next((col["name"] for col in columns if col.get("code") == target_column), target_column),
+            "orderColumn": order_column,
+            "orderColumnName": next((col["name"] for col in columns if col.get("code") == order_column), order_column),
+            "operator": operator,
+            "value": expected,
+            "columns": columns,
+            "matches": matches,
+            "summary": {"scannedRows": scanned, "matchedRows": len(matches), "maxRows": max_rows, "maxMatches": max_matches},
+            "diagnostics": {"reviewSql": review_sql},
+        }
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 # ── Ad-Hoc / Dashboard persistence API ──────────────────────────────────── #
 
 def _artifact_safe_id(value: str) -> str:
