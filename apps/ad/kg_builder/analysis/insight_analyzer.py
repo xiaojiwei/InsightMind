@@ -15,7 +15,7 @@ import json
 import re
 import urllib.request as _ureq
 from pathlib import Path
-from typing import Callable, Generator, List, Optional
+from typing import Any, Callable, Generator, List, Optional
 
 
 # ── 工具函数 ──────────────────────────────────────────────────────────────── #
@@ -95,8 +95,17 @@ class InsightAnalyzer:
         # ── Step 2: LLM 提取指标关键词 + 分析类型（不依赖时间解析）──────────── #
         self._log("▶ Step 2: LLM 提取指标关键词...")
         intent = self._parse_intent(question, time_info)
-        self._log(f"  关键词: {intent.get('meas_keywords')}，类型: {intent.get('analysis_type')}")
+        anomaly_profile = self._infer_anomaly_profile(question, intent)
+        intent["anomaly_profile"] = anomaly_profile
+        intent["anomaly_type"] = anomaly_profile.get("type")
+        intent["anomaly_direction"] = anomaly_profile.get("direction")
+        self._log(
+            f"  关键词: {intent.get('meas_keywords')}，类型: {intent.get('analysis_type')}，"
+            f"异常: {anomaly_profile.get('label')}，来源: {anomaly_profile.get('source_label')}，"
+            f"置信度: {anomaly_profile.get('confidence_label')}"
+        )
         yield {"step": "intent", "result": intent}
+        yield {"step": "anomaly_profile", "result": anomaly_profile}
 
         if self._cancel_cb():
             return
@@ -200,6 +209,9 @@ class InsightAnalyzer:
         时间已由 _rule_based_time 解析完毕，此处只提取：
           meas_keywords: 指标相关关键词列表
           analysis_type: root_cause/trend/compare/describe
+          anomaly_type: metric_drop/metric_rise/metric_spike/trend_anomaly/
+                        dimension_slice/document_trace/data_quality/unknown
+          anomaly_direction: down/up/spike/volatile/flat/unknown
         """
         system = (
             "你是一个数据分析助手。根据用户的自然语言问题，提取以下字段。\n"
@@ -211,8 +223,13 @@ class InsightAnalyzer:
             "    示例：'NPS净推荐值趋势' → [\"NPS\", \"净推荐值\"]\n"
             "    示例：'用车投诉率为什么高' → [\"用车投诉率\", \"投诉率\"]\n"
             "  analysis_type: root_cause（为什么/原因）/ trend（趋势）/ compare（对比）/ describe（是什么/情况）之一\n"
+            "  anomaly_type: metric_drop（指标下降）/ metric_rise（指标上升或偏高）/ metric_spike（尖峰）/"
+            "trend_anomaly（趋势异常）/ dimension_slice（某个维度切片异常）/ document_trace（单据级异常）/"
+            "data_quality（疑似数据质量异常）/ unknown\n"
+            "  anomaly_direction: down/up/spike/volatile/flat/unknown 之一\n"
             "重要：meas_keywords 必须是纯净的指标名称或英文缩写，不含时间、疑问词。\n"
-            '返回示例: {"meas_keywords":["NSS","净服务评分"],"analysis_type":"root_cause"}'
+            '返回示例: {"meas_keywords":["NSS","净服务评分"],"analysis_type":"root_cause",'
+            '"anomaly_type":"metric_drop","anomaly_direction":"down"}'
         )
         try:
             raw = self._llm_call(system, question, max_tokens=256)
@@ -236,6 +253,8 @@ class InsightAnalyzer:
             if parsed and isinstance(parsed, dict):
                 parsed.setdefault("analysis_type", "root_cause")
                 parsed.setdefault("meas_keywords", [])
+                parsed.setdefault("anomaly_type", "unknown")
+                parsed.setdefault("anomaly_direction", "unknown")
                 result = {**time_info, **parsed}
                 return result
         except Exception as e:
@@ -255,10 +274,376 @@ class InsightAnalyzer:
             atype = "compare"
         elif re.search(r'是什么|情况|现状', question):
             atype = "describe"
-        return {**time_info, "meas_keywords": keywords, "analysis_type": atype}
+        return {
+            **time_info,
+            "meas_keywords": keywords,
+            "analysis_type": atype,
+            "anomaly_type": "unknown",
+            "anomaly_direction": "unknown",
+        }
+
+    def _infer_anomaly_profile(self, question: str, intent: dict) -> dict[str, Any]:
+        """Infer anomaly source, shape and evidence strength for downstream analysis."""
+        q = question or ""
+        cell = self._cell_context()
+        anomaly = cell.get("anomaly") if isinstance(cell.get("anomaly"), dict) else {}
+        diagnosis = cell.get("diagnosis") if isinstance(cell.get("diagnosis"), dict) else {}
+        documents = cell.get("documents") if isinstance(cell.get("documents"), list) else []
+        alerts = cell.get("alerts") if isinstance(cell.get("alerts"), list) else []
+        filters = self._cell_context_filters()
+
+        direction = str(intent.get("anomaly_direction") or "unknown").strip() or "unknown"
+        anomaly_type = str(intent.get("anomaly_type") or "unknown").strip() or "unknown"
+        source = "unknown"
+        context_anomaly_type = self._normalize_context_anomaly_type(
+            self._context.get("anomalyType") or anomaly.get("type") or anomaly.get("anomalyType")
+        )
+        if anomaly_type == "unknown" and context_anomaly_type:
+            anomaly_type = context_anomaly_type
+            source = str(diagnosis.get("source") or anomaly.get("source") or "cell_context")
+
+        text_matched = False
+        if re.search(r"下滑|下降|降低|变低|走低|减少|减少了|跌|掉|负增长", q):
+            direction = "down"
+            anomaly_type = "metric_drop"
+            source = "question_intent"
+            text_matched = True
+        elif re.search(r"上涨|上升|升高|变高|走高|增加|增长|偏高|过高|飙升", q):
+            direction = "up"
+            anomaly_type = "metric_rise"
+            source = "question_intent"
+            text_matched = True
+        elif re.search(r"突增|陡增|尖峰|峰值|突然|暴涨|暴跌|跳变", q):
+            direction = "spike"
+            anomaly_type = "metric_spike"
+            source = "question_intent"
+            text_matched = True
+        elif re.search(r"波动|震荡|不稳定|忽高忽低", q):
+            direction = "volatile"
+            anomaly_type = "trend_anomaly"
+            source = "question_intent"
+            text_matched = True
+
+        if re.search(r"趋势|走势|连续|周期|季节|拐点", q):
+            anomaly_type = "trend_anomaly"
+            source = "question_intent"
+            text_matched = True
+            if direction == "unknown":
+                direction = "volatile"
+        if re.search(r"数据质量|缺失|为空|null|重复|口径|同步|延迟|脏数据|异常值", q, re.I):
+            anomaly_type = "data_quality"
+            source = "question_intent"
+            text_matched = True
+        if documents:
+            anomaly_type = "document_trace"
+            source = "document_rule"
+        elif alerts and source == "unknown":
+            source = "metric_alert"
+        elif anomaly_type == "unknown" and (cell or any(not self._is_time_context_filter(item) for item in filters)):
+            anomaly_type = "dimension_slice"
+            source = "cell_context"
+        elif source == "unknown" and text_matched:
+            source = "question_intent"
+
+        labels = {
+            "metric_drop": "指标下降异常",
+            "metric_rise": "指标上升/偏高异常",
+            "metric_spike": "指标突变异常",
+            "trend_anomaly": "趋势异常",
+            "dimension_slice": "维度切片异常",
+            "document_trace": "单据级异常",
+            "data_quality": "数据质量异常",
+            "unknown": "未指定异常类型",
+        }
+        strategies = {
+            "metric_drop": "优先解释下降贡献最大的指标算子、维度值和时间段。",
+            "metric_rise": "优先解释拉升最大的指标算子、维度值和时间段，并判断是否属于业务预期。",
+            "metric_spike": "优先定位突变发生的日期/周期，再找对应切片和明细证据。",
+            "trend_anomaly": "优先做时间序列趋势、异常期和拐点解释，再补充结构贡献。",
+            "dimension_slice": "优先围绕当前单元格/维度切片，比较同口径上下期并下钻相关维度。",
+            "document_trace": "优先使用真实单据、命中规则和异常字段解释，不套用总体波动模板。",
+            "data_quality": "优先检查缺失、重复、延迟、口径变化等数据质量证据，再判断业务含义。",
+            "unknown": "按常规指标波动归因流程分析。",
+        }
+
+        focus_filters = []
+        for item in filters:
+            if self._is_time_context_filter(item):
+                continue
+            focus_filters.append({
+                "code": str(item.get("code") or ""),
+                "name": str(item.get("name") or item.get("code") or ""),
+                "value": self._cell_filter_value(item),
+            })
+
+        normalized_type = anomaly_type if anomaly_type in labels else "unknown"
+        shape = str(diagnosis.get("shape") or anomaly.get("shape") or self._profile_shape(normalized_type))
+        evidence_items = self._profile_evidence_items(
+            anomaly=anomaly,
+            diagnosis=diagnosis,
+            documents=documents,
+            alerts=alerts,
+            focus_filters=focus_filters,
+        )
+        evidence = []
+        if anomaly:
+            evidence.append(f"{anomaly.get('title') or ''} {anomaly.get('reason') or ''}".strip())
+        if focus_filters:
+            evidence.append("当前切片: " + " / ".join(
+                f"{item['name']}={item['value']}" for item in focus_filters if item.get("value")
+            ))
+        if documents:
+            evidence.append(f"命中异常单据 {len(documents)} 条")
+        if alerts:
+            evidence.append(f"命中指标预警 {len(alerts)} 个")
+
+        evidence_strength = self._profile_evidence_strength(
+            source=source,
+            evidence_items=evidence_items,
+            documents=documents,
+            alerts=alerts,
+            focus_filters=focus_filters,
+        )
+        confidence = self._profile_confidence(
+            source=source,
+            anomaly_type=normalized_type,
+            evidence_strength=evidence_strength,
+            text_matched=text_matched,
+            has_context=bool(cell),
+        )
+        hypotheses = self._profile_hypotheses(normalized_type, source, diagnosis, documents, alerts)
+
+        return {
+            "type": normalized_type,
+            "label": labels.get(normalized_type, labels["unknown"]),
+            "source": source,
+            "source_label": self._profile_source_label(source),
+            "shape": shape,
+            "shape_label": self._profile_shape_label(shape),
+            "direction": direction if direction in {"down", "up", "spike", "volatile", "flat", "unknown"} else "unknown",
+            "strategy": strategies.get(normalized_type, strategies["unknown"]),
+            "confidence": confidence,
+            "confidence_label": self._confidence_label(confidence),
+            "evidence_strength": evidence_strength,
+            "evidence_strength_label": self._strength_label(evidence_strength),
+            "focus_filters": focus_filters,
+            "evidence": [item for item in evidence if item],
+            "evidence_items": evidence_items,
+            "hypotheses": hypotheses,
+        }
+
+    @staticmethod
+    def _profile_shape(anomaly_type: str) -> str:
+        mapping = {
+            "metric_drop": "drop",
+            "metric_rise": "rise",
+            "metric_spike": "spike",
+            "trend_anomaly": "trend",
+            "dimension_slice": "slice",
+            "document_trace": "document",
+            "data_quality": "quality",
+        }
+        return mapping.get(str(anomaly_type or ""), "unknown")
+
+    @staticmethod
+    def _profile_shape_label(shape: str) -> str:
+        mapping = {
+            "drop": "下降",
+            "rise": "上升/偏高",
+            "spike": "突变",
+            "trend": "趋势",
+            "slice": "维度切片",
+            "document": "单据",
+            "quality": "数据质量",
+            "unknown": "未知",
+        }
+        return mapping.get(str(shape or ""), "未知")
+
+    @staticmethod
+    def _profile_source_label(source: str) -> str:
+        mapping = {
+            "document_rule": "单据规则",
+            "metric_alert": "指标预警",
+            "cell_context": "透视表单元格",
+            "question_intent": "用户问题",
+            "unknown": "未知",
+        }
+        return mapping.get(str(source or ""), "未知")
+
+    @staticmethod
+    def _confidence_label(score: float) -> str:
+        if score >= 0.8:
+            return "高"
+        if score >= 0.6:
+            return "中"
+        return "低"
+
+    @staticmethod
+    def _strength_label(score: int) -> str:
+        if score >= 80:
+            return "强"
+        if score >= 55:
+            return "中"
+        return "弱"
+
+    def _profile_evidence_items(
+        self,
+        anomaly: dict[str, Any],
+        diagnosis: dict[str, Any],
+        documents: list[dict[str, Any]],
+        alerts: list[dict[str, Any]],
+        focus_filters: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        items = []
+        for item in diagnosis.get("evidence") or []:
+            if isinstance(item, dict):
+                items.append({
+                    "type": str(item.get("type") or "evidence"),
+                    "label": str(item.get("label") or ""),
+                    "detail": str(item.get("detail") or ""),
+                    "weight": int(float(item.get("weight") or 0)),
+                })
+        if documents and not any(item.get("type") == "document" for item in items):
+            first = documents[0] if isinstance(documents[0], dict) else {}
+            items.append({
+                "type": "document",
+                "label": f"命中 {len(documents)} 条异常单据",
+                "detail": f"{first.get('documentNo') or '-'} {first.get('fieldName') or first.get('field') or ''}={first.get('value')}",
+                "weight": 95,
+            })
+        if alerts and not any(item.get("type") == "alert" for item in items):
+            labels = "、".join(str(item.get("label") or item.get("type") or "指标预警") for item in alerts[:4])
+            items.append({
+                "type": "alert",
+                "label": f"命中 {len(alerts)} 个指标预警",
+                "detail": labels,
+                "weight": 75,
+            })
+        if focus_filters and not any(item.get("type") == "context" for item in items):
+            items.append({
+                "type": "context",
+                "label": "当前透视表切片",
+                "detail": " / ".join(f"{item['name']}={item['value']}" for item in focus_filters if item.get("value")),
+                "weight": 60,
+            })
+        if anomaly and not any(item.get("type") == "summary" for item in items):
+            detail = f"{anomaly.get('title') or ''} {anomaly.get('reason') or ''}".strip()
+            if detail:
+                items.append({"type": "summary", "label": "业务解释摘要", "detail": detail, "weight": 65})
+        return [item for item in items if item.get("label") or item.get("detail")][:8]
+
+    @staticmethod
+    def _profile_evidence_strength(
+        source: str,
+        evidence_items: list[dict[str, Any]],
+        documents: list[dict[str, Any]],
+        alerts: list[dict[str, Any]],
+        focus_filters: list[dict[str, Any]],
+    ) -> int:
+        weights = [int(float(item.get("weight") or 0)) for item in evidence_items if isinstance(item, dict)]
+        if documents:
+            weights.append(min(98, 82 + min(len(documents), 8) * 2))
+        if alerts:
+            weights.append(min(90, 68 + min(len(alerts), 5) * 3))
+        if focus_filters:
+            weights.append(60)
+        if not weights:
+            return 35 if source != "unknown" else 25
+        return max(25, min(98, int(round(max(weights) * 0.72 + (sum(weights) / len(weights)) * 0.28))))
+
+    @staticmethod
+    def _profile_confidence(
+        source: str,
+        anomaly_type: str,
+        evidence_strength: int,
+        text_matched: bool,
+        has_context: bool,
+    ) -> float:
+        base = {
+            "document_rule": 0.88,
+            "metric_alert": 0.72,
+            "cell_context": 0.54,
+            "question_intent": 0.56,
+            "unknown": 0.35,
+        }.get(source, 0.35)
+        if anomaly_type == "unknown":
+            base -= 0.12
+        if text_matched:
+            base += 0.05
+        if has_context:
+            base += 0.04
+        base += max(0, evidence_strength - 55) * 0.003
+        return round(max(0.1, min(0.98, base)), 2)
+
+    @staticmethod
+    def _profile_hypotheses(
+        anomaly_type: str,
+        source: str,
+        diagnosis: dict[str, Any],
+        documents: list[dict[str, Any]],
+        alerts: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        out = []
+        for item in diagnosis.get("hypotheses") or []:
+            if isinstance(item, dict):
+                out.append({
+                    "type": str(item.get("type") or source or anomaly_type),
+                    "title": str(item.get("title") or ""),
+                    "reason": str(item.get("reason") or ""),
+                })
+        if out:
+            return out[:4]
+        if documents:
+            first = documents[0] if isinstance(documents[0], dict) else {}
+            return [{
+                "type": "document_rule",
+                "title": "单据规则命中",
+                "reason": f"优先解释单据 {first.get('documentNo') or '-'} 的规则、字段和值，不把它泛化成总体指标波动。",
+            }]
+        if alerts:
+            return [{
+                "type": "metric_alert",
+                "title": "指标预警命中",
+                "reason": "先确认预警规则指向表达式、阈值还是趋势路径，再选择对应归因路径。",
+            }]
+        mapping = {
+            "metric_drop": ("下降贡献", "优先找拉低最大的维度值、算子和时间段。"),
+            "metric_rise": ("上升贡献", "优先找拉升最大的维度值、算子和时间段，并判断是否为业务预期。"),
+            "metric_spike": ("突变定位", "先定位突变时间点，再看同一切片的组成项和明细证据。"),
+            "trend_anomaly": ("趋势拐点", "先分析时间序列异常期，再补充切片结构变化。"),
+            "dimension_slice": ("切片归因", "围绕当前透视表切片做同口径对比和维度下钻。"),
+            "data_quality": ("数据质量", "优先检查缺失、重复、延迟和口径变化。"),
+        }
+        title, reason = mapping.get(anomaly_type, ("常规归因", "按指标波动、维度贡献和异常点顺序分析。"))
+        return [{"type": anomaly_type, "title": title, "reason": reason}]
+
+    @staticmethod
+    def _normalize_context_anomaly_type(value: Any) -> str:
+        raw = str(value or "").strip().lower()
+        mapping = {
+            "document": "document_trace",
+            "document_trace": "document_trace",
+            "metric_alert": "metric_spike",
+            "metric_spike": "metric_spike",
+            "metric_rise": "metric_rise",
+            "metric_drop": "metric_drop",
+            "trend": "trend_anomaly",
+            "trend_anomaly": "trend_anomaly",
+            "path": "trend_anomaly",
+            "expression": "metric_spike",
+            "self": "metric_spike",
+            "data_quality": "data_quality",
+            "dimension": "dimension_slice",
+            "dimension_slice": "dimension_slice",
+        }
+        return mapping.get(raw, "")
 
     def _rule_based_time(self, question: str, today: datetime.date, y: int, w: int) -> dict:
         """规则提取时间信息。"""
+        context_time = self._cell_context_time_info(today)
+        if context_time:
+            self._log(f"  使用异常单元格时间上下文: {context_time.get('time_desc')}")
+            return context_time
 
         # 匹配"N月M日/号" → 日粒度，对比前一天
         # 注意：DA API 对原子指标用周维度过滤时 SQL 有 bug（%Y%u 格式与日期字符串比对失效），
@@ -292,7 +677,10 @@ class InsightAnalyzer:
             mo = int(m3.group(1))
             try:
                 first = datetime.date(today.year, mo, 1)
-                last_day = (datetime.date(today.year, mo % 12 + 1, 1) - datetime.timedelta(days=1))
+                if mo == 12:
+                    last_day = datetime.date(today.year, 12, 31)
+                else:
+                    last_day = datetime.date(today.year, mo + 1, 1) - datetime.timedelta(days=1)
                 prev_last = first - datetime.timedelta(days=1)
                 prev_first = prev_last.replace(day=1)
                 return {"time_start": first.isoformat(), "time_end": last_day.isoformat(),
@@ -322,6 +710,121 @@ class InsightAnalyzer:
             return {"time_start": curr_first.isoformat(), "time_end": curr_last.isoformat(),
                     "prev_start": prev_first.isoformat(), "prev_end": prev_last.isoformat(),
                     "gran": "month", "time_desc": f"{curr_first.month}月 vs {prev_first.month}月"}
+
+    def _cell_context(self) -> dict[str, Any]:
+        ctx = self._context.get("cellInsight")
+        return ctx if isinstance(ctx, dict) else {}
+
+    def _cell_context_filters(self) -> list[dict[str, Any]]:
+        cell = self._cell_context()
+        context = cell.get("cellContext") if isinstance(cell.get("cellContext"), dict) else {}
+        filters = context.get("filters") if isinstance(context, dict) else []
+        if not isinstance(filters, list):
+            return []
+        return [item for item in filters if isinstance(item, dict)]
+
+    @staticmethod
+    def _cell_filter_value(item: dict[str, Any]) -> str:
+        return str(item.get("filterValue") or item.get("value") or "").strip()
+
+    @staticmethod
+    def _is_time_context_filter(item: dict[str, Any]) -> bool:
+        code = str(item.get("code") or "").lower()
+        name = str(item.get("name") or "")
+        try:
+            view_type = int(float(str(item.get("viewType") or 0)))
+        except (TypeError, ValueError):
+            view_type = 0
+        value = str(item.get("value") or item.get("filterValue") or "")
+        if 1 <= view_type <= 6:
+            return True
+        if any(token in name for token in ("日期", "时间", "日", "周", "月", "季度", "年")):
+            return True
+        if any(token in code for token in ("date", "day", "week", "month", "quarter", "year")):
+            return True
+        return bool(re.match(r"^\d{4}[-/]?\d{2}([-/]?\d{2})?$", value) or re.match(r"^\d{4}-?Q[1-4]$", value, re.I))
+
+    def _cell_context_time_info(self, today: datetime.date) -> Optional[dict]:
+        for item in self._cell_context_filters():
+            if not self._is_time_context_filter(item):
+                continue
+            raw = self._cell_filter_value(item)
+            name = str(item.get("name") or item.get("code") or "时间")
+            try:
+                if re.match(r"^\d{4}[-/]?\d{2}[-/]?\d{2}$", raw):
+                    compact = raw.replace("/", "-")
+                    if "-" not in compact:
+                        compact = f"{compact[:4]}-{compact[4:6]}-{compact[6:8]}"
+                    target = datetime.date.fromisoformat(compact)
+                    prev = target - datetime.timedelta(days=1)
+                    return {
+                        "time_start": target.isoformat(),
+                        "time_end": target.isoformat(),
+                        "prev_start": prev.isoformat(),
+                        "prev_end": prev.isoformat(),
+                        "gran": "day",
+                        "time_desc": f"{name}={raw}",
+                    }
+                if "周" in name or "week" in str(item.get("code") or "").lower() or re.match(r"^\d{4}[-/]W\d{1,2}$", raw, re.I):
+                    match = re.match(r"^(\d{4})[-/]?W?(\d{1,2})$", raw, re.I)
+                    if match:
+                        year, week = int(match.group(1)), int(match.group(2))
+                        prev_week = week - 1 if week > 1 else 52
+                        prev_year = year if week > 1 else year - 1
+                        start, end = _week_bounds(year, week)
+                        prev_start, prev_end = _week_bounds(prev_year, prev_week)
+                        return {
+                            "time_start": start,
+                            "time_end": end,
+                            "prev_start": prev_start,
+                            "prev_end": prev_end,
+                            "gran": "week",
+                            "time_desc": f"{name}={raw}",
+                        }
+                if re.match(r"^\d{4}[-/]?\d{2}$", raw):
+                    compact = raw.replace("/", "-")
+                    year = int(compact[:4])
+                    month = int(compact[-2:])
+                    first = datetime.date(year, month, 1)
+                    if month == 12:
+                        last = datetime.date(year, 12, 31)
+                    else:
+                        last = datetime.date(year, month + 1, 1) - datetime.timedelta(days=1)
+                    prev_last = first - datetime.timedelta(days=1)
+                    prev_first = prev_last.replace(day=1)
+                    return {
+                        "time_start": first.isoformat(),
+                        "time_end": last.isoformat(),
+                        "prev_start": prev_first.isoformat(),
+                        "prev_end": prev_last.isoformat(),
+                        "gran": "month",
+                        "time_desc": f"{name}={raw}",
+                    }
+                match_q = re.match(r"^(\d{4})-?Q([1-4])$", raw, re.I)
+                if match_q:
+                    year, quarter = int(match_q.group(1)), int(match_q.group(2))
+                    first_month = (quarter - 1) * 3 + 1
+                    first = datetime.date(year, first_month, 1)
+                    last_month = first_month + 2
+                    last = (
+                        datetime.date(year + 1, 1, 1) - datetime.timedelta(days=1)
+                        if last_month == 12
+                        else datetime.date(year, last_month + 1, 1) - datetime.timedelta(days=1)
+                    )
+                    prev_last = first - datetime.timedelta(days=1)
+                    prev_first_month = ((prev_last.month - 1) // 3) * 3 + 1
+                    prev_first = datetime.date(prev_last.year, prev_first_month, 1)
+                    return {
+                        "time_start": first.isoformat(),
+                        "time_end": last.isoformat(),
+                        "prev_start": prev_first.isoformat(),
+                        "prev_end": prev_last.isoformat(),
+                        "gran": "month",
+                        "time_desc": f"{name}={raw}",
+                    }
+            except Exception as exc:
+                self._log(f"  ⚠ 单元格时间上下文解析失败: {raw} ({exc})")
+        return None
 
     # ── Step 2: KG 指标匹配 ──────────────────────────────────────────────── #
 
@@ -602,7 +1105,7 @@ class InsightAnalyzer:
         secondary  = meas_info.get("secondary", [])
         meas_code  = primary["meas_code"]
         time_dims  = meas_info.get("time_dims", {})
-        reg_dims   = meas_info.get("dim_codes", [])
+        reg_dims   = self._prioritized_regular_dims(meas_info.get("dim_codes", []), intent)
         gran       = intent.get("gran", "week")
         time_start = intent.get("time_start", "")
         time_end   = intent.get("time_end", "")
@@ -637,6 +1140,7 @@ class InsightAnalyzer:
             )
             if time_filter:
                 filter_list.append(time_filter)
+        filter_list.extend(self._cell_context_dimension_filters(time_dim_code))
 
         params = {
             "configureList": configure_list,
@@ -647,8 +1151,63 @@ class InsightAnalyzer:
         if day_dim_code and gran in ("week", "month"):
             params["_p2DayDim"] = day_dim_code
         params["_gran"] = gran
+        if intent.get("anomaly_profile"):
+            params["_anomalyProfile"] = intent.get("anomaly_profile")
 
         return params
+
+    def _prioritized_regular_dims(self, dim_codes: list[str], intent: dict) -> list[str]:
+        """Prioritize dimensions that are part of the current anomaly context."""
+        if not dim_codes:
+            return []
+        priority: list[str] = []
+        profile = intent.get("anomaly_profile") if isinstance(intent.get("anomaly_profile"), dict) else {}
+        for item in profile.get("focus_filters") or []:
+            if isinstance(item, dict):
+                code = str(item.get("code") or "").strip()
+                if code:
+                    priority.append(code)
+
+        cell = self._cell_context()
+        for item in cell.get("contributions") or []:
+            if isinstance(item, dict):
+                code = str(item.get("dimensionCode") or "").strip()
+                if code:
+                    priority.append(code)
+
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for code in priority + list(dim_codes):
+            if code in dim_codes and code not in seen:
+                ordered.append(code)
+                seen.add(code)
+        return ordered
+
+    def _cell_context_dimension_filters(self, time_dim_code: str = "") -> list[dict[str, Any]]:
+        """Convert selected pivot cell row/column paths into DA dimension filters."""
+        filters: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for item in self._cell_context_filters():
+            code = str(item.get("code") or "").strip()
+            value = self._cell_filter_value(item)
+            if not code or not value or code == time_dim_code or code in seen:
+                continue
+            if self._is_time_context_filter(item):
+                continue
+            filters.append({
+                "code": code,
+                "operatorList": [{
+                    "sqlOprType": 0,
+                    "dataList": [value],
+                    "sqlLogicalType": 0,
+                    "timeRange": 0,
+                }],
+                "internal": True,
+            })
+            seen.add(code)
+        if filters:
+            self._log("  单元格维度过滤: " + json.dumps(filters, ensure_ascii=False))
+        return filters
 
     def _build_time_filter(
         self,
@@ -799,6 +1358,7 @@ class InsightAnalyzer:
             supp_lines.append("统计异常Top点：\n" + "\n".join(anom_items[:4]))
 
         supp_text = ("\n\n" + "\n\n".join(supp_lines)) if supp_lines else ""
+        cell_context_text = self._cell_insight_prompt_context()
 
         # ── LLM Prompt ──────────────────────────────────────────────────── #
         primary    = meas_info.get("primary", meas_info)  # 兼容旧格式
@@ -812,6 +1372,43 @@ class InsightAnalyzer:
             f"{intent.get('prev_start','')}~{intent.get('prev_end','')}（上期）vs "
             f"{intent.get('time_start','')}~{intent.get('time_end','')}（当期）"
         )
+        anomaly_profile = intent.get("anomaly_profile") if isinstance(intent.get("anomaly_profile"), dict) else {}
+        anomaly_lines = [
+            f"异常类型：{anomaly_profile.get('label') or '未指定'}",
+            f"异常来源：{anomaly_profile.get('source_label') or anomaly_profile.get('source') or 'unknown'}",
+            f"异常形态：{anomaly_profile.get('shape_label') or anomaly_profile.get('shape') or 'unknown'}",
+            f"异常方向：{anomaly_profile.get('direction') or 'unknown'}",
+            (
+                f"证据强度：{anomaly_profile.get('evidence_strength_label') or '-'}"
+                f"（{anomaly_profile.get('evidence_strength', '-')}）"
+            ),
+            (
+                f"识别置信度：{anomaly_profile.get('confidence_label') or '-'}"
+                f"（{anomaly_profile.get('confidence', '-')}）"
+            ),
+            f"分析策略：{anomaly_profile.get('strategy') or '按常规指标波动归因流程分析。'}",
+        ]
+        if anomaly_profile.get("evidence"):
+            anomaly_lines.append("异常上下文：" + "；".join(str(x) for x in anomaly_profile.get("evidence") or []))
+        if anomaly_profile.get("evidence_items"):
+            evidence_text = []
+            for item in (anomaly_profile.get("evidence_items") or [])[:5]:
+                if isinstance(item, dict):
+                    evidence_text.append(
+                        f"{item.get('label') or item.get('type')}: {item.get('detail') or ''}"
+                    )
+            if evidence_text:
+                anomaly_lines.append("结构化证据：" + "；".join(evidence_text))
+        if anomaly_profile.get("hypotheses"):
+            hypothesis_text = []
+            for item in (anomaly_profile.get("hypotheses") or [])[:4]:
+                if isinstance(item, dict):
+                    hypothesis_text.append(
+                        f"{item.get('title') or item.get('type')}: {item.get('reason') or ''}"
+                    )
+            if hypothesis_text:
+                anomaly_lines.append("诊断假设：" + "；".join(hypothesis_text))
+        anomaly_text = "\n".join(anomaly_lines)
 
         multi_indicator_hint = ""
         if secondary:
@@ -824,6 +1421,13 @@ class InsightAnalyzer:
             "你是一位资深数据分析师。\n"
             "下方提供了一份针对特定指标的完整数据分析报告，以及少量关键数字补充。\n"
             "请严格基于报告内容，针对用户的具体问题给出直接、精准的回答。\n"
+            "本次分析已经识别了异常类型。不同异常要用不同解释方式：\n"
+            "- 先依据异常来源、异常形态、证据强度和置信度选择解释口径；证据弱时必须说明不确定性。\n"
+            "- 指标下降/上升：讲清楚主要拉低或拉高的维度、算子和幅度。\n"
+            "- 趋势异常/突变：先讲异常发生在哪些时间点，再讲对应切片。\n"
+            "- 维度切片异常：围绕当前切片解释，不要只讲全局指标。\n"
+            "- 单据级异常：优先引用真实单据、命中规则和异常字段，不套用总体波动模板。\n"
+            "- 数据质量异常：优先说明缺失、重复、延迟或口径变化证据。\n"
             + multi_indicator_hint + "\n\n"
             "输出格式（Markdown）：\n"
             "## 结论\n"
@@ -840,9 +1444,12 @@ class InsightAnalyzer:
             f"分析指标：{cn_name}\n"
             f"指标代码列表：{', '.join(meas_codes)}\n"
             f"分析时段：{time_desc}\n\n"
+            f"===== 异常画像 =====\n"
+            f"{anomaly_text}\n\n"
             f"===== 综合分析报告 =====\n"
             f"{report_text}\n"
             f"===== 补充关键数字 ====={supp_text}"
+            f"{cell_context_text}"
         )
 
         self._log(f"  直答段 prompt 长度: {len(user)} 字符")
@@ -853,6 +1460,86 @@ class InsightAnalyzer:
         except Exception as e:
             self._log(f"  ⚠ 直答段生成失败: {e}")
             yield f"\n\n（直接回答生成失败：{e}）"
+
+    def _cell_insight_prompt_context(self) -> str:
+        """Build a compact evidence packet from the selected abnormal cell."""
+        cell = self._cell_context()
+        if not cell:
+            return ""
+        measure = cell.get("measure") if isinstance(cell.get("measure"), dict) else {}
+        context = cell.get("cellContext") if isinstance(cell.get("cellContext"), dict) else {}
+        anomaly = cell.get("anomaly") if isinstance(cell.get("anomaly"), dict) else {}
+        diagnosis = cell.get("diagnosis") if isinstance(cell.get("diagnosis"), dict) else {}
+        documents = cell.get("documents") if isinstance(cell.get("documents"), list) else []
+        contributions = cell.get("contributions") if isinstance(cell.get("contributions"), list) else []
+
+        lines = [
+            "\n\n===== 异常单元格上下文（来自Dashboard点击） =====",
+            f"指标：{measure.get('name') or measure.get('code') or ''}",
+            f"单元格切片：{context.get('label') or ''}",
+            f"单元格值：{cell.get('cellValue')}",
+            f"异常摘要：{anomaly.get('title') or ''}；{anomaly.get('reason') or ''}",
+            (
+                "异常识别："
+                f"来源={diagnosis.get('source') or anomaly.get('source') or ''}，"
+                f"形态={diagnosis.get('shape') or anomaly.get('shape') or ''}，"
+                f"证据强度={diagnosis.get('evidenceStrength') or anomaly.get('evidenceStrength') or ''}"
+                f"({diagnosis.get('evidenceStrengthLabel') or anomaly.get('evidenceStrengthLabel') or ''})，"
+                f"置信度={diagnosis.get('confidence') or anomaly.get('confidence') or ''}"
+                f"({diagnosis.get('confidenceLabel') or anomaly.get('confidenceLabel') or ''})"
+            ),
+        ]
+        evidence_items = diagnosis.get("evidence") if isinstance(diagnosis.get("evidence"), list) else []
+        if evidence_items:
+            lines.append("结构化证据：")
+            for item in evidence_items[:6]:
+                if isinstance(item, dict):
+                    lines.append(f"- {item.get('label') or item.get('type')}: {item.get('detail') or ''}")
+        hypotheses = diagnosis.get("hypotheses") if isinstance(diagnosis.get("hypotheses"), list) else []
+        if hypotheses:
+            lines.append("诊断假设：")
+            for item in hypotheses[:4]:
+                if isinstance(item, dict):
+                    lines.append(f"- {item.get('title') or item.get('type')}: {item.get('reason') or ''}")
+        if contributions:
+            lines.append("推荐/贡献维度：")
+            for item in contributions[:5]:
+                if not isinstance(item, dict):
+                    continue
+                label = item.get("dimensionName") or item.get("dimensionCode") or ""
+                value = item.get("value") or ""
+                score = item.get("score")
+                reason = item.get("reason") or ""
+                lines.append(f"- {label}{'=' + str(value) if value else ''}，推荐度/占比={score}，原因：{reason}")
+
+        if documents:
+            first = documents[0] if isinstance(documents[0], dict) else {}
+            lines.append(f"命中异常单据数量：{len(documents)}")
+            lines.append("代表性异常单据（真实明细记录，请优先引用）：")
+            lines.append(f"- 规则：{first.get('ruleName') or ''}")
+            lines.append(f"- 单据号：{first.get('documentNo') or ''}")
+            lines.append(f"- 异常字段：{first.get('fieldName') or first.get('field') or ''}={first.get('value')}")
+            record = first.get("record") if isinstance(first.get("record"), dict) else {}
+            if record:
+                compact_record = {
+                    str(k): v
+                    for idx, (k, v) in enumerate(record.items())
+                    if idx < 60 and v not in (None, "")
+                }
+                record_text = json.dumps(compact_record, ensure_ascii=False, default=str)
+                lines.append(f"- 真实单据字段：{record_text[:6000]}")
+            if len(documents) > 1:
+                other_docs = []
+                for doc in documents[1:6]:
+                    if isinstance(doc, dict):
+                        other_docs.append(
+                            f"{doc.get('documentNo') or '-'}: {doc.get('fieldName') or doc.get('field') or ''}={doc.get('value')}"
+                        )
+                if other_docs:
+                    lines.append("其它命中单据：" + "；".join(other_docs))
+
+        lines.append("请在最终回答中结合这份异常单元格上下文，不要只给全局宏观分析。")
+        return "\n".join(lines)
 
 
     # ── LLM 调用 ─────────────────────────────────────────────────────────── #

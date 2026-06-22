@@ -2463,8 +2463,18 @@
               border-radius:0 0 10px 10px;white-space:pre-wrap;word-break:break-all"></div>
           </div>
 
+          <!-- 单据追踪分析详情 -->
+          <div id="insight-document-trace-card" class="card mb-3" style="display:none">
+            <div class="card-header py-2">
+              <i class="bi bi-receipt-cutoff me-1 text-warning"></i>单据追踪分析详情
+            </div>
+            <div class="card-body p-2">
+              <div id="insight-document-trace-content" class="small text-muted">等待异常单据证据...</div>
+            </div>
+          </div>
+
           <!-- 6 Part 折叠面板 -->
-          <div class="card mb-3">
+          <div id="insight-six-part-card" class="card mb-3">
             <div class="card-header py-2"><i class="bi bi-layers me-1"></i>分析详情（6 Part）</div>
             <div class="card-body p-2">
               <div class="accordion accordion-flush" id="ins-accordion">
@@ -3046,6 +3056,22 @@
   </div>
 </div>
 
+<!-- Pivot cell business insight drawer -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="cell-insight-drawer" style="width:min(92vw,760px)">
+  <div class="offcanvas-header border-bottom">
+    <div>
+      <h5 class="offcanvas-title mb-1"><i class="bi bi-lightbulb me-1 text-info"></i>业务解释</h5>
+      <div id="cell-insight-context" class="small text-muted"></div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div id="cell-insight-body">
+      <div class="text-muted text-center py-5">请选择异常指标单元格</div>
+    </div>
+  </div>
+</div>
+
 <!-- Pivot cell action chooser -->
 <div class="modal fade" id="pivot-action-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -3060,6 +3086,10 @@
           <button class="btn btn-outline-primary text-start" onclick="openPivotActionDetail()">
             <i class="bi bi-list-ul me-1"></i> 明细钻取
             <div class="small text-muted mt-1">查看当前指标单元格背后的明细记录。</div>
+          </button>
+          <button class="btn btn-outline-info text-start" onclick="openPivotCellInsight()">
+            <i class="bi bi-lightbulb me-1"></i> 业务解释
+            <div class="small text-muted mt-1">汇总异常指标、单据命中、贡献维度和下一步建议。</div>
           </button>
         </div>
         <div class="small fw-semibold mb-2"><i class="bi bi-diagram-3 me-1 text-success"></i>维度下钻路径</div>
@@ -3963,6 +3993,8 @@ let _documentAlertScanTokens = {};
 let _documentAlertResultsByTarget = {};
 let _documentAlertPivotCellResults = {};
 let _documentAlertLoadingCounts = {};
+let _cellInsightCache = {};
+let _cellInsightActive = null;
 let _adhocState = {
   id: '',
   name: '渠道销售额分析',
@@ -4894,22 +4926,95 @@ function adhocBuildPivotConfig(extraFilters=[]) {
     columns,
     filters,
     limit: parseInt(_adhocState.query.limit || document.getElementById('adhoc-limit')?.value || 1000, 10),
+    settings: _adhocState.settings || {},
   };
+}
+
+function demoAllDetectionAlert(type, label, severity, reason, measureCode, measureName) {
+  const level = Math.max(1, Math.min(3, Number(severity || 2)));
+  const idSuffix = `${type}_${String(label || '').replace(/\s+/g, '_')}`;
+  const severityMap = {
+    1: {code:'notice', label:'关注', color:'#f3c969'},
+    2: {code:'warning', label:'异常', color:'#d99042'},
+    3: {code:'critical', label:'严重', color:'#c84b4b'},
+  };
+  const sev = severityMap[level];
+  return {
+    id: `demo_all_detection_${idSuffix}`,
+    type,
+    label,
+    level,
+    severity: sev.code,
+    severityLabel: sev.label,
+    color: sev.color,
+    style: type === 'path' ? 'dashedBorder' : type === 'expression' ? 'solidBorder' : 'background',
+    measure: measureName || measureCode,
+    measureCode,
+    reason,
+    ruleId: `demo_all_detection_${idSuffix}`,
+  };
+}
+
+function demoAlertMemberCode(code) {
+  return String(code || '').trim().toLowerCase();
+}
+
+function demoAllDetectionCellScore(cell) {
+  const pathText = [...(cell?.rowPath || []), ...(cell?.columnPath || [])]
+    .map(x => String(x.value ?? x.filterValue ?? ''))
+    .join('|');
+  let score = 0;
+  if (demoAlertMemberCode(cell?.measureCode) === 'meas_web_sales_amount') score += 10;
+  if (/guangzhou|广州/i.test(pathText)) score += 5;
+  if (/2026[-/]?11|202611/.test(pathText)) score += 4;
+  if (Number(cell?.value || 0) === 0) score += 2;
+  return score;
+}
+
+function applyAllDetectionMethodsDemo(result, config, spec) {
+  const scenario = spec?.settings?.demoAlertScenario || config?.settings?.demoAlertScenario;
+  if (scenario !== 'all_detection_methods_same_cell' || !result?.cells?.length) return result;
+  const salesCells = (result.cells || []).filter(cell => demoAlertMemberCode(cell?.measureCode) === 'meas_web_sales_amount');
+  const target = (salesCells.length ? salesCells : (result.cells || []))
+    .slice()
+    .sort((a, b) => demoAllDetectionCellScore(b) - demoAllDetectionCellScore(a))[0];
+  if (!target) return result;
+  const idx = result.cells.indexOf(target);
+  const measureName = target.measureName || '网络销售金额';
+  const measureCode = target.measureCode || 'MEAS_web_sales_amount';
+  const demoAlerts = [
+    demoAllDetectionAlert('self', '固定阈值', 3, '演示：固定阈值规则命中当前单元格。', measureCode, measureName),
+    demoAllDetectionAlert('self', '自动统计异常', 2, '演示：自动统计异常检测命中当前单元格。', measureCode, measureName),
+    demoAllDetectionAlert('path', '环比波动', 2, '演示：环比波动检测命中当前单元格，使用路径虚线提示。', measureCode, measureName),
+    demoAllDetectionAlert('expression', '跌零检测', 3, '演示：跌零检测命中当前单元格，使用表达式实线提示。', measureCode, measureName),
+  ];
+  const bucket = target.alerts = target.alerts || [];
+  demoAlerts.forEach(alert => {
+    if (!bucket.some(item => item.ruleId === alert.ruleId)) bucket.push(alert);
+  });
+  const summary = result.alerts = result.alerts || {enabled:true, count:0, maxLevel:0, items:[]};
+  summary.enabled = true;
+  summary.items = summary.items || [];
+  demoAlerts.forEach(alert => {
+    if (!summary.items.some(item => item.ruleId === alert.ruleId && item.cellIndex === idx)) {
+      summary.items.push({...alert, cellIndex: idx, rowKey: target.rowKey, columnKey: target.columnKey});
+    }
+  });
+  summary.count = summary.items.length;
+  summary.maxLevel = Math.max(summary.maxLevel || 0, ...demoAlerts.map(item => item.level));
+  return result;
 }
 
 async function runAdhocPivotQuery(extraFilters=[], targetId='adhoc-preview', statusEl=null, spec=null, options={}) {
   const oldState = _adhocState;
-  let alertRenderEnabled = false;
+  let alertRenderEnabled = true;
   if (spec) _adhocState = spec;
   try {
     const pivotConfig = adhocBuildPivotConfig(extraFilters);
     if (!pivotConfig.measures.length) throw new Error('请至少选择一个指标');
     if (!pivotConfig.rows.length && !pivotConfig.columns.length) throw new Error('透视表请至少选择一个行轴或列轴维度');
-    alertRenderEnabled = adhocMonitoringAlertRenderEnabled(_adhocState);
-    if (alertRenderEnabled) {
-      resetDocumentAlertRender(targetId, {forceRules: options.forceAlertRefresh});
-      documentAlertLoadingStart(targetId);
-    }
+    resetDocumentAlertRender(targetId, {forceRules: options.forceAlertRefresh});
+    documentAlertLoadingStart(targetId);
     const r = await fetch('/api/pivot/query', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -4917,15 +5022,12 @@ async function runAdhocPivotQuery(extraFilters=[], targetId='adhoc-preview', sta
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || '透视查询失败');
+    applyAllDetectionMethodsDemo(d, pivotConfig, _adhocState);
     _adhocLastResult = d;
     const renderResult = adhocResultForAlertRender(d, alertRenderEnabled);
     renderPivotResult(targetId, renderResult, pivotConfig);
-    if (alertRenderEnabled) {
-      scheduleDocumentAlertScans(targetId, documentAlertMeasureCodesFromPivot(pivotConfig), {forceRules: options.forceAlertRefresh});
-      schedulePivotDocumentAlertScans(targetId, d, pivotConfig, {forceRules: options.forceAlertRefresh});
-    } else {
-      resetDocumentAlertRender(targetId);
-    }
+    scheduleDocumentAlertScans(targetId, documentAlertMeasureCodesFromPivot(pivotConfig), {forceRules: options.forceAlertRefresh});
+    schedulePivotDocumentAlertScans(targetId, d, pivotConfig, {forceRules: options.forceAlertRefresh});
     if (statusEl) {
       const alertText = renderResult.alerts?.count ? ` · ${renderResult.alerts.count} 个预警` : '';
       statusEl.textContent = `${d.diagnostics?.rowCount ?? 0} 条聚合记录 · ${d.diagnostics?.elapsedMs ?? '-'} ms${alertText}`;
@@ -4977,11 +5079,19 @@ function ensureAdhocAlertStyles() {
     .ad-alert-path-l3{--ad-alert-path-color:#991b1b;--ad-alert-path-width:2px}
     .ad-alert-cell{position:relative;background-clip:padding-box}
     .ad-alert-path::before{content:"";position:absolute;inset:3px;border:var(--ad-alert-path-width,1px) dashed var(--ad-alert-path-color,#dc2626);border-radius:2px;pointer-events:none;z-index:1}
-    .ad-alert-cell::after{content:"";position:absolute;right:3px;top:3px;width:5px;height:5px;border-radius:50%;background:var(--ad-alert-color,#d99042);z-index:2}
+    .ad-alert-cell::after{content:"";position:absolute;right:4px;top:4px;width:8px;height:8px;border-radius:50%;background:var(--ad-alert-color,#d99042);z-index:2;box-shadow:0 0 0 1px #fff,0 0 0 2px rgba(200,75,75,.18)}
+    .ad-alert-cell-enter{animation:ad-alert-cell-flash 1.35s ease-out 1}
+    .ad-alert-cell-enter:not(.ad-alert-path)::before{content:"";position:absolute;inset:2px;border:1.5px solid var(--ad-alert-color,#d99042);border-radius:3px;pointer-events:none;z-index:1;animation:ad-alert-cell-ring 1.35s ease-out 1}
+    .ad-alert-cell-enter::after{animation:ad-alert-dot-pop 1.35s ease-out 1}
     .ad-alert-badge{font-size:10px;border-radius:999px;padding:2px 7px;border:1px solid rgba(0,0,0,.08);background:#fff}
     .ad-doc-alert-cell{position:relative;background-clip:padding-box;cursor:pointer}
     .ad-doc-alert-cell::after{content:"!";position:absolute;right:5px;top:50%;transform:translateY(-50%);width:13px;height:13px;border-radius:999px;background:var(--ad-doc-alert-color,#d99042);color:#fff;font-size:9px;font-weight:800;line-height:13px;text-align:center;z-index:3;box-shadow:0 0 0 1px #fff}
     .ad-doc-alert-cell.ad-alert-cell::after{right:5px;top:50%;transform:translateY(-50%);width:13px;height:13px;border-radius:999px}
+    .ad-doc-alert-cell.ad-alert-cell .pivot-value{position:relative;display:inline-block}
+    .ad-doc-alert-cell.ad-alert-cell .pivot-value::after{content:"";position:absolute;right:-16px;top:-7px;width:8px;height:8px;border-radius:50%;background:var(--ad-alert-color,#d99042);z-index:4;box-shadow:0 0 0 1px #fff,0 0 0 2px rgba(200,75,75,.18)}
+    .pivot-table .ad-doc-alert-cell-enter{animation:ad-doc-alert-cell-flash 1.45s ease-out 1}
+    .pivot-table .ad-doc-alert-cell-enter::before{content:"";position:absolute;inset:2px;border:1.5px solid var(--ad-doc-alert-color,#d99042);border-radius:3px;pointer-events:none;z-index:2;animation:ad-doc-alert-cell-ring 1.45s ease-out 1}
+    .pivot-table .ad-doc-alert-cell-enter::after{animation:ad-doc-alert-bang-pop 1.45s ease-out 1}
     .ad-doc-detail-row{background:#fff7ed!important;box-shadow:inset 0 0 0 9999px #fff7ed!important}
     .ad-doc-detail-row td{border-top-color:#f2c79a!important}
     .ad-doc-detail-cell{background:#ffe5d2!important;box-shadow:inset 0 0 0 9999px #ffe5d2!important;color:#9a3412!important;font-weight:600}
@@ -4989,7 +5099,26 @@ function ensureAdhocAlertStyles() {
     .ad-doc-alert-panel{margin:8px 8px 0;border-left:4px solid var(--ad-doc-alert-color,#d99042);background:#fffdf8;color:#343a40}
     .ad-doc-alert-action{font-size:11px;padding:2px 8px}
     .ad-alert-loading-indicator{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;pointer-events:none;animation:ad-alert-loading-pulse .9s ease-in-out infinite}
+    .cell-insight-card{border:1px solid #d5dbe2;background:#fff;border-radius:6px;padding:10px 12px}
+    .cell-insight-card-title{font-size:12px;font-weight:700;color:#526071;margin-bottom:6px}
+    .cell-insight-summary{border-left:4px solid #5f7f9f;background:#f7fbff}
+    .cell-insight-severity-critical{border-left-color:#c84b4b;background:#fff8f8}
+    .cell-insight-severity-warning{border-left-color:#d99042;background:#fffaf4}
+    .cell-insight-kv{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px dashed #e6ebf0;font-size:12px}
+    .cell-insight-kv:last-child{border-bottom:0}
+    .cell-insight-kv span:first-child{color:#687485}
+    .cell-insight-evidence{border-left:3px solid #d8e3ef;padding:6px 0 6px 9px;margin-bottom:6px;font-size:12px}
+    .cell-insight-evidence-title{font-weight:700;color:#435365}
+    .cell-insight-hypothesis{background:#f8fafc;border:1px solid #e5ebf1;border-radius:6px;padding:7px 9px;font-size:12px}
+    .cell-insight-doc{border-bottom:1px solid #eef1f4;padding:6px 0}
+    .cell-insight-doc:last-child{border-bottom:0}
     @keyframes ad-alert-loading-pulse{0%,100%{opacity:.42;box-shadow:none}45%{opacity:1;box-shadow:0 0 0 2px rgba(217,144,66,.16)}}
+    @keyframes ad-alert-cell-flash{0%{filter:brightness(1);box-shadow:none}18%{filter:brightness(1.04);box-shadow:inset 0 0 0 9999px rgba(217,144,66,.12)}58%{filter:brightness(1.02);box-shadow:inset 0 0 0 9999px rgba(217,144,66,.06)}100%{filter:none;box-shadow:none}}
+    @keyframes ad-alert-cell-ring{0%{opacity:0;transform:scale(.94)}18%{opacity:1;transform:scale(1)}78%{opacity:.45;transform:scale(1.03)}100%{opacity:0;transform:scale(1.06)}}
+    @keyframes ad-alert-dot-pop{0%{opacity:0;transform:scale(.35)}24%{opacity:1;transform:scale(1.6)}50%{transform:scale(.9)}76%{transform:scale(1.18)}100%{transform:scale(1)}}
+    @keyframes ad-doc-alert-cell-flash{0%{background:#fff!important}18%{background:#fff1d8!important}52%{background:#fff8ea!important}100%{background:inherit}}
+    @keyframes ad-doc-alert-cell-ring{0%{opacity:0;transform:scale(.92)}20%{opacity:1;transform:scale(1)}72%{opacity:.55;transform:scale(1.03)}100%{opacity:0;transform:scale(1.08)}}
+    @keyframes ad-doc-alert-bang-pop{0%{opacity:0;transform:translateY(-50%) scale(.45)}22%{opacity:1;transform:translateY(-50%) scale(1.28)}45%{transform:translateY(-50%) scale(.94)}68%{transform:translateY(-50%) scale(1.08)}100%{transform:translateY(-50%) scale(1)}}
   `;
   document.head.appendChild(style);
 }
@@ -5006,7 +5135,7 @@ function adhocAlertClasses(alerts=[]) {
     if (a.type === 'expression') classes.push(`ad-alert-expression-l${level}`);
     if (a.type === 'path') classes.push('ad-alert-path', `ad-alert-path-l${level}`);
   });
-  if (classes.length) classes.push('ad-alert-cell');
+  if (classes.length) classes.push('ad-alert-cell', 'ad-alert-cell-enter');
   return [...new Set(classes)].join(' ');
 }
 
@@ -5100,6 +5229,19 @@ function documentAlertMemberCode(member) {
   return meta?.code || member || '';
 }
 
+function markPivotDocumentAlertCell(el, color) {
+  if (!el) return;
+  const wasMarked = el.classList.contains('ad-doc-alert-cell');
+  el.classList.add('ad-doc-alert-cell');
+  el.style.setProperty('--ad-doc-alert-color', color);
+  if (!wasMarked) {
+    el.classList.remove('ad-doc-alert-cell-enter');
+    void el.offsetWidth;
+    el.classList.add('ad-doc-alert-cell-enter');
+    window.setTimeout(() => el.classList.remove('ad-doc-alert-cell-enter'), 1600);
+  }
+}
+
 function documentAlertHitsForMeasure(targetId, measureCode) {
   const code = documentAlertMemberCode(measureCode);
   return (_documentAlertResultsByTarget[targetId] || []).filter(item =>
@@ -5115,6 +5257,17 @@ function clearPivotDocumentAlertResults(targetId) {
   const prefix = `${targetId}|`;
   Object.keys(_documentAlertPivotCellResults || {}).forEach(key => {
     if (key.startsWith(prefix)) delete _documentAlertPivotCellResults[key];
+  });
+}
+
+function clearCellInsightCache(targetId='') {
+  if (!targetId) {
+    _cellInsightCache = {};
+    return;
+  }
+  const prefix = `${targetId}|`;
+  Object.keys(_cellInsightCache || {}).forEach(key => {
+    if (key.startsWith(prefix)) delete _cellInsightCache[key];
   });
 }
 
@@ -5185,6 +5338,7 @@ function clearDocumentAlertLoading(targetId) {
 function resetDocumentAlertRender(targetId, options={}) {
   cancelDocumentAlertScans(targetId);
   _documentAlertResultsByTarget[targetId] = [];
+  clearCellInsightCache(targetId);
   clearPivotDocumentAlertResults(targetId);
   clearDocumentAlertPanel(targetId);
   if (options.forceRules) invalidateDocumentAlertRulesCache();
@@ -5360,8 +5514,7 @@ async function schedulePivotDocumentAlertScans(targetId, result, config, options
         : hits.some(x => x.rule.severity === 'warning') ? 'warning'
         : 'notice';
       const color = documentAlertSeverityColor(maxSeverity);
-      el.classList.add('ad-doc-alert-cell');
-      el.style.setProperty('--ad-doc-alert-color', color);
+      markPivotDocumentAlertCell(el, color);
       el.dataset.docAlertCount = String(hits.reduce((sum, item) => sum + Number(item.result?.summary?.matchedRows || 0), 0));
       const title = hits.map(({rule, result}) => `单据级异常｜${rule.name || '单据追踪'}：命中 ${result.summary.matchedRows} 条`).join('\n');
       const oldTitle = el.getAttribute('title') || '';
@@ -5428,15 +5581,9 @@ async function runAdhocQuery(extraFilters=[]) {
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Ad-Hoc 查询失败');
     _adhocLastResult = d;
-    const alertRenderEnabled = adhocMonitoringAlertRenderEnabled(_adhocState);
+    const alertRenderEnabled = true;
     renderAdhocResult(adhocResultForAlertRender(d, alertRenderEnabled), query);
-    if (alertRenderEnabled) {
-      scheduleDocumentAlertScans('adhoc-preview', documentAlertMeasureCodesFromQuery(query));
-    } else {
-      cancelDocumentAlertScans('adhoc-preview');
-      _documentAlertResultsByTarget['adhoc-preview'] = [];
-      clearDocumentAlertPanel('adhoc-preview');
-    }
+    scheduleDocumentAlertScans('adhoc-preview', documentAlertMeasureCodesFromQuery(query));
     if (status) {
       const renderResult = adhocResultForAlertRender(d, alertRenderEnabled);
       const alertText = renderResult.alerts?.count ? ` · ${renderResult.alerts.count} 个预警` : '';
@@ -5807,18 +5954,66 @@ function renderAdhocTable(target, rows, alertSummary=null, query=null, clickHand
     </table>
   </div>`;
   target.querySelectorAll('.adhoc-measure-cell').forEach(cell => {
-    cell.addEventListener('click', () => {
+    cell.addEventListener('click', event => {
+      event.stopPropagation();
       const row = rows[Number(cell.dataset.rowIndex)] || {};
       const member = dimMember || query?.dimensions?.[0] || '';
       const rawValue = member ? row[member] : cell.textContent;
       const filterValue = member ? (row.__filterValues?.[member] ?? rawValue) : rawValue;
+      const rawMeasureCode = cell.dataset.member || '';
+      const measureMeta = dashboardFindMeasure(rawMeasureCode) || adhocFindMeasure(rawMeasureCode);
+      const measureCode = measureMeta?.code || rawMeasureCode;
+      const measureName = measureMeta?.title || measureMeta?.name || adhocMemberLabel(rawMeasureCode);
+      const memberMeta = member ? (dashboardFindDimension(member) || adhocFindDimension(member)) : null;
+      const memberCode = memberMeta?.code || member;
+      const memberName = memberMeta?.title || memberMeta?.name || adhocMemberLabel(member);
+      const alerts = adhocAlertsFor(row, rawMeasureCode);
       _adhocSelectedPoint = {
         member,
         value: rawValue,
         filterValues: filterValue !== undefined && filterValue !== null ? [String(filterValue)] : [],
         docTargetId: targetId,
-        docMeasureCode: cell.dataset.docMeasureCode || documentAlertMemberCode(cell.dataset.member),
+        docMeasureCode: cell.dataset.docMeasureCode || documentAlertMemberCode(rawMeasureCode),
       };
+      const cellIndex = `table-${cell.dataset.rowIndex || 0}-${documentAlertMemberCode(rawMeasureCode)}`;
+      const pathItem = member ? [{
+        code: memberCode,
+        name: memberName,
+        value: rawValue,
+        filterValue,
+      }] : [];
+      const actionCell = {
+        measureCode,
+        measureName,
+        value: row[measureCode] ?? cell.textContent,
+        rowPath: pathItem,
+        columnPath: [],
+        alerts,
+      };
+      _pivotResult = {cells: {[cellIndex]: actionCell}, filters: []};
+      _pivotActionContext = {
+        cellIndex,
+        targetId,
+        cell: actionCell,
+        result: _pivotResult,
+        config: {
+          measures: (query?.measures || []).map(code => {
+            const meta = dashboardFindMeasure(code) || adhocFindMeasure(code);
+            return {code: meta?.code || code, name: meta?.title || meta?.name || adhocMemberLabel(code)};
+          }),
+          rows: (query?.dimensions || []).map(code => {
+            const meta = dashboardFindDimension(code) || adhocFindDimension(code);
+            return {code: meta?.code || code, name: meta?.title || meta?.name || adhocMemberLabel(code)};
+          }),
+          columns: [],
+          filters: [],
+        },
+      };
+      document.getElementById('pivot-action-context').textContent =
+        `${measureName} · 行: ${pivotPathLabel(actionCell.rowPath)} · 列: ${pivotPathLabel(actionCell.columnPath)}`;
+      document.getElementById('pivot-action-dimensions').innerHTML = '<div class="text-muted small">正在加载可下钻维度...</div>';
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('pivot-action-modal')).show();
+      renderPivotActionDimensions();
     });
   });
   applyDocumentAlertMarkers(targetId, _documentAlertResultsByTarget[targetId] || []);
@@ -7191,7 +7386,7 @@ async function dashboardRenderWidget(widgetId, options={}) {
     extraFilters.push(_dashboardState.linkedFilter.filter);
   }
   const query = dashboardBuildWidgetQuery(spec, extraFilters);
-  const alertRenderEnabledForRefresh = adhocMonitoringAlertRenderEnabled(spec);
+  const alertRenderEnabledForRefresh = true;
   try {
     if (spec.view?.type === 'pivot') {
       const pivotSpec = JSON.parse(JSON.stringify(spec));
@@ -7199,10 +7394,8 @@ async function dashboardRenderWidget(widgetId, options={}) {
       await runAdhocPivotQuery([], targetId, null, pivotSpec, options);
       return;
     }
-    if (alertRenderEnabledForRefresh) {
-      resetDocumentAlertRender(targetId, {forceRules: options.forceAlertRefresh});
-      documentAlertLoadingStart(targetId);
-    }
+    resetDocumentAlertRender(targetId, {forceRules: options.forceAlertRefresh});
+    documentAlertLoadingStart(targetId);
     const r = await fetch('/api/ad/v1/load', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(query)});
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || '组件查询失败');
@@ -7210,11 +7403,7 @@ async function dashboardRenderWidget(widgetId, options={}) {
     const oldState = _adhocState;
     _adhocState = spec;
     renderAdhocResult(adhocResultForAlertRender(d, alertRenderEnabledForRefresh), query, targetId, (params, q) => dashboardWidgetClicked(widgetId, params, q));
-    if (alertRenderEnabledForRefresh) {
-      scheduleDocumentAlertScans(targetId, documentAlertMeasureCodesFromQuery(query), {forceRules: options.forceAlertRefresh});
-    } else {
-      resetDocumentAlertRender(targetId);
-    }
+    scheduleDocumentAlertScans(targetId, documentAlertMeasureCodesFromQuery(query), {forceRules: options.forceAlertRefresh});
     _adhocState = oldState;
   } catch(e) {
     document.getElementById(targetId).innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
@@ -8342,6 +8531,256 @@ async function renderPivotActionDimensions() {
   }
 }
 
+function cellInsightKey(ctx) {
+  return `${ctx?.targetId || 'pivot-result'}|${ctx?.cellIndex ?? ''}`;
+}
+
+function cellInsightPayload(ctx, docResults) {
+  const cell = ctx?.cell || {};
+  return {
+    dashboardId: _dashboardState?.id || '',
+    widgetId: ctx?.targetId || '',
+    targetId: ctx?.targetId || 'pivot-result',
+    cellIndex: ctx?.cellIndex,
+    measureCode: cell.measureCode,
+    measureName: cell.measureName,
+    cellValue: cell.value,
+    rowPath: cell.rowPath || [],
+    columnPath: cell.columnPath || [],
+    pivotConfig: ctx?.config || {},
+    alertResults: cell.alerts || [],
+    documentAlertResults: docResults || [],
+  };
+}
+
+function cellInsightSeverityClass(level) {
+  if (level === 'critical') return 'cell-insight-severity-critical';
+  if (level === 'warning') return 'cell-insight-severity-warning';
+  return '';
+}
+
+function cellInsightSourceLabel(source) {
+  return ({
+    document_rule: '单据规则',
+    metric_alert: '指标预警',
+    cell_context: '透视表单元格',
+    question_intent: '用户问题',
+  })[source] || source || '未知';
+}
+
+function cellInsightShapeLabel(shape) {
+  return ({
+    document: '单据异常',
+    drop: '下降',
+    rise: '上升/偏高',
+    spike: '突变',
+    trend: '趋势异常',
+    slice: '维度切片',
+    quality: '数据质量',
+  })[shape] || shape || '未知';
+}
+
+function renderCellInsight(data) {
+  const body = document.getElementById('cell-insight-body');
+  const ctxEl = document.getElementById('cell-insight-context');
+  if (!body) return;
+  const anomaly = data?.anomaly || {};
+  const diagnosis = data?.diagnosis || {};
+  const evidenceItems = diagnosis.evidence || anomaly.evidence || [];
+  const hypotheses = diagnosis.hypotheses || [];
+  const source = diagnosis.source || anomaly.source || '';
+  const shape = diagnosis.shape || anomaly.shape || '';
+  const confidence = diagnosis.confidence ?? anomaly.confidence;
+  const confidenceLabel = diagnosis.confidenceLabel || anomaly.confidenceLabel || '';
+  const evidenceStrength = diagnosis.evidenceStrength ?? anomaly.evidenceStrength;
+  const evidenceStrengthLabel = diagnosis.evidenceStrengthLabel || anomaly.evidenceStrengthLabel || '';
+  const docs = data?.documents || [];
+  const contribs = data?.contributions || [];
+  const recs = data?.recommendations || [];
+  if (ctxEl) ctxEl.textContent = data?.cellContext?.label || '';
+  body.innerHTML = `
+    <div class="cell-insight-card cell-insight-summary ${cellInsightSeverityClass(anomaly.level)} mb-3">
+      <div class="cell-insight-card-title"><i class="bi bi-exclamation-triangle me-1"></i>${escHtml(anomaly.title || '业务解释')}</div>
+      <div style="font-size:13px;line-height:1.7">${escHtml(data?.summary || anomaly.reason || '')}</div>
+    </div>
+    <div class="cell-insight-card mb-3">
+      <div class="cell-insight-card-title">异常指标</div>
+      <div class="d-flex flex-wrap gap-2 small">
+        <span class="badge bg-light text-dark border">${escHtml(data?.measure?.name || data?.measure?.code || '-')}</span>
+        <span class="badge bg-light text-dark border">当前值：${escHtml(data?.cellValue ?? '-')}</span>
+        <span class="badge ${anomaly.level === 'critical' ? 'bg-danger' : anomaly.level === 'warning' ? 'bg-warning text-dark' : 'bg-secondary'}">${escHtml(documentAlertSeverityLabel(anomaly.level || 'notice'))}</span>
+      </div>
+    </div>
+    <div class="cell-insight-card mb-3">
+      <div class="cell-insight-card-title">智能识别画像</div>
+      <div class="cell-insight-kv"><span>异常来源</span><strong>${escHtml(cellInsightSourceLabel(source))}</strong></div>
+      <div class="cell-insight-kv"><span>异常形态</span><strong>${escHtml(cellInsightShapeLabel(shape))}</strong></div>
+      <div class="cell-insight-kv"><span>证据强度</span><strong>${escHtml(evidenceStrengthLabel || '-')} ${evidenceStrength != null ? `(${escHtml(evidenceStrength)})` : ''}</strong></div>
+      <div class="cell-insight-kv"><span>识别置信度</span><strong>${escHtml(confidenceLabel || '-')} ${confidence != null ? `(${escHtml(confidence)})` : ''}</strong></div>
+      ${evidenceItems.length ? `<div class="mt-2">${evidenceItems.slice(0, 5).map(item => `
+        <div class="cell-insight-evidence">
+          <div class="cell-insight-evidence-title">${escHtml(item.label || item.type || '证据')}</div>
+          <div class="text-muted">${escHtml(item.detail || '')}</div>
+        </div>`).join('')}</div>` : ''}
+      ${hypotheses.length ? `<div class="d-grid gap-2 mt-2">${hypotheses.slice(0, 3).map(item => `
+        <div class="cell-insight-hypothesis">
+          <div class="fw-semibold">${escHtml(item.title || item.type || '诊断假设')}</div>
+          <div class="text-muted">${escHtml(item.reason || '')}</div>
+        </div>`).join('')}</div>` : ''}
+    </div>
+    <div class="cell-insight-card mb-3">
+      <div class="cell-insight-card-title">影响维度 / 推荐下钻</div>
+      ${contribs.length ? `<div class="d-grid gap-2">${contribs.map(item => `
+        <button class="btn btn-sm btn-outline-success text-start" onclick="applyCellInsightDimensionDrill('${_escJs(item.dimensionCode || '')}')">
+          <div class="d-flex align-items-center gap-2">
+            <span class="fw-semibold flex-fill"><i class="bi bi-arrow-down-right-circle me-1"></i>${escHtml(item.dimensionName || item.dimensionCode || '-')}</span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle">${escHtml(item.score ?? '-')}% 推荐</span>
+          </div>
+          <div class="small text-muted text-truncate">${escHtml(item.value ? `${item.value} · ${item.reason || ''}` : item.reason || '')}</div>
+        </button>`).join('')}</div>` : '<div class="text-muted small">暂无可推荐的维度下钻路径。</div>'}
+    </div>
+    <div class="cell-insight-card mb-3">
+      <div class="cell-insight-card-title">命中异常单据</div>
+      ${docs.length ? `
+        <div class="mb-2">
+          <button class="btn btn-sm btn-outline-warning" onclick="openCellInsightDocumentHits()"><i class="bi bi-receipt-cutoff me-1"></i>查看命中明细</button>
+        </div>
+        ${docs.slice(0, 6).map(doc => `<div class="cell-insight-doc small">
+          <div class="fw-semibold">${escHtml(doc.ruleName || '单据追踪')} ${doc.documentNo ? ` · ${escHtml(doc.documentNo)}` : ''}</div>
+          <div class="text-muted">${escHtml(doc.fieldName || doc.field || '异常字段')} = <span class="text-danger fw-semibold">${escHtml(doc.value ?? '')}</span></div>
+        </div>`).join('')}
+      ` : '<div class="text-muted small">当前单元格没有命中的单据级异常。</div>'}
+    </div>
+    <div class="cell-insight-card">
+      <div class="cell-insight-card-title">推荐下一步</div>
+      <div class="d-flex flex-wrap gap-2">
+        ${recs.map(rec => {
+          if (rec.type === 'detail') return `<button class="btn btn-sm btn-outline-warning" onclick="openCellInsightDocumentHits()">${escHtml(rec.label || '查看异常明细')}</button>`;
+          if (rec.type === 'dimension_drill') return `<button class="btn btn-sm btn-outline-success" onclick="applyCellInsightDimensionDrill('${_escJs(rec.dimensionCode || '')}')">${escHtml(rec.label || '维度下钻')}</button>`;
+          if (rec.type === 'smart_insight') return `<button class="btn btn-sm btn-outline-info" onclick="sendCellInsightToSmartInsight()">${escHtml(rec.label || '发送到智能Insight')}</button>`;
+          return `<span class="badge bg-light text-dark border">${escHtml(rec.label || '')}</span>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+async function openPivotCellInsight() {
+  const ctx = _pivotActionContext;
+  if (!ctx) return;
+  const drawer = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('cell-insight-drawer'));
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('pivot-action-modal')).hide();
+  document.getElementById('cell-insight-context').textContent =
+    `${ctx.cell.measureName} · 行: ${pivotPathLabel(ctx.cell.rowPath)} · 列: ${pivotPathLabel(ctx.cell.columnPath)}`;
+  const body = document.getElementById('cell-insight-body');
+  body.innerHTML = '<div class="text-muted text-center py-5"><span class="spinner-border spinner-border-sm me-1"></span>正在生成业务解释...</div>';
+  drawer.show();
+  const key = cellInsightKey(ctx);
+  if (_cellInsightCache[key]?.status === 'done') {
+    _cellInsightActive = _cellInsightCache[key];
+    renderCellInsight(_cellInsightCache[key].result);
+    return;
+  }
+  try {
+    let docResults = _documentAlertPivotCellResults[key] || [];
+    if (!docResults.length) docResults = await scanDocumentAlertsForPivotCell(ctx.targetId || 'pivot-result', ctx.cellIndex, ctx.cell);
+    const r = await fetch('/api/insight/explain-cell', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(cellInsightPayload(ctx, docResults)),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.error || '业务解释生成失败');
+    _cellInsightCache[key] = {status:'done', result:d.data, ctx, docResults};
+    _cellInsightActive = _cellInsightCache[key];
+    renderCellInsight(d.data);
+  } catch(e) {
+    _cellInsightCache[key] = {status:'error', error:String(e.message || e), ctx};
+    body.innerHTML = `<div class="alert alert-danger">${escHtml(e.message || e)}</div>`;
+  }
+}
+
+function openCellInsightDocumentHits() {
+  const active = _cellInsightActive;
+  const ctx = active?.ctx || _pivotActionContext;
+  const docResults = active?.docResults || _documentAlertPivotCellResults[cellInsightKey(ctx)] || [];
+  const hits = (docResults || []).filter(item => item.result?.summary?.matchedRows > 0);
+  if (!hits.length) return showToast('当前单元格没有命中异常单据', 'warning');
+  const matches = hits.flatMap(item => (item.result?.matches || []).map(match => ({...match, __ruleName:item.rule?.name || '单据追踪', __result:item.result})));
+  const firstResult = hits[0].result || {};
+  const cols = documentAlertMatchedColumns(firstResult);
+  const targetColumn = firstResult.targetColumn || '';
+  const titleEl = document.getElementById('pivot-drill-title');
+  if (titleEl) titleEl.innerHTML = '<i class="bi bi-receipt-cutoff me-1 text-warning"></i>单元格异常命中明细';
+  document.getElementById('pivot-drill-context').textContent =
+    `${ctx?.cell?.measureName || ''} · 命中 ${matches.length} 条 · ${hits.map(x => x.rule?.name || '单据追踪').join('；')}`;
+  document.getElementById('pivot-drill-page').textContent = `单据追踪命中明细 · 已显示 ${matches.length} 条`;
+  const pager = document.getElementById('pivot-drill-pager-actions');
+  if (pager) pager.classList.add('d-none');
+  const out = document.getElementById('pivot-drill-result');
+  out.innerHTML = matches.length ? `<table class="table table-sm table-striped table-hover mb-0">
+    <thead><tr>${cols.map(col => `<th class="text-nowrap">${escHtml(col.name || col.code)}</th>`).join('')}</tr></thead>
+    <tbody>${matches.map(match => {
+      const row = match.record || {};
+      return `<tr class="ad-doc-detail-row">${cols.map(col => `<td class="text-nowrap ${col.code === targetColumn ? 'ad-doc-detail-cell' : ''}">${escHtml(row[col.code] ?? '')}</td>`).join('')}</tr>`;
+    }).join('')}</tbody>
+  </table>` : '<div class="text-muted text-center py-5">没有命中明细</div>';
+  const insightDrawerEl = document.getElementById('cell-insight-drawer');
+  const drillDrawerEl = document.getElementById('pivot-drill-drawer');
+  const showDrill = () => bootstrap.Offcanvas.getOrCreateInstance(drillDrawerEl).show();
+  const insightDrawer = bootstrap.Offcanvas.getOrCreateInstance(insightDrawerEl);
+  if (insightDrawerEl.classList.contains('show')) {
+    insightDrawerEl.addEventListener('hidden.bs.offcanvas', showDrill, {once:true});
+    insightDrawer.hide();
+  } else {
+    showDrill();
+  }
+}
+
+function sendCellInsightToSmartInsight() {
+  const active = _cellInsightActive;
+  const data = active?.result;
+  if (!data) return showToast('请先生成业务解释', 'warning');
+  const measure = data.measure?.name || data.measure?.code || '当前指标';
+  const ctxLabel = data.cellContext?.label || '当前单元格';
+  const docs = data.documents || [];
+  const firstDoc = docs[0] || null;
+  const anomaly = data.anomaly || {};
+  const hasDocs = docs.length > 0;
+  const docText = firstDoc
+    ? `，并命中 ${docs.length} 条单据追踪异常，代表性单据${firstDoc.documentNo ? ` ${firstDoc.documentNo}` : ''} 的${firstDoc.fieldName || firstDoc.field || '异常字段'}=${firstDoc.value ?? ''}`
+    : (anomaly.title || anomaly.reason ? `，异常摘要：${anomaly.title || ''} ${anomaly.reason || ''}` : '');
+  const question = `请分析${measure}在${ctxLabel}下的异常原因${docText}，并给出下一步排查建议。`;
+  const state = _getNlqConversation('smart');
+  const nextContext = {
+    ...(state.context || {}),
+    anomalyType: anomaly.type || (hasDocs ? 'document_trace' : 'dimension_slice'),
+    activeMeasureCode: data.measure?.code || '',
+    cellInsight: data,
+    selectedDocument: firstDoc || null,
+  };
+  if (hasDocs) nextContext.analysisMode = 'document_trace';
+  else delete nextContext.analysisMode;
+  state.context = nextContext;
+  state.hasTurns = true;
+  const drawerEl = document.getElementById('cell-insight-drawer');
+  if (drawerEl?.classList.contains('show')) bootstrap.Offcanvas.getOrCreateInstance(drawerEl).hide();
+  const tab = document.querySelector('[href="#tab-insight"]');
+  if (tab && window.bootstrap?.Tab) bootstrap.Tab.getOrCreateInstance(tab).show();
+  setTimeout(() => {
+    setNlqExample(question, 'smart');
+    _renderSmartNlqContextStatus();
+    runSmartInsight(document.getElementById('smart-nlq-run-btn'));
+  }, 80);
+}
+
+function applyCellInsightDimensionDrill(code) {
+  const drawerEl = document.getElementById('cell-insight-drawer');
+  if (drawerEl?.classList.contains('show')) {
+    bootstrap.Offcanvas.getOrCreateInstance(drawerEl).hide();
+  }
+  applyPivotDimensionDrill(code);
+}
+
 function pivotSemanticDimension(dim) {
   return adhocFindDimension(dim?.code) || adhocFindDimension(dim?.name) || dim || null;
 }
@@ -8834,12 +9273,15 @@ async function runSmartInsight(btn) {
     showToast('请输入问题', 'warning');
     return;
   }
+  const state = _getNlqConversation('smart');
+  const analysisMode = state.context?.analysisMode || '';
   const decision = _smartInsightDecision(question);
-  if (decision.mode === 'insight') {
+  if (analysisMode || decision.mode === 'insight') {
+    const modeLabel = analysisMode === 'document_trace' ? '单据追踪异常分析' : '指标归因与维度洞察';
     if (res) {
       res.innerHTML = `<div class="alert alert-primary mb-0">
-        <div class="fw-semibold"><i class="bi bi-lightbulb-fill me-1"></i>已进入指标归因与维度洞察</div>
-        <div class="small mt-1">触发原因：${_escHtml(decision.reason)}</div>
+        <div class="fw-semibold"><i class="bi bi-lightbulb-fill me-1"></i>已进入${_escHtml(modeLabel)}</div>
+        <div class="small mt-1">触发原因：${_escHtml(analysisMode ? '由异常上下文选择对应分析能力' : decision.reason)}</div>
       </div>`;
     }
     const deepSection = document.getElementById('smart-insight-deep-section');
@@ -12149,12 +12591,85 @@ function _renderDetailTable(rows, cols, colMap, anomalyCols, highlightAnom) {
 let _insightSSE = null;
 let _insightAnswerBuf = '';
 
+function _insightAnalysisMode(conversation) {
+  return String(conversation?.context?.analysisMode || '').trim();
+}
+
+function _insightFormatDocValue(value) {
+  if (value === null || value === undefined || value === '') return '-';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function _renderDocumentTraceInsightDetails(context={}) {
+  const card = document.getElementById('insight-document-trace-card');
+  const content = document.getElementById('insight-document-trace-content');
+  if (!card || !content) return;
+  const cellInsight = context.cellInsight || {};
+  const measure = cellInsight.measure || {};
+  const anomaly = cellInsight.anomaly || {};
+  const docs = Array.isArray(cellInsight.documents) ? cellInsight.documents : [];
+  const selected = context.selectedDocument || docs[0] || {};
+  const field = selected.fieldName || selected.field || anomaly.fieldName || anomaly.field || '异常字段';
+  const value = _insightFormatDocValue(selected.value ?? anomaly.value);
+  const ruleNames = [...new Set(docs.map(doc => doc.ruleName).filter(Boolean))];
+  const record = selected.record && typeof selected.record === 'object' ? selected.record : {};
+  const evidenceKeys = ['订单编号','销售金额','折扣金额','优惠券金额','数量','售价','标价','城市','仓库标识','促销编号','ws_order_number','ws_ext_sales_price','ws_coupon_amt','ws_quantity','ws_sales_price','ws_promo_sk'];
+  const evidenceRows = evidenceKeys
+    .filter(key => record[key] !== undefined && record[key] !== null && record[key] !== '')
+    .slice(0, 10)
+    .map(key => `<tr><th class="text-nowrap" style="width:150px">${_escHtml(key)}</th><td>${_escHtml(_insightFormatDocValue(record[key]))}</td></tr>`)
+    .join('');
+  content.innerHTML = `
+    <div class="row g-2">
+      <div class="col-md-6">
+        <div class="border rounded p-2 h-100">
+          <div class="text-muted mb-1">异常类型</div>
+          <div class="fw-semibold">单据级异常</div>
+          <div class="mt-2 text-muted mb-1">指标单元格</div>
+          <div>${_escHtml(measure.name || measure.code || '当前指标')} · ${_escHtml(cellInsight.cellContext?.label || '当前切片')}</div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="border rounded p-2 h-100">
+          <div class="text-muted mb-1">命中规则</div>
+          <div class="fw-semibold">${_escHtml(ruleNames.join('；') || anomaly.title || '单据追踪规则')}</div>
+          <div class="mt-2 text-muted mb-1">代表性单据</div>
+          <div>${_escHtml(selected.documentNo || '-')} · ${_escHtml(field)} = <strong>${_escHtml(value)}</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="border rounded p-2 mt-2">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="fw-semibold">真实明细证据</span>
+        <span class="badge bg-warning text-dark">命中 ${docs.length || 0} 条</span>
+      </div>
+      ${evidenceRows ? `<table class="table table-sm mb-0"><tbody>${evidenceRows}</tbody></table>` : '<div class="text-muted">当前上下文未携带可展示的明细字段。</div>'}
+    </div>
+  `;
+}
+
+function _prepareInsightAnalysisPanels(conversation) {
+  const mode = _insightAnalysisMode(conversation);
+  const sixPart = document.getElementById('insight-six-part-card');
+  const docCard = document.getElementById('insight-document-trace-card');
+  if (mode === 'document_trace') {
+    if (sixPart) sixPart.style.display = 'none';
+    if (docCard) docCard.style.display = '';
+    _renderDocumentTraceInsightDetails(conversation.context || {});
+    return;
+  }
+  if (sixPart) sixPart.style.display = '';
+  if (docCard) docCard.style.display = 'none';
+}
+
 function startInsight(questionOverride, triggerBtn) {
   const insightQuestionEl = document.getElementById('insight-question');
   if (questionOverride && insightQuestionEl) insightQuestionEl.value = questionOverride;
   const q = (questionOverride || insightQuestionEl?.value || '').trim();
   if (!q) { alert('请输入分析问题'); return; }
   const conversation = _getNlqConversation('smart');
+  _prepareInsightAnalysisPanels(conversation);
 
   // 重置界面（安全访问可能不存在的元素）
   _insightAnswerBuf = '';
@@ -12186,6 +12701,7 @@ function startInsight(questionOverride, triggerBtn) {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       question: q,
+      analysisMode: conversation.context?.analysisMode || '',
       conversationId: conversation.conversationId,
       context: conversation.context,
       isFollowUp: conversation.hasTurns
@@ -12247,7 +12763,17 @@ function _insightOnMsg(e) {
   }
   if (obj.step === 'intent') {
     const r = obj.result || {};
-    _insightLog(`✓ 意图解析: 关键词=${(r.meas_keywords||[]).join('、')} | 类型=${r.analysis_type||''}`, 'info');
+    const ap = r.anomaly_profile || {};
+    _insightLog(`✓ 意图解析: 关键词=${(r.meas_keywords||[]).join('、')} | 类型=${r.analysis_type||''} | 异常=${ap.label || r.anomaly_type || ''}`, 'info');
+    return;
+  }
+  if (obj.step === 'anomaly_profile') {
+    const r = obj.result || {};
+    const source = r.source_label || r.source || 'unknown';
+    const shape = r.shape_label || r.shape || 'unknown';
+    const strength = r.evidence_strength_label ? `${r.evidence_strength_label}(${r.evidence_strength ?? '-'})` : '-';
+    const confidence = r.confidence_label ? `${r.confidence_label}(${r.confidence ?? '-'})` : '-';
+    _insightLog(`✓ 异常画像: ${r.label || ''} | 来源=${source} | 形态=${shape} | 证据=${strength} | 置信度=${confidence}`, 'info');
     return;
   }
   if (obj.step === 'kg_match') {

@@ -4193,6 +4193,7 @@ def _insight_worker(
     generation: int,
     conversation_id: str = "",
     context: Optional[dict[str, Any]] = None,
+    analysis_mode: str = "",
 ) -> None:
     global _insight_state, _insight_generation
 
@@ -4210,15 +4211,27 @@ def _insight_worker(
             pass
 
     try:
-        from kg_builder.analysis.insight_analyzer import InsightAnalyzer
-        analyzer = InsightAnalyzer(
-            data_agent_url=_DATA_AGENT_URL,
-            ttl_path=str(BKG_DIR / "indicator-data.ttl"),
-            llm_config=llm_config,
-            log_cb=ilog,
-            cancel_cb=lambda: _insight_generation != generation,
-            context=context,
-        )
+        mode = (analysis_mode or (context or {}).get("analysisMode") or "").strip()
+        if mode == "document_trace":
+            from kg_builder.analysis.document_trace_insight import DocumentTraceInsightAnalyzer
+
+            analyzer = DocumentTraceInsightAnalyzer(
+                llm_config=llm_config,
+                log_cb=ilog,
+                cancel_cb=lambda: _insight_generation != generation,
+                context=context,
+            )
+        else:
+            from kg_builder.analysis.insight_analyzer import InsightAnalyzer
+
+            analyzer = InsightAnalyzer(
+                data_agent_url=_DATA_AGENT_URL,
+                ttl_path=str(BKG_DIR / "indicator-data.ttl"),
+                llm_config=llm_config,
+                log_cb=ilog,
+                cancel_cb=lambda: _insight_generation != generation,
+                context=context,
+            )
         for step_result in analyzer.analyze(question):
             if _insight_generation != generation:
                 return
@@ -4287,6 +4300,7 @@ async def insight_start(request: Request):
     request_context = dict(stored_context)
     if isinstance(body.get("context"), dict):
         request_context.update(body["context"])
+    analysis_mode = str(body.get("analysisMode") or request_context.get("analysisMode") or "").strip()
 
     _insight_generation += 1
     gen = _insight_generation
@@ -4303,10 +4317,10 @@ async def insight_start(request: Request):
     _insight_state["status"] = "running"
     threading.Thread(
         target=_insight_worker,
-        args=(question, gen, conversation_id, request_context),
+        args=(question, gen, conversation_id, request_context, analysis_mode),
         daemon=True,
     ).start()
-    return {"status": "started", "conversationId": conversation_id}
+    return {"status": "started", "conversationId": conversation_id, "analysisMode": analysis_mode or "metric_fluctuation"}
 
 
 @app.get("/api/insight/log")
@@ -4337,6 +4351,21 @@ async def insight_ack(request: Request):
     _insight_ack_info["error"]   = body.get("error", "")
     _insight_ack_event.set()
     return {"status": "ok"}
+
+
+@app.post("/api/insight/explain-cell")
+async def insight_explain_cell(request: Request):
+    """Explain a selected pivot metric cell with document evidence and drill recommendations."""
+    body = await request.json()
+    try:
+        from kg_builder.analysis.cell_insight import CellInsightService
+
+        result = await asyncio.to_thread(CellInsightService(_pivot_catalog()).explain, body)
+        return {"success": True, "data": result}
+    except FileNotFoundError as exc:
+        return JSONResponse({"success": False, "error": str(exc)}, status_code=404)
+    except Exception as exc:
+        return JSONResponse({"success": False, "error": str(exc)}, status_code=500)
 
 
 # ── NLQ API ──────────────────────────────────────────────────────────────── #
