@@ -1,0 +1,5 @@
+# Optional development and test tools.
+
+-r requirements-core.txt
+
+pytest>=8.0

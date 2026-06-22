@@ -5795,7 +5795,16 @@ async def stats_analyze(request: Request):
     """
     import pymysql
     import pandas as pd_
-    from kg_builder.analysis.stats_analyzer import run_analysis
+    try:
+        from kg_builder.analysis.stats_analyzer import run_analysis
+    except ImportError as e:
+        return JSONResponse(
+            {
+                "error": "统计分析依赖未安装，请执行 pip install -r requirements-analysis.txt 后重试",
+                "detail": str(e),
+            },
+            status_code=503,
+        )
 
     body = await request.json()
     table     = body.get("table", "")

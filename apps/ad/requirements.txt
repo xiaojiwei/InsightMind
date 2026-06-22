@@ -1,35 +1,12 @@
-# Core DB
-sqlalchemy>=2.0
-pymysql
-mysql-mimic>=3.0
-sqlglot>=30.0
-pyodbc
-oracledb; sys_platform != "unsupported"   # Oracle optional
+# Fast deployment profile for AD.
+#
+# This intentionally installs only the core runtime needed to start the
+# FastAPI UI, load/build knowledge graphs, use Ad-Hoc/Dashboard APIs, and run
+# the default demo. Install optional profiles only when those features are used:
+#
+#   pip install -r requirements-analysis.txt   # statistical/Insight modeling
+#   pip install -r requirements-db-extra.txt   # SQL Server/Oracle/MySQL protocol
+#   pip install -r requirements-dev.txt        # pytest and local checks
+#   pip install -r requirements-full.txt       # all AD dependencies
 
-# RDF / OWL
-rdflib>=6.3
-owlrl>=6.0
-
-# NLP / Embeddings
-sentence-transformers>=2.3
-pypinyin>=0.49
-
-# Data processing
-numpy
-scikit-learn
-pandas
-scipy>=1.10
-statsmodels>=0.14
-
-# Config / CLI
-pyyaml>=6.0
-rich>=13.0
-
-# Web
-fastapi>=0.110
-uvicorn[standard]>=0.29
-jinja2>=3.1
-python-multipart>=0.0.9
-
-# Tests
-pytest>=8.0
+-r requirements-core.txt

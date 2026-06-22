@@ -1,0 +1,12 @@
+# Optional heavy analysis dependencies.
+#
+# Install this profile when using statistical analysis, full 6-Part Insight
+# modeling, clustering/PCA, anomaly statistics, or semantic relationship
+# discovery by embeddings.
+
+-r requirements-core.txt
+
+scipy>=1.10
+scikit-learn
+statsmodels>=0.14
+sentence-transformers>=2.3

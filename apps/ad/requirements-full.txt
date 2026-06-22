@@ -1,0 +1,5 @@
+# Full AD environment: core runtime plus all optional feature profiles.
+
+-r requirements-analysis.txt
+-r requirements-db-extra.txt
+-r requirements-dev.txt

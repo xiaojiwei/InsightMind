@@ -7,7 +7,8 @@ This is a Python knowledge-graph builder with both CLI and FastAPI entry points.
 ## Build, Test, and Development Commands
 
 - `python -m venv venv && source venv/bin/activate`: create and activate a local environment.
-- `pip install -r requirements.txt`: install runtime dependencies.
+- `pip install -r requirements.txt`: install fast core runtime dependencies.
+- `pip install -r requirements-full.txt`: install all optional AD dependencies for full analysis, extra DB drivers, and tests.
 - `python main.py build --config config.yaml --output output/kg.ttl`: build a KG from configured datasources.
 - `python main.py query --graph output/kg.ttl --fk-graph`: inspect inferred foreign-key relationships.
 - `python web_app.py`: start the FastAPI UI, normally at `http://localhost:8000`.

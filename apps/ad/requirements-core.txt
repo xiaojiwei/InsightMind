@@ -1,0 +1,27 @@
+# Core AD runtime: fast local deployment.
+
+# Core DB / SQL
+sqlalchemy>=2.0
+pymysql
+sqlglot>=30.0
+
+# RDF / OWL
+rdflib>=6.3
+owlrl>=6.0
+
+# Data processing used by semantic APIs and lightweight dashboard flows
+numpy
+pandas
+
+# Config / CLI
+pyyaml>=6.0
+rich>=13.0
+
+# Web
+fastapi>=0.110
+uvicorn[standard]>=0.29
+jinja2>=3.1
+python-multipart>=0.0.9
+
+# Lightweight text normalization
+pypinyin>=0.49

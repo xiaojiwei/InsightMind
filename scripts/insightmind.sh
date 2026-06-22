@@ -21,6 +21,8 @@ python_has_ad_deps() {
 import fastapi
 import uvicorn
 import sqlglot
+import rdflib
+import pandas
 PY
 }
 
@@ -54,7 +56,9 @@ ensure_demo_assets() {
 }
 
 usage() {
-  echo "Usage: $0 {start|stop|restart|status} [ad|da|all]"
+  echo "Usage:"
+  echo "  $0 {start|stop|restart|status} [ad|da|all]"
+  echo "  $0 setup [core|analysis|db-extra|dev|full]"
 }
 
 target_or_all() {
@@ -96,6 +100,32 @@ wait_for_port() {
   return 1
 }
 
+ad_requirements_file() {
+  local profile="${1:-core}"
+  case "$profile" in
+    core) echo "$AD_DIR/requirements-core.txt" ;;
+    analysis) echo "$AD_DIR/requirements-analysis.txt" ;;
+    db-extra) echo "$AD_DIR/requirements-db-extra.txt" ;;
+    dev) echo "$AD_DIR/requirements-dev.txt" ;;
+    full) echo "$AD_DIR/requirements-full.txt" ;;
+    *) echo "Unknown AD dependency profile: $profile" >&2; usage; exit 2 ;;
+  esac
+}
+
+setup_ad() {
+  local profile="${1:-core}"
+  local req
+  req="$(ad_requirements_file "$profile")"
+
+  if [[ ! -d "$AD_DIR/venv" ]]; then
+    python3 -m venv "$AD_DIR/venv"
+  fi
+
+  "$AD_DIR/venv/bin/python" -m pip install --upgrade pip
+  "$AD_DIR/venv/bin/python" -m pip install -r "$req"
+  echo "Installed AD dependency profile '$profile' from $req"
+}
+
 submit_job() {
   local label="$1"
   local log_path="$2"
@@ -116,6 +146,13 @@ start_ad() {
   if is_running "$AD_PORT"; then
     echo "AD already running on http://localhost:$AD_PORT"
     return
+  fi
+
+  if ! python_has_ad_deps "$AD_PYTHON"; then
+    echo "AD core dependencies are missing for Python: $AD_PYTHON" >&2
+    echo "Run: $0 setup" >&2
+    echo "Optional profiles: $0 setup analysis | db-extra | dev | full" >&2
+    return 1
   fi
 
   submit_job "$AD_LABEL" "$AD_LOG" "cd '$AD_DIR' && exec '$AD_PYTHON' -u web_app.py"
@@ -238,6 +275,12 @@ status_target() {
 main() {
   local action="${1:-}"
   local target
+
+  if [[ "$action" == "setup" ]]; then
+    setup_ad "${2:-core}"
+    return
+  fi
+
   target="$(target_or_all "${2:-all}")"
 
   case "$action" in

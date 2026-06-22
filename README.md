@@ -113,13 +113,10 @@ DA: http://localhost:8091/
 
 步骤：
 1. 确认当前目录是 InsightMind 仓库根目录。
-2. 安装 AD 依赖：
-   cd apps/ad
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
+2. 安装 AD 快速部署依赖：
+   ./scripts/insightmind.sh setup
 3. 构建 DA：
-   cd ../da
+   cd apps/da
    mvn -DskipTests package
 4. 回到根目录启动：
    cd ../..
@@ -139,9 +136,8 @@ LLM keys, or OAuth secrets. If credentials are needed, ask the user to provide
 them via environment variables or command-line arguments.
 
 Install / build:
-  cd apps/ad
-  python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
-  cd ../da
+  ./scripts/insightmind.sh setup
+  cd apps/da
   mvn -DskipTests package
 
 Run:
@@ -158,7 +154,7 @@ Verify:
 ```text
 请在 InsightMind 仓库根目录执行本地安装：
 
-1. apps/ad 下创建 Python venv，安装 requirements.txt 依赖。
+1. 在仓库根目录执行 ./scripts/insightmind.sh setup 安装 AD 快速部署依赖。
 2. apps/da 下执行 mvn -DskipTests package。
 3. 回到仓库根目录，执行 ./scripts/insightmind.sh start 启动全部服务。
 4. 验证服务状态并打开浏览器确认 AD:8080 和 DA:8091 可访问。
@@ -171,14 +167,11 @@ Verify:
 ```bash
 cd /path/to/InsightMind
 
-# 安装 AD
-cd apps/ad
-python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+# 安装 AD 快速部署依赖（core）
+./scripts/insightmind.sh setup
 
 # 构建 DA
-cd ../da
+cd apps/da
 mvn -DskipTests package
 
 # 启动（macOS）
@@ -191,12 +184,28 @@ cd ../..
 ### 服务管理（macOS）
 
 ```bash
+./scripts/insightmind.sh setup          # 安装 AD core 依赖，适合快速部署
+./scripts/insightmind.sh setup full     # 安装 AD 全量依赖，适合开发/完整分析
 ./scripts/insightmind.sh start          # 启动全部服务
 ./scripts/insightmind.sh stop           # 停止全部服务
 ./scripts/insightmind.sh restart        # 重启全部服务
 ./scripts/insightmind.sh status         # 查看运行状态
 ./scripts/insightmind.sh restart ad     # 仅重启 AD
 ./scripts/insightmind.sh restart da     # 仅重启 DA
+```
+
+### AD 依赖 Profile
+
+AD 默认安装 `apps/ad/requirements-core.txt`，用于快速启动 Web UI、业务图谱、
+Ad-Hoc、Dashboard 和默认 demo。按需追加：
+
+```bash
+cd apps/ad
+source venv/bin/activate
+pip install -r requirements-analysis.txt   # 统计分析、完整 6-Part Insight、聚类/PCA、embedding 关系发现
+pip install -r requirements-db-extra.txt   # SQL Server / Oracle / MySQL 兼容协议
+pip install -r requirements-dev.txt        # pytest 等开发测试工具
+pip install -r requirements-full.txt       # 全量依赖
 ```
 
 ### 跨平台启动（Linux / Windows）

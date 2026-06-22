@@ -45,9 +45,19 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-If `sentence-transformers` needs to download a model, keep network access
-available for the first run, or disable implicit relation discovery in
-`config.yaml`.
+`requirements.txt` is the fast deployment profile and only installs the core
+runtime. Add optional profiles when those features are needed:
+
+```bash
+pip install -r requirements-analysis.txt   # statistical analysis, full Insight modeling, embeddings
+pip install -r requirements-db-extra.txt   # SQL Server, Oracle, MySQL-compatible protocol
+pip install -r requirements-dev.txt        # tests and local checks
+pip install -r requirements-full.txt       # all AD dependencies
+```
+
+`sentence-transformers` is only installed by the analysis/full profiles. If it
+needs to download a model, keep network access available for the first run, or
+disable implicit relation discovery in `config.yaml`.
 
 ## Configure
 
@@ -216,6 +226,11 @@ Install:
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+
+Install optional profiles only when needed:
+pip install -r requirements-analysis.txt
+pip install -r requirements-db-extra.txt
+pip install -r requirements-dev.txt
 
 Configure:
 cp config.yaml config.local.yaml

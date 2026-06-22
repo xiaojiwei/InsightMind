@@ -1,0 +1,10 @@
+# Optional database/protocol drivers.
+#
+# Core deployment only installs PyMySQL. Add this profile when connecting to
+# SQL Server, Oracle, or exposing the MySQL-compatible semantic protocol.
+
+-r requirements-core.txt
+
+mysql-mimic>=3.0
+pyodbc
+oracledb; sys_platform != "unsupported"
