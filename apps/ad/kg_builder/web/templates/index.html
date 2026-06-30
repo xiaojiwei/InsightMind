@@ -578,6 +578,10 @@
       min-width:100%;
       max-width:none;
     }
+    .dashboard-widget-chart .pivot-table th {
+      position:static;
+      z-index:auto;
+    }
     .pivot-table {
       border-collapse:separate !important;
       border-spacing:0;
@@ -4280,7 +4284,9 @@ function openDynamicDrillChooser(context) {
     return;
   }
   _dynamicDrillPending = {...context, candidates};
-  document.getElementById('dynamic-drill-context').textContent = `${adhocMemberLabel(context.member)} = ${context.value}`;
+  document.getElementById('dynamic-drill-context').textContent = context.member
+    ? `${adhocMemberLabel(context.member)} = ${context.value}`
+    : `${adhocMemberLabel((state?.query?.measures || [])[0] || '指标')} · 汇总`;
   document.getElementById('dynamic-drill-body').innerHTML = candidates.map(({dim, recommendation}, idx) => {
     const rec = recommendation || adhocBusinessRecommendation(dim, context.member);
     return `<button class="btn btn-sm btn-outline-success text-start w-100 mb-2" title="${escHtml(rec.reason)}" onclick="applyDynamicDrill(${idx})">
@@ -4301,8 +4307,8 @@ function applyDynamicDrill(index) {
   const entry = {
     member: pending.member,
     operator: 'equals',
-    values: pending.filterValues || [String(pending.value)],
-    label: String(pending.value),
+    values: pending.member ? (pending.filterValues || [String(pending.value)]) : [],
+    label: pending.member ? String(pending.value) : '汇总',
     nextMember,
   };
   if (pending.kind === 'dashboard') {
@@ -4838,7 +4844,7 @@ function adhocHasNextDrillLevel() {
 }
 
 function adhocDrillFilters(state=_adhocState) {
-  return ((state?.drill?.stack) || []).map(item => ({
+  return ((state?.drill?.stack) || []).filter(item => item?.member).map(item => ({
     member: item.member,
     operator: item.operator || 'equals',
     values: item.values || [],
@@ -5026,7 +5032,6 @@ async function runAdhocPivotQuery(extraFilters=[], targetId='adhoc-preview', sta
     _adhocLastResult = d;
     const renderResult = adhocResultForAlertRender(d, alertRenderEnabled);
     renderPivotResult(targetId, renderResult, pivotConfig);
-    scheduleDocumentAlertScans(targetId, documentAlertMeasureCodesFromPivot(pivotConfig), {forceRules: options.forceAlertRefresh});
     schedulePivotDocumentAlertScans(targetId, d, pivotConfig, {forceRules: options.forceAlertRefresh});
     if (statusEl) {
       const alertText = renderResult.alerts?.count ? ` · ${renderResult.alerts.count} 个预警` : '';
@@ -5077,11 +5082,12 @@ function ensureAdhocAlertStyles() {
     .ad-alert-path-l1{--ad-alert-path-color:#ef7772;--ad-alert-path-width:1px}
     .ad-alert-path-l2{--ad-alert-path-color:#dc2626;--ad-alert-path-width:1.5px}
     .ad-alert-path-l3{--ad-alert-path-color:#991b1b;--ad-alert-path-width:2px}
-    .ad-alert-cell{position:relative;background-clip:padding-box}
+    .pivot-table td.ad-alert-cell{position:relative;background-clip:border-box;box-shadow:inset 0 0 0 2px var(--ad-alert-color,#d99042);padding-right:30px!important}
+    .ad-alert-cell{position:relative;background-clip:border-box}
     .ad-alert-path::before{content:"";position:absolute;inset:3px;border:var(--ad-alert-path-width,1px) dashed var(--ad-alert-path-color,#dc2626);border-radius:2px;pointer-events:none;z-index:1}
-    .ad-alert-cell::after{content:"";position:absolute;right:4px;top:4px;width:8px;height:8px;border-radius:50%;background:var(--ad-alert-color,#d99042);z-index:2;box-shadow:0 0 0 1px #fff,0 0 0 2px rgba(200,75,75,.18)}
+    .ad-alert-cell::after{content:"!";position:absolute;right:7px;top:50%;transform:translateY(-50%);width:16px;height:16px;border-radius:50%;background:#d99042;color:#fff;font-size:11px;font-weight:800;line-height:16px;text-align:center;z-index:2;box-shadow:0 0 0 2px #fff,0 0 0 3px rgba(217,144,66,.2)}
     .ad-alert-cell-enter{animation:ad-alert-cell-flash 1.35s ease-out 1}
-    .ad-alert-cell-enter:not(.ad-alert-path)::before{content:"";position:absolute;inset:2px;border:1.5px solid var(--ad-alert-color,#d99042);border-radius:3px;pointer-events:none;z-index:1;animation:ad-alert-cell-ring 1.35s ease-out 1}
+    .ad-alert-cell-enter:not(.ad-alert-path)::before{content:none}
     .ad-alert-cell-enter::after{animation:ad-alert-dot-pop 1.35s ease-out 1}
     .ad-alert-badge{font-size:10px;border-radius:999px;padding:2px 7px;border:1px solid rgba(0,0,0,.08);background:#fff}
     .ad-doc-alert-cell{position:relative;background-clip:padding-box;cursor:pointer}
@@ -5115,7 +5121,7 @@ function ensureAdhocAlertStyles() {
     @keyframes ad-alert-loading-pulse{0%,100%{opacity:.42;box-shadow:none}45%{opacity:1;box-shadow:0 0 0 2px rgba(217,144,66,.16)}}
     @keyframes ad-alert-cell-flash{0%{filter:brightness(1);box-shadow:none}18%{filter:brightness(1.04);box-shadow:inset 0 0 0 9999px rgba(217,144,66,.12)}58%{filter:brightness(1.02);box-shadow:inset 0 0 0 9999px rgba(217,144,66,.06)}100%{filter:none;box-shadow:none}}
     @keyframes ad-alert-cell-ring{0%{opacity:0;transform:scale(.94)}18%{opacity:1;transform:scale(1)}78%{opacity:.45;transform:scale(1.03)}100%{opacity:0;transform:scale(1.06)}}
-    @keyframes ad-alert-dot-pop{0%{opacity:0;transform:scale(.35)}24%{opacity:1;transform:scale(1.6)}50%{transform:scale(.9)}76%{transform:scale(1.18)}100%{transform:scale(1)}}
+    @keyframes ad-alert-dot-pop{0%{opacity:0;transform:translateY(-50%) scale(.35)}24%{opacity:1;transform:translateY(-50%) scale(1.45)}50%{transform:translateY(-50%) scale(.9)}76%{transform:translateY(-50%) scale(1.12)}100%{transform:translateY(-50%) scale(1)}}
     @keyframes ad-doc-alert-cell-flash{0%{background:#fff!important}18%{background:#fff1d8!important}52%{background:#fff8ea!important}100%{background:inherit}}
     @keyframes ad-doc-alert-cell-ring{0%{opacity:0;transform:scale(.92)}20%{opacity:1;transform:scale(1)}72%{opacity:.55;transform:scale(1.03)}100%{opacity:0;transform:scale(1.08)}}
     @keyframes ad-doc-alert-bang-pop{0%{opacity:0;transform:translateY(-50%) scale(.45)}22%{opacity:1;transform:translateY(-50%) scale(1.28)}45%{transform:translateY(-50%) scale(.94)}68%{transform:translateY(-50%) scale(1.08)}100%{transform:translateY(-50%) scale(1)}}
@@ -5148,6 +5154,58 @@ function adhocAlertTitle(alerts=[]) {
   return (alerts || []).map(a => `${a.label || '预警'}｜${a.severityLabel || ''}：${a.reason || ''}`).join('\n');
 }
 
+function pivotAlertTitle(alerts=[], extra='') {
+  const parts = ['点击选择明细或维度下钻'];
+  const alertTitle = adhocAlertTitle(alerts || []);
+  if (alertTitle) parts.push(alertTitle);
+  if (extra) parts.push(extra);
+  return parts.join('\n');
+}
+
+function adhocAlertTooltipHtml(alerts=[]) {
+  const items = (alerts || []).filter(Boolean);
+  if (!items.length) return '';
+  const lines = pivotAlertTitle(items).split('\n').filter(Boolean);
+  return `<div style="margin-top:2px">` +
+    lines.slice(0, 7).map(line => `<div>${escHtml(line)}</div>`).join('') +
+    (lines.length > 7 ? `<div>还有 ${lines.length - 7} 条预警...</div>` : '') +
+    `</div>`;
+}
+
+function adhocChartTooltipHtml(name, value, meas, alerts=[]) {
+  return `${escHtml(name)}<br>${escHtml(adhocMemberLabel(meas))}：${escHtml(value)}${adhocAlertTooltipHtml(alerts)}`;
+}
+
+function adhocChartTooltipOptions(extra={}) {
+  return {
+    backgroundColor: '#f2f2f2',
+    borderColor: '#9ca3af',
+    borderWidth: 1,
+    padding: [3, 5],
+    textStyle: {
+      color: '#374151',
+      fontSize: 11,
+      lineHeight: 14,
+      fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif',
+    },
+    extraCssText: 'box-shadow:none;border-radius:2px;white-space:normal;max-width:320px;',
+    ...extra,
+  };
+}
+
+function adhocChartDataPoint(row, dim, chartType='bar') {
+  const alerts = row.alerts || [];
+  return {
+    value: row.value,
+    __member: dim,
+    __value: row.label,
+    __filterValues: row.filterValues,
+    __alerts: alerts,
+    __alertTooltip: adhocAlertTooltipHtml(alerts),
+    itemStyle: adhocChartItemStyle(alerts, chartType),
+  };
+}
+
 function adhocAlertsFor(row, member=null) {
   const alerts = Array.isArray(row?.__alerts) ? row.__alerts : [];
   if (!member) return alerts;
@@ -5166,7 +5224,7 @@ function adhocMergeAlerts(list) {
 
 function adhocAlertSummaryHtml(summary) {
   if (!summary?.count) return '';
-  const items = (summary.items || []).slice(0, 3);
+  const items = (summary.items || []).slice(0, 5);
   const max = summary.maxLevel || 1;
   const tone = max >= 3 ? '#c84b4b' : max >= 2 ? '#d99042' : '#9b7b24';
   return `<div class="d-flex flex-wrap align-items-center gap-1 mb-2 small" style="color:${tone}">
@@ -5445,6 +5503,10 @@ function applyDocumentAlertMarkers(targetId, results) {
 }
 
 async function scheduleDocumentAlertScans(targetId, measureCodes, options={}) {
+  if ((options.query?.dimensions || []).length || options.grouped) {
+    _documentAlertResultsByTarget[targetId] = [];
+    return clearDocumentAlertPanel(targetId);
+  }
   const codes = [...new Set(measureCodes || [])].filter(Boolean);
   if (!codes.length) {
     _documentAlertResultsByTarget[targetId] = [];
@@ -5472,7 +5534,7 @@ async function scheduleDocumentAlertScans(targetId, measureCodes, options={}) {
             operator: cfg.operator || 'eq',
             value: cfg.value ?? rule.threshold ?? 0,
             maxRows: cfg.maxRows || 5000,
-            maxMatches: 20,
+            maxMatches: 50,
             pageSize: 500,
           }),
         });
@@ -5518,7 +5580,10 @@ async function schedulePivotDocumentAlertScans(targetId, result, config, options
       el.dataset.docAlertCount = String(hits.reduce((sum, item) => sum + Number(item.result?.summary?.matchedRows || 0), 0));
       const title = hits.map(({rule, result}) => `单据级异常｜${rule.name || '单据追踪'}：命中 ${result.summary.matchedRows} 条`).join('\n');
       const oldTitle = el.getAttribute('title') || '';
-      el.setAttribute('title', oldTitle ? `${oldTitle}\n${title}` : title);
+      const nextTitle = oldTitle ? `${oldTitle}\n${title}` : title;
+      el.setAttribute('title', nextTitle);
+      const valueEl = el.querySelector('.pivot-value');
+      if (valueEl) valueEl.setAttribute('title', nextTitle);
     }));
   } finally {
     documentAlertLoadingEnd(targetId);
@@ -5545,7 +5610,7 @@ async function scanDocumentAlertsForPivotCell(targetId, cellIndex, cell, rules=n
           operator: cfg.operator || 'eq',
           value: cfg.value ?? rule.threshold ?? 0,
           maxRows: cfg.maxRows || 5000,
-          maxMatches: 20,
+          maxMatches: 50,
           pageSize: 500,
           pivotPaths: pivotActionPathItems(cell),
         }),
@@ -5583,7 +5648,7 @@ async function runAdhocQuery(extraFilters=[]) {
     _adhocLastResult = d;
     const alertRenderEnabled = true;
     renderAdhocResult(adhocResultForAlertRender(d, alertRenderEnabled), query);
-    scheduleDocumentAlertScans('adhoc-preview', documentAlertMeasureCodesFromQuery(query));
+    scheduleDocumentAlertScans('adhoc-preview', documentAlertMeasureCodesFromQuery(query), {query});
     if (status) {
       const renderResult = adhocResultForAlertRender(d, alertRenderEnabled);
       const alertText = renderResult.alerts?.count ? ` · ${renderResult.alerts.count} 个预警` : '';
@@ -5606,9 +5671,10 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
     target.innerHTML = '<div class="text-muted text-center py-5">当前条件下没有数据</div>';
     return;
   }
-  const chartType = _adhocState.view.type === 'table' ? 'table' : adhocRecommendChart(query);
+  let chartType = _adhocState.view.type === 'table' ? 'table' : adhocRecommendChart(query);
+  if (chartType === 'kpi' && adhocKpiShouldRenderDrillChart(query)) chartType = adhocRecommendDrillChart(query);
   if (chartType === 'table') return renderAdhocTable(target, rows, result.alerts, query, clickHandler, targetId);
-  if (chartType === 'kpi') return renderAdhocKpi(target, rows, query, result.alerts, targetId);
+  if (chartType === 'kpi') return renderAdhocKpi(target, rows, query, result.alerts, targetId, clickHandler);
   const dim = query.dimensions[0];
   const meas = query.measures[0];
   if (chartType === 'funnel') return renderAdhocFunnel(target, rows, query, clickHandler, targetId);
@@ -5627,14 +5693,25 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
     return renderAdhocSvgChart(target, chartType, grouped, dim, meas, query, clickHandler);
   }
   if (chartType === 'donut') {
-    option = {tooltip:{trigger:'item'}, legend:{bottom:0}, series:[{type:'pie', radius:['45%','70%'], data:grouped.map(row=>({name:String(row.label), value:row.value, __member:dim, __value:row.label, __filterValues:row.filterValues, itemStyle:adhocChartItemStyle(row.alerts)}))}]};
+    option = {
+      tooltip:adhocChartTooltipOptions({trigger:'item', formatter:p => `${escHtml(p.name)}<br>${escHtml(adhocMemberLabel(meas))}：${escHtml(p.value)}${p.data?.__alertTooltip || adhocAlertTooltipHtml(p.data?.__alerts || [])}`}),
+      legend:{bottom:0},
+      series:[{type:'pie', radius:['45%','70%'], data:grouped.map(row=>({name:String(row.label), ...adhocChartDataPoint(row, dim, 'donut')}))}],
+    };
   } else {
     option = {
-      tooltip:{trigger:'axis'},
+      tooltip:adhocChartTooltipOptions({
+        trigger:'axis',
+        formatter:params => {
+          const list = Array.isArray(params) ? params : [params];
+          const first = list[0] || {};
+          return list.map(p => `${escHtml(first.axisValueLabel || p.name)}<br>${escHtml(adhocMemberLabel(meas))}：${escHtml(p.value)}${p.data?.__alertTooltip || adhocAlertTooltipHtml(p.data?.__alerts || [])}`).join('<br>');
+        },
+      }),
       grid:{left:48,right:24,top:28,bottom:48},
       xAxis:{type:'category', data:labels, axisLabel:{interval:0, rotate:labels.length>8?25:0}},
       yAxis:{type:'value'},
-      series:[{type:chartType === 'line' ? 'line' : 'bar', smooth:chartType === 'line', data:grouped.map(row=>({value:row.value, __member:dim, __value:row.label, __filterValues:row.filterValues, itemStyle:adhocChartItemStyle(row.alerts, chartType)})), itemStyle:{borderRadius: chartType === 'bar' ? [4,4,0,0] : 0}}],
+      series:[{type:chartType === 'line' ? 'line' : 'bar', smooth:chartType === 'line', data:grouped.map(row=>adhocChartDataPoint(row, dim, chartType)), itemStyle:{borderRadius: chartType === 'bar' ? [4,4,0,0] : 0}}],
     };
   }
   chart.setOption(option);
@@ -5655,6 +5732,18 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
     if (fallback) clickHandler(fallback, query, rows);
   };
   if (targetId === 'adhoc-preview') _adhocChart = chart;
+}
+
+function adhocKpiShouldRenderDrillChart(query) {
+  if (!(query?.dimensions || []).length) return false;
+  const baseDimensions = _adhocState.query?.dimensions || [];
+  const drill = _adhocState.drill || {};
+  return Boolean((drill.stack || []).length || (!baseDimensions.length && (drill.path || []).length));
+}
+
+function adhocRecommendDrillChart(query) {
+  const firstDim = adhocFindMember(query?.dimensions?.[0]);
+  return firstDim?.type === 'time' ? 'line' : 'bar';
 }
 
 function adhocClearChartTarget(target) {
@@ -5686,7 +5775,7 @@ function renderAdhocFunnel(target, rows, query, clickHandler, targetId='adhoc-pr
     return renderAdhocTable(target, grouped.map(x => ({[dim]: x.label, [meas]: x.value})));
   }
   chart.setOption({
-    tooltip:{trigger:'item', formatter:p => `${p.name}<br>${adhocMemberLabel(meas)}：${p.value}`},
+    tooltip:adhocChartTooltipOptions({trigger:'item', formatter:p => `${escHtml(p.name)}<br>${escHtml(adhocMemberLabel(meas))}：${escHtml(p.value)}${p.data?.__alertTooltip || adhocAlertTooltipHtml(p.data?.__alerts || [])}`}),
     legend:{bottom:0},
     series:[{
       type:'funnel',
@@ -5703,6 +5792,8 @@ function renderAdhocFunnel(target, rows, query, clickHandler, targetId='adhoc-pr
         __member:dim,
         __value:row.label,
         __filterValues:row.filterValues,
+        __alerts:row.alerts || [],
+        __alertTooltip: adhocAlertTooltipHtml(row.alerts || []),
         itemStyle:adhocChartItemStyle(row.alerts, 'funnel'),
       })),
     }],
@@ -5749,9 +5840,11 @@ function adhocBuildSankeyData(rows, query) {
         __member:dims[i],
         __value:sourceValue,
         __filterValues:[String(row.__filterValues?.[dims[i]] ?? sourceValue)],
+        __alerts:[],
         lineStyle: adhocAlertTop(adhocAlertsFor(row, meas)) ? {color:adhocAlertTop(adhocAlertsFor(row, meas)).color || '#d99042', opacity:.72, curveness:.5} : undefined,
       };
       hit.value += Number(row[meas] || 0);
+      hit.__alerts = adhocMergeAlerts([hit.__alerts, adhocAlertsFor(row, meas)]);
       linkMap.set(key, hit);
     }
   });
@@ -5780,18 +5873,18 @@ function renderAdhocSankey(target, rows, query, clickHandler, targetId='adhoc-pr
     return renderAdhocTable(target, sankey.links.map(x => ({source:x.source, target:x.target, value:x.value})));
   }
   chart.setOption({
-    tooltip:{
+    tooltip:adhocChartTooltipOptions({
       trigger:'item',
       triggerOn:'mousemove',
       formatter:p => {
         if (p.dataType === 'edge') {
           const s = String(p.data.source).split('::').slice(1).join('::');
           const t = String(p.data.target).split('::').slice(1).join('::');
-          return `${s} → ${t}<br>${adhocMemberLabel(meas)}：${p.data.value}`;
+          return adhocChartTooltipHtml(`${s} → ${t}`, p.data.value, meas, p.data?.__alerts || []);
         }
-        return p.data?.label?.formatter || p.name;
+        return `${escHtml(p.data?.label?.formatter || p.name)}${adhocAlertTooltipHtml(p.data?.__alerts || [])}`;
       },
-    },
+    }),
     series:[{
       type:'sankey',
       top:16,
@@ -5923,19 +6016,54 @@ function adhocChartItemStyle(alerts=[], chartType='bar') {
   };
 }
 
-function renderAdhocKpi(target, rows, query, alertSummary=null, targetId='adhoc-preview') {
+function renderAdhocKpi(target, rows, query, alertSummary=null, targetId='adhoc-preview', clickHandler=adhocChartClicked) {
   const meas = query.measures[0];
   const value = rows[0]?.[meas] ?? '-';
   const alerts = adhocAlertsFor(rows[0], meas);
   const cls = adhocAlertClasses(alerts);
   const title = adhocAlertTitle(alerts);
   const measureCode = documentAlertMemberCode(meas);
-  target.innerHTML = `<div class="h-100 d-flex flex-column justify-content-center align-items-start px-4 ${cls}" data-doc-measure-code="${escHtml(measureCode)}" style="${adhocAlertStyle(alerts)}" title="${escHtml(title)}">
+  target.innerHTML = `<div class="h-100 d-flex flex-column justify-content-center align-items-start px-4 ${cls}" data-adhoc-kpi-click="1" data-doc-measure-code="${escHtml(measureCode)}" style="${adhocAlertStyle(alerts)};cursor:pointer" title="${escHtml(title || '点击下钻')}">
     ${adhocAlertSummaryHtml(alertSummary)}
     <div class="text-muted mb-2">${escHtml(adhocMemberLabel(meas))}</div>
     <div class="adhoc-kpi">${escHtml(value)}</div>
   </div>`;
+  const kpi = target.querySelector('[data-adhoc-kpi-click="1"]');
+  if (kpi) {
+    kpi.addEventListener('click', event => {
+      event.stopPropagation();
+      adhocKpiClicked(rows, query, clickHandler);
+    });
+  }
   applyDocumentAlertMarkers(targetId, _documentAlertResultsByTarget[targetId] || []);
+}
+
+function adhocKpiClicked(rows, query, clickHandler=adhocChartClicked) {
+  const row = rows?.[0] || {};
+  const member = query?.dimensions?.[0] || '';
+  if (member) {
+    const value = row[member];
+    const filterValue = row.__filterValues?.[member] ?? value;
+    clickHandler({
+      name: value,
+      data: {
+        __member: member,
+        __value: value,
+        __filterValues: filterValue !== undefined && filterValue !== null ? [String(filterValue)] : [],
+      },
+    }, query, rows);
+    return;
+  }
+  _adhocSelectedPoint = null;
+  if (adhocDrillMode(_adhocState) === 'dynamic') {
+    openDynamicDrillChooser({kind:'adhoc', member:null, value:'汇总', filterValues:[]});
+    return;
+  }
+  if ((_adhocState.drill?.path || []).length || adhocHasNextDrillLevel()) {
+    runAdhocQuery();
+  } else {
+    showToast('请先配置下钻路径或切换为点击后选择维度', 'info');
+  }
 }
 
 function renderAdhocTable(target, rows, alertSummary=null, query=null, clickHandler=adhocChartClicked, targetId='adhoc-preview') {
@@ -7403,7 +7531,7 @@ async function dashboardRenderWidget(widgetId, options={}) {
     const oldState = _adhocState;
     _adhocState = spec;
     renderAdhocResult(adhocResultForAlertRender(d, alertRenderEnabledForRefresh), query, targetId, (params, q) => dashboardWidgetClicked(widgetId, params, q));
-    scheduleDocumentAlertScans(targetId, documentAlertMeasureCodesFromQuery(query), {forceRules: options.forceAlertRefresh});
+    scheduleDocumentAlertScans(targetId, documentAlertMeasureCodesFromQuery(query), {forceRules: options.forceAlertRefresh, query});
     _adhocState = oldState;
   } catch(e) {
     document.getElementById(targetId).innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
@@ -8350,7 +8478,6 @@ async function runPivotQuery(btn) {
     if (!r.ok) throw new Error(d.error || '透视查询失败');
     _pivotResult = d;
     renderPivotResult();
-    scheduleDocumentAlertScans('pivot-result', documentAlertMeasureCodesFromPivot(_pivotConfig));
     schedulePivotDocumentAlertScans('pivot-result', d, _pivotConfig);
     status.textContent = `${d.diagnostics.rowCount} 条聚合记录 · ${d.diagnostics.elapsedMs ?? '-'} ms${d.alerts?.count ? ` · ${d.alerts.count} 个预警` : ''}`;
   } catch(e) {
@@ -8445,8 +8572,9 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
     d.columns.forEach(col => d.measures.forEach(measure => {
       const hit = cellMap.get(`${row.key}|${col.key}|${measure.code}`);
       const docMeasureCode = documentAlertMemberCode(measure.code);
+      const title = hit ? pivotAlertTitle(hit.cell.alerts || []) : '';
       html += hit
-        ? `<td class="text-end ${adhocAlertClasses(hit.cell.alerts || [])}" data-doc-marker-scope="pivot-cell" data-pivot-cell-index="${hit.idx}" data-doc-measure-code="${escHtml(docMeasureCode)}" style="${adhocAlertStyle(hit.cell.alerts || [])}" title="${escHtml(adhocAlertTitle(hit.cell.alerts || []))}"><span class="pivot-value" title="点击选择明细或维度下钻${hit.cell.alerts?.length ? '\n' + adhocAlertTitle(hit.cell.alerts) : ''}" onclick="${targetId === 'pivot-result' ? `openPivotCellAction(${hit.idx}, 'pivot-result')` : `openAdhocPivotActionFromRendered('${_escJs(targetId)}', ${hit.idx})`}">${escHtml(hit.cell.value ?? '-')}</span></td>`
+        ? `<td class="text-end ${adhocAlertClasses(hit.cell.alerts || [])}" data-doc-marker-scope="pivot-cell" data-pivot-cell-index="${hit.idx}" data-doc-measure-code="${escHtml(docMeasureCode)}" style="${adhocAlertStyle(hit.cell.alerts || [])}" title="${escHtml(title)}"><span class="pivot-value" title="${escHtml(title)}" onclick="${targetId === 'pivot-result' ? `openPivotCellAction(${hit.idx}, 'pivot-result')` : `openAdhocPivotActionFromRendered('${_escJs(targetId)}', ${hit.idx})`}">${escHtml(hit.cell.value ?? '-')}</span></td>`
         : '<td class="text-end text-muted">-</td>';
     }));
     html += '</tr>';
@@ -8851,7 +8979,6 @@ async function applyPivotDimensionDrill(code) {
       renderPivotFields();
     }
     renderPivotResult(targetId, d, nextConfig);
-    scheduleDocumentAlertScans(targetId, documentAlertMeasureCodesFromPivot(nextConfig));
     schedulePivotDocumentAlertScans(targetId, d, nextConfig);
     showToast(`已按 ${dim.name || dim.code} 下钻`, 'info');
   } catch(e) {

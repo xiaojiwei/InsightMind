@@ -1,13 +1,20 @@
 """MySQL models for alert management. Uses the existing AD MySQL datasource from config.yaml."""
 from __future__ import annotations
-import json, threading
+import json, os, threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Iterator
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import QueuePool
 
-DB_CONFIG = {"host":"localhost","port":3306,"user":"root","password":"root","database":"tpcds","charset":"utf8mb4"}
+DB_CONFIG = {
+    "host": os.getenv("ALERT_DB_HOST", "localhost"),
+    "port": int(os.getenv("ALERT_DB_PORT", "3306")),
+    "user": os.getenv("ALERT_DB_USER", "root"),
+    "password": os.getenv("ALERT_DB_PASSWORD", os.getenv("MYSQL_PWD", "root")),
+    "database": os.getenv("ALERT_DB_NAME", "tpcds"),
+    "charset": os.getenv("ALERT_DB_CHARSET", "utf8mb4"),
+}
 URL = f"mysql+pymysql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}?charset=utf8mb4"
 _lock = threading.Lock()
 _engine = None

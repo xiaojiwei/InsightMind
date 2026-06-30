@@ -138,12 +138,17 @@ def annotate_pivot_result(
             alerts.extend(_inflate_cell_alerts(cells, path_alerts, indexes))
 
     configured = _detect_pivot_configured_alerts(cells, persisted_rules)
-    for local_idx, alert in configured.items():
+    for local_idx, cell_alerts in configured.items():
         cell = cells[local_idx]
         bucket = cell.setdefault("alerts", [])
-        if not _contains_alert(bucket, alert):
-            bucket.append(alert)
-    alerts.extend({**alert, "cellIndex": idx} for idx, alert in configured.items())
+        for alert in _as_alert_list(cell_alerts):
+            if not _contains_alert(bucket, alert):
+                bucket.append(alert)
+    alerts.extend(
+        {**alert, "cellIndex": idx}
+        for idx, cell_alerts in configured.items()
+        for alert in _as_alert_list(cell_alerts)
+    )
 
     return _with_alert_summary(result, alerts)
 
@@ -356,15 +361,15 @@ def _detect_pivot_path_alerts(
 def _detect_pivot_configured_alerts(
     cells: list[dict[str, Any]],
     rules: list[dict[str, Any]],
-) -> dict[int, dict[str, Any]]:
-    alerts: dict[int, dict[str, Any]] = {}
+) -> dict[int, list[dict[str, Any]]]:
+    alerts: dict[int, list[dict[str, Any]]] = {}
     if not isinstance(rules, list):
         return alerts
     for rule in rules:
         if not isinstance(rule, dict) or rule.get("enabled") is False:
             continue
         measure = str(rule.get("measure") or "")
-        measure_code = _member_to_code(measure, "MEAS_") if measure else ""
+        measure_code = str(rule.get("measureCode") or "") or (_member_to_code(measure, "MEAS_") if measure else "")
         kind = str(rule.get("type") or "self")
         level = int(rule.get("severity") or rule.get("level") or 2)
         operator = str(rule.get("operator") or "always").lower()
@@ -384,20 +389,23 @@ def _detect_pivot_configured_alerts(
                 "expression": "计算表达式内部异常",
                 "path": "路径异常",
             }.get(kind, "自身数据异常")
+            label = str(rule.get("label") or label)
             style = {
                 "self": "background",
                 "expression": "solidBorder",
                 "path": "dashedBorder",
             }.get(kind, "background")
-            alerts[idx] = _alert(
-                kind,
-                level,
-                label,
-                measure or str(cell.get("measureName") or cell.get("measureCode") or ""),
-                str(cell.get("measureCode") or measure_code),
-                str(rule.get("reason") or _rule_reason(operator, threshold, threshold2)),
-                style=style,
-                ruleId=str(rule.get("id") or ""),
+            alerts.setdefault(idx, []).append(
+                _alert(
+                    kind,
+                    level,
+                    label,
+                    measure or str(cell.get("measureName") or cell.get("measureCode") or ""),
+                    str(cell.get("measureCode") or measure_code),
+                    str(rule.get("reason") or _rule_reason(operator, threshold, threshold2)),
+                    style=style,
+                    ruleId=str(rule.get("id") or ""),
+                )
             )
     return alerts
 
@@ -416,11 +424,11 @@ def _pivot_rule_dimensions_match(cell: dict[str, Any], dim_match: Any) -> bool:
 def _detect_configured_alerts(
     rows: list[dict[str, Any]],
     rules: list[dict[str, Any]],
-) -> dict[int, dict[str, Any]]:
+) -> dict[int, list[dict[str, Any]]]:
     """Apply threshold-style rules loaded from the persistent alert_rule table."""
     if not isinstance(rules, list):
         return {}
-    alerts: dict[int, dict[str, Any]] = {}
+    alerts: dict[int, list[dict[str, Any]]] = {}
     for rule in rules:
         if not isinstance(rule, dict) or rule.get("enabled") is False:
             continue
@@ -446,21 +454,24 @@ def _detect_configured_alerts(
                 "expression": "计算表达式内部异常",
                 "path": "路径异常",
             }.get(kind, "自身数据异常")
+            label = str(rule.get("label") or label)
             style = {
                 "self": "background",
                 "expression": "solidBorder",
                 "path": "dashedBorder",
             }.get(kind, "background")
             reason = str(rule.get("reason") or _rule_reason(operator, threshold, threshold2))
-            alerts[idx] = _alert(
-                kind,
-                level,
-                label,
-                measure,
-                str(rule.get("measureCode") or ""),
-                reason,
-                style=style,
-                ruleId=str(rule.get("id") or ""),
+            alerts.setdefault(idx, []).append(
+                _alert(
+                    kind,
+                    level,
+                    label,
+                    measure,
+                    str(rule.get("measureCode") or ""),
+                    reason,
+                    style=style,
+                    ruleId=str(rule.get("id") or ""),
+                )
             )
     return alerts
 
@@ -550,6 +561,7 @@ def _runtime_rule_from_persisted(row: dict[str, Any], code_to_member: dict[str, 
     return {
         "id": row.get("id"),
         "type": kind,
+        "label": _alert_label_from_rule_name(row.get("name"), kind),
         "measure": code_to_member.get(measure_code) or _catalog_member_name_from_code(measure_code),
         "measureCode": measure_code,
         "operator": operator,
@@ -560,6 +572,19 @@ def _runtime_rule_from_persisted(row: dict[str, Any], code_to_member: dict[str, 
         "reason": row.get("description") or _rule_reason(operator, row.get("threshold"), row.get("threshold2")),
         "enabled": bool(row.get("enabled", True)),
     }
+
+
+def _alert_label_from_rule_name(name: Any, kind: str) -> str:
+    text = str(name or "").strip()
+    if "｜" in text:
+        label = text.split("｜", 1)[0].strip()
+        if label:
+            return label
+    return {
+        "self": "自身数据异常",
+        "expression": "计算表达式内部异常",
+        "path": "路径异常",
+    }.get(kind, "自身数据异常")
 
 
 def _dimensions_from_persisted(raw: Any) -> dict[str, Any]:
@@ -617,23 +642,25 @@ def _filter_alerts_by_rules(
     return out
 
 
-def _attach_row_alerts(rows: list[dict[str, Any]], alerts: dict[int, dict[str, Any]]) -> None:
-    for idx, alert in alerts.items():
+def _attach_row_alerts(rows: list[dict[str, Any]], alerts: dict[int, Any]) -> None:
+    for idx, cell_alerts in alerts.items():
         if idx < 0 or idx >= len(rows):
             continue
         bucket = rows[idx].setdefault("__alerts", [])
-        if not _contains_alert(bucket, alert):
-            bucket.append(alert)
+        for alert in _as_alert_list(cell_alerts):
+            if not _contains_alert(bucket, alert):
+                bucket.append(alert)
 
 
-def _attach_cell_alerts(cells: list[dict[str, Any]], alerts: dict[int, dict[str, Any]], indexes: list[int]) -> None:
-    for local_idx, alert in alerts.items():
+def _attach_cell_alerts(cells: list[dict[str, Any]], alerts: dict[int, Any], indexes: list[int]) -> None:
+    for local_idx, cell_alerts in alerts.items():
         if local_idx < 0 or local_idx >= len(indexes):
             continue
         cell = cells[indexes[local_idx]]
         bucket = cell.setdefault("alerts", [])
-        if not _contains_alert(bucket, alert):
-            bucket.append(alert)
+        for alert in _as_alert_list(cell_alerts):
+            if not _contains_alert(bucket, alert):
+                bucket.append(alert)
 
 
 def _with_alert_summary(result: dict[str, Any], alerts: list[dict[str, Any]]) -> dict[str, Any]:
@@ -656,19 +683,29 @@ def _with_alert_summary(result: dict[str, Any], alerts: list[dict[str, Any]]) ->
     return result
 
 
-def _inflate_alerts(rows: list[dict[str, Any]], alerts: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
+def _inflate_alerts(rows: list[dict[str, Any]], alerts: dict[int, Any]) -> list[dict[str, Any]]:
     out = []
-    for idx, alert in alerts.items():
-        out.append({**alert, "rowIndex": idx, "row": _public_row(rows[idx]) if idx < len(rows) else {}})
+    for idx, cell_alerts in alerts.items():
+        for alert in _as_alert_list(cell_alerts):
+            out.append({**alert, "rowIndex": idx, "row": _public_row(rows[idx]) if idx < len(rows) else {}})
     return out
 
 
-def _inflate_cell_alerts(cells: list[dict[str, Any]], alerts: dict[int, dict[str, Any]], indexes: list[int]) -> list[dict[str, Any]]:
+def _inflate_cell_alerts(cells: list[dict[str, Any]], alerts: dict[int, Any], indexes: list[int]) -> list[dict[str, Any]]:
     out = []
-    for local_idx, alert in alerts.items():
+    for local_idx, cell_alerts in alerts.items():
         if local_idx < len(indexes):
-            out.append({**alert, "cellIndex": indexes[local_idx]})
+            for alert in _as_alert_list(cell_alerts):
+                out.append({**alert, "cellIndex": indexes[local_idx]})
     return out
+
+
+def _as_alert_list(alert_or_alerts: Any) -> list[dict[str, Any]]:
+    if isinstance(alert_or_alerts, list):
+        return [item for item in alert_or_alerts if isinstance(item, dict)]
+    if isinstance(alert_or_alerts, dict):
+        return [alert_or_alerts]
+    return []
 
 
 def _alert(kind: str, level: int, label: str, measure: str, code: str, reason: str, style: str, **extra: Any) -> dict[str, Any]:

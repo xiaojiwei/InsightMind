@@ -5005,13 +5005,14 @@ async def alert_document_scan(request: Request):
             pivot_filter_list = _pivot_drill_filter_list(body.get("pivotFilters") or [], pivot_paths, measure["code"])
 
         matches: list[dict[str, Any]] = []
+        matched_rows = 0
         columns: list[dict[str, str]] = []
         order_column = ""
         scanned = 0
         page_no = 1
         review_sql = ""
 
-        while scanned < max_rows and len(matches) < max_matches:
+        while scanned < max_rows:
             payload = {
                 "chartType": 0,
                 "sourceType": 0,
@@ -5036,13 +5037,13 @@ async def alert_document_scan(request: Request):
 
             for record in records:
                 if target_column and _numeric_compare(record.get(target_column), operator, expected):
-                    matches.append({
-                        "orderNumber": record.get(order_column) if order_column else "",
-                        "targetValue": record.get(target_column),
-                        "record": record,
-                    })
-                    if len(matches) >= max_matches:
-                        break
+                    matched_rows += 1
+                    if len(matches) < max_matches:
+                        matches.append({
+                            "orderNumber": record.get(order_column) if order_column else "",
+                            "targetValue": record.get(target_column),
+                            "record": record,
+                        })
             if len(records) < payload["pageSize"]:
                 break
             page_no += 1
@@ -5057,7 +5058,13 @@ async def alert_document_scan(request: Request):
             "value": expected,
             "columns": columns,
             "matches": matches,
-            "summary": {"scannedRows": scanned, "matchedRows": len(matches), "maxRows": max_rows, "maxMatches": max_matches},
+            "summary": {
+                "scannedRows": scanned,
+                "matchedRows": matched_rows,
+                "returnedRows": len(matches),
+                "maxRows": max_rows,
+                "maxMatches": max_matches,
+            },
             "diagnostics": {"reviewSql": review_sql},
         }
     except ValueError as exc:
