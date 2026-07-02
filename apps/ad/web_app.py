@@ -49,6 +49,9 @@ ADHOC_DIR = OUTPUT_DIR / "adhoc"
 ADHOC_DIR.mkdir(exist_ok=True)
 DASHBOARD_DIR = OUTPUT_DIR / "dashboards"
 DASHBOARD_DIR.mkdir(exist_ok=True)
+SEMANTIC_DIR = OUTPUT_DIR / "semantic"
+SEMANTIC_DIR.mkdir(exist_ok=True)
+FORMULA_REGISTRY_PATH = SEMANTIC_DIR / "formulas.json"
 DEMO_OUTPUT_DIR = BASE_DIR.parents[1] / "demo" / "default" / "ad" / "output"
 # KG files are named kg_YYYYMMDD_NNN.ttl; legacy kg.ttl is still auto-detected
 _current_kg_path: Optional[Path] = None
@@ -4566,10 +4569,11 @@ def _pivot_catalog() -> dict[str, Any]:
             "dimensionReasons": dimension_reasons,
         })
 
-    return {
+    catalog = {
         "measures": sorted(measures, key=lambda item: item["name"]),
         "dimensions": sorted(dimensions, key=lambda item: (not item["isTime"], item["name"])),
     }
+    return _semantic_formula_registry().enrich_catalog(catalog)
 
 
 def _pivot_da_query(payload: dict[str, Any]) -> dict[str, Any]:
@@ -4584,6 +4588,12 @@ def _ad_semantic_service():
         da_query=_pivot_da_query,
         da_filter_builder=_pivot_da_filters,
     )
+
+
+def _semantic_formula_registry():
+    from kg_builder.semantic import FormulaRegistry
+
+    return FormulaRegistry(FORMULA_REGISTRY_PATH)
 
 
 def _pivot_da_post(url: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -4753,6 +4763,44 @@ def _pivot_da_filters(filters: Any) -> list[dict[str, Any]]:
 
 
 # ── AD Semantic API (Cube-like facade over DA) ───────────────────────────── #
+
+@app.get("/api/ad/v1/formulas")
+async def ad_semantic_formulas():
+    try:
+        return {"formulas": _semantic_formula_registry().list()}
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.post("/api/ad/v1/formulas")
+async def ad_semantic_formula_save(request: Request):
+    try:
+        body = await request.json()
+        # Validate against the current physical KG catalog, before formulas are
+        # merged back into the public semantic catalog.
+        from kg_builder.semantic import FormulaValidationError
+
+        catalog = {
+            "measures": [item for item in _pivot_catalog().get("measures", []) if not item.get("formula")],
+            "dimensions": _pivot_catalog().get("dimensions", []),
+        }
+        formula = _semantic_formula_registry().save(body, catalog)
+        return formula
+    except FormulaValidationError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except FileNotFoundError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.delete("/api/ad/v1/formulas/{code}")
+async def ad_semantic_formula_delete(code: str):
+    try:
+        return {"ok": _semantic_formula_registry().delete(code)}
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
 
 @app.get("/api/ad/v1/meta")
 async def ad_semantic_meta():
@@ -4963,6 +5011,72 @@ def _infer_order_column(columns: list[dict[str, str]]) -> str:
     return ""
 
 
+def _document_dimension_columns_for_measure(measure_code: str, columns: list[dict[str, str]] | None = None) -> list[dict[str, str]]:
+    from rdflib import Namespace, RDF
+
+    detail_names = {str(col.get("code") or ""): str(col.get("name") or col.get("code") or "") for col in (columns or [])}
+    try:
+        graph = _load_business_graph()
+    except Exception:
+        return []
+    ind = Namespace("http://indicator.insightmind.com/ontology#")
+
+    def val(node, prop) -> str:
+        value = graph.value(node, prop)
+        return str(value) if value is not None else ""
+
+    measure_node = next((node for node in graph.subjects(RDF.type, ind.Measure) if val(node, ind.code) == measure_code), None)
+    if not measure_node:
+        return []
+    measure_tables = set()
+    for app in graph.objects(measure_node, ind.hasMeasureApp):
+        table = graph.value(app, ind.appliesToTable) or graph.value(app, ind.measFactTable)
+        if table:
+            measure_tables.add(table)
+
+    out: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for dim in graph.subjects(RDF.type, ind.Dimension):
+        dim_code = val(dim, ind.code)
+        if not dim_code:
+            continue
+        dim_name = val(dim, ind.cnName) or val(dim, ind.enName) or dim_code
+        for app in graph.objects(dim, ind.hasDimApp):
+            table = graph.value(app, ind.dimFactTable)
+            if measure_tables and table not in measure_tables:
+                continue
+            fact_column = val(app, ind.dimFactColumn) or val(app, ind.dimColumn) or val(app, ind.dimPrimaryKey)
+            if not fact_column:
+                continue
+            key = (dim_code, fact_column)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({
+                "code": dim_code,
+                "name": dim_name,
+                "detailColumn": fact_column,
+                "detailColumnName": detail_names.get(fact_column, fact_column),
+            })
+    return sorted(out, key=lambda item: (item["name"], item["detailColumn"]))
+
+
+def _resolve_document_target_column_alias(target_column: str, measure: dict[str, Any], columns: list[dict[str, str]]) -> str:
+    raw = str(target_column or "").strip()
+    if not raw:
+        return ""
+    detail_codes = {str(col.get("code") or "") for col in columns}
+    if raw in detail_codes:
+        return raw
+    raw_lower = raw.lower()
+    for item in _document_dimension_columns_for_measure(str(measure.get("code") or ""), columns):
+        if raw in {item.get("code"), item.get("name"), item.get("detailColumn")}:
+            return str(item.get("detailColumn") or raw)
+        if raw_lower in {str(item.get("code") or "").lower(), str(item.get("name") or "").lower()}:
+            return str(item.get("detailColumn") or raw)
+    return raw
+
+
 def _numeric_compare(actual: Any, operator: str, expected: Any) -> bool:
     try:
         left = float(actual)
@@ -4982,6 +5096,55 @@ def _numeric_compare(actual: Any, operator: str, expected: Any) -> bool:
     return False
 
 
+def _document_scan_conditions_from_body(body: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_conditions = body.get("conditions")
+    conditions: list[dict[str, Any]] = []
+    if isinstance(raw_conditions, list):
+        for item in raw_conditions:
+            if not isinstance(item, dict):
+                continue
+            column_code = str(item.get("columnCode") or item.get("column") or "").strip()
+            value = item.get("value", "")
+            if not column_code and value in ("", None):
+                continue
+            conditions.append({
+                "columnCode": column_code,
+                "operator": str(item.get("operator") or "eq").lower(),
+                "value": value,
+                "source": str(item.get("source") or "manual"),
+            })
+    if not conditions:
+        conditions.append({
+            "columnCode": str(body.get("columnCode") or "").strip(),
+            "operator": str(body.get("operator") or "eq").lower(),
+            "value": body.get("value", 0),
+            "source": "legacy",
+        })
+    return conditions
+
+
+def _resolve_document_scan_conditions(
+    conditions: list[dict[str, Any]],
+    measure: dict[str, Any],
+    columns: list[dict[str, str]],
+) -> list[dict[str, Any]]:
+    resolved: list[dict[str, Any]] = []
+    for idx, item in enumerate(conditions):
+        column_code = str(item.get("columnCode") or "").strip()
+        if column_code and columns:
+            column_code = _resolve_document_target_column_alias(column_code, measure, columns)
+        if not column_code and idx == 0 and columns:
+            column_code = _infer_detail_value_column(columns, measure)
+        column_name = next((col["name"] for col in columns if col.get("code") == column_code), column_code)
+        resolved.append({
+            **item,
+            "columnCode": column_code,
+            "columnName": column_name,
+            "operator": str(item.get("operator") or "eq").lower(),
+        })
+    return resolved
+
+
 @app.post("/api/alerts/document-scan")
 async def alert_document_scan(request: Request):
     body = await request.json()
@@ -4995,9 +5158,8 @@ async def alert_document_scan(request: Request):
         page_size = max(1, min(int(body.get("pageSize") or 500), 500))
         max_rows = max(1, min(int(body.get("maxRows") or 5000), 50000))
         max_matches = max(1, min(int(body.get("maxMatches") or 200), 1000))
-        operator = str(body.get("operator") or "eq").lower()
-        expected = body.get("value", 0)
-        target_column = str(body.get("columnCode") or "").strip()
+        requested_conditions = _document_scan_conditions_from_body(body)
+        resolved_conditions: list[dict[str, Any]] = []
         filters = service._convert_filters(body.get("filters") or [], [measure])
         pivot_paths = body.get("pivotPaths")
         pivot_filter_list = None
@@ -5028,34 +5190,50 @@ async def alert_document_scan(request: Request):
             page_columns, records, da_data = await asyncio.to_thread(_detail_records_from_da_result, da_result)
             if page_columns:
                 columns = page_columns
-            if not target_column and columns:
-                target_column = _infer_detail_value_column(columns, measure)
+            if columns:
+                resolved_conditions = _resolve_document_scan_conditions(requested_conditions, measure, columns)
             if not order_column and columns:
                 order_column = _infer_order_column(columns)
             review_sql = da_data.get("reviewSql") or review_sql
             scanned += len(records)
 
             for record in records:
-                if target_column and _numeric_compare(record.get(target_column), operator, expected):
+                condition_values = {
+                    item["columnCode"]: record.get(item["columnCode"])
+                    for item in resolved_conditions
+                    if item.get("columnCode")
+                }
+                is_match = bool(resolved_conditions) and all(
+                    item.get("columnCode") and _numeric_compare(record.get(item["columnCode"]), item["operator"], item.get("value"))
+                    for item in resolved_conditions
+                )
+                if is_match:
                     matched_rows += 1
                     if len(matches) < max_matches:
+                        first_column = str(resolved_conditions[0].get("columnCode") or "") if resolved_conditions else ""
                         matches.append({
                             "orderNumber": record.get(order_column) if order_column else "",
-                            "targetValue": record.get(target_column),
+                            "targetValue": record.get(first_column) if first_column else "",
+                            "conditionValues": condition_values,
                             "record": record,
                         })
             if len(records) < payload["pageSize"]:
                 break
             page_no += 1
 
+        first_condition = resolved_conditions[0] if resolved_conditions else {}
+        target_column = str(first_condition.get("columnCode") or "")
+        operator = str(first_condition.get("operator") or "eq")
+        expected = first_condition.get("value", 0)
         return {
             "measure": {"code": measure["code"], "name": measure.get("name") or measure.get("title") or measure["code"]},
             "targetColumn": target_column,
-            "targetColumnName": next((col["name"] for col in columns if col.get("code") == target_column), target_column),
+            "targetColumnName": first_condition.get("columnName") or next((col["name"] for col in columns if col.get("code") == target_column), target_column),
             "orderColumn": order_column,
             "orderColumnName": next((col["name"] for col in columns if col.get("code") == order_column), order_column),
             "operator": operator,
             "value": expected,
+            "conditions": resolved_conditions,
             "columns": columns,
             "matches": matches,
             "summary": {
@@ -5066,6 +5244,48 @@ async def alert_document_scan(request: Request):
                 "maxMatches": max_matches,
             },
             "diagnostics": {"reviewSql": review_sql},
+        }
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.get("/api/alerts/document-columns")
+async def alert_document_columns(request: Request):
+    try:
+        service = _ad_semantic_service()
+        measure_member = request.query_params.get("measureCode") or request.query_params.get("measure")
+        measure = service._resolve_member(measure_member, "measure")
+        if not measure:
+            return JSONResponse({"error": "缺少或无法识别 measureCode"}, status_code=400)
+
+        page_size = max(1, min(int(request.query_params.get("pageSize") or 50), 200))
+        payload = {
+            "chartType": 0,
+            "sourceType": 0,
+            "operaType": 1,
+            "cacheStrategy": 1,
+            "configureList": [{"code": measure["code"]}],
+            "filterList": [],
+            "measureDetail": True,
+            "pageNo": 1,
+            "pageSize": page_size,
+        }
+        da_result = await asyncio.to_thread(_pivot_da_query, payload)
+        columns, records, da_data = await asyncio.to_thread(_detail_records_from_da_result, da_result)
+        inferred = _infer_detail_value_column(columns, measure)
+        order_column = _infer_order_column(columns)
+        return {
+            "measure": {"code": measure["code"], "name": measure.get("name") or measure.get("title") or measure["code"]},
+            "columns": columns,
+            "dimensions": _document_dimension_columns_for_measure(measure["code"], columns),
+            "inferredColumn": inferred,
+            "inferredColumnName": next((col["name"] for col in columns if col.get("code") == inferred), inferred),
+            "orderColumn": order_column,
+            "orderColumnName": next((col["name"] for col in columns if col.get("code") == order_column), order_column),
+            "sampleRows": len(records),
+            "diagnostics": {"reviewSql": da_data.get("reviewSql") or ""},
         }
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)

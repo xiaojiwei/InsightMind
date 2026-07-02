@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from .formula_registry import FormulaValidationError, compile_formula
+
 
 TIME_GRANULARITY_VIEW_TYPES = {
     "day": 1,
@@ -138,6 +140,10 @@ def build_meta(catalog: dict[str, Any], model_name: str = "ad") -> dict[str, Any
             "tables": item.get("tables") or [],
             "dimensionCodes": expanded_dimension_codes(item),
             "dimensionReasons": expanded_dimension_reasons(item),
+            "formula": bool(item.get("formula")),
+            "expression": item.get("expression") or "",
+            "dependencies": item.get("dependencies") or [],
+            "lod": item.get("lod") or {"type": "none", "dimensions": []},
         })
 
     dimensions = []
@@ -224,9 +230,141 @@ class AdSemanticService:
         return payload
 
     def load(self, query: dict[str, Any]) -> dict[str, Any]:
+        formula_measures = [
+            item for item in self._resolve_members((query or {}).get("measures"), "measure")
+            if item.get("formula")
+        ]
+        if formula_measures:
+            return self._load_with_formulas(query, formula_measures)
         payload = self.translate_query(query)
         result = self.da_query(payload)
         return self.normalize_result(query, payload, result)
+
+    def _load_with_formulas(self, query: dict[str, Any], formula_measures: list[dict[str, Any]]) -> dict[str, Any]:
+        query = dict(query or {})
+        requested_measures = self._resolve_members(query.get("measures"), "measure")
+        dependency_codes: list[str] = []
+        requested_non_formula_codes: list[str] = []
+        for measure in requested_measures:
+            code = measure.get("code")
+            if not code:
+                continue
+            if measure.get("formula"):
+                for dep_code in measure.get("dependencies") or []:
+                    if dep_code not in dependency_codes:
+                        dependency_codes.append(dep_code)
+            else:
+                requested_non_formula_codes.append(code)
+                if code not in dependency_codes:
+                    dependency_codes.append(code)
+
+        if not dependency_codes:
+            raise FormulaValidationError("公式指标缺少依赖指标")
+
+        aliases = self._formula_aliases()
+        base_query = {
+            **query,
+            "measures": [self._code_to_member_name(code) for code in dependency_codes],
+            "order": self._base_order_for_formula_query(query.get("order") or {}, set(dependency_codes)),
+        }
+        payload = self.translate_query(base_query)
+        da_result = self.da_query(payload)
+        result = self.normalize_result(base_query, payload, da_result)
+
+        requested_name_by_code = self._requested_measure_name_by_code(query)
+        member_name_by_code = {code: self._code_to_member_name(code) for code in dependency_codes}
+        keep_measure_names = {self._code_to_member_name(code) for code in requested_non_formula_codes}
+        for formula in formula_measures:
+            compiled = compile_formula(str(formula.get("expression") or ""), aliases)
+            output_name = requested_name_by_code.get(formula["code"]) or self._code_to_member_name(formula["code"])
+            keep_measure_names.add(output_name)
+            lod = formula.get("lod") or {}
+            lod_type = str(lod.get("type") or "none").lower()
+            if lod_type in {"fixed", "exclude"}:
+                self._apply_lod_formula(query, result, formula, compiled, output_name)
+            else:
+                for row in result.get("data") or []:
+                    row[output_name] = compiled.evaluate(row, member_name_by_code)
+
+        dependency_member_names = {self._code_to_member_name(code) for code in dependency_codes}
+        for row in result.get("data") or []:
+            for key in list(row.keys()):
+                if key.startswith(f"{self.model_name}.") and key in dependency_member_names and key not in keep_measure_names:
+                    row.pop(key, None)
+
+        result["query"] = query
+        result["formulaDiagnostics"] = {
+            "formulaMeasures": [item.get("code") for item in formula_measures],
+            "expandedMeasures": dependency_codes,
+        }
+        result["annotation"] = self._annotation()
+        return result
+
+    def _apply_lod_formula(
+        self,
+        query: dict[str, Any],
+        result: dict[str, Any],
+        formula: dict[str, Any],
+        compiled: Any,
+        output_name: str,
+    ) -> None:
+        dependency_codes = list(formula.get("dependencies") or [])
+        lod = formula.get("lod") or {}
+        lod_dimensions = [str(value) for value in (lod.get("dimensions") or []) if value]
+        current_dimensions = [str(value) for value in (query.get("dimensions") or []) if value]
+        formula_dimensions = self._formula_lod_dimensions(str(lod.get("type") or "none"), lod_dimensions, current_dimensions)
+        formula_query = {
+            **query,
+            "measures": [self._code_to_member_name(code) for code in dependency_codes],
+            "dimensions": formula_dimensions,
+            "order": {},
+            "limit": query.get("limit") or 10000,
+        }
+        payload = self.translate_query(formula_query)
+        lod_result = self.normalize_result(formula_query, payload, self.da_query(payload))
+        member_name_by_code = {code: self._code_to_member_name(code) for code in dependency_codes}
+        key_members = formula_dimensions
+        values_by_key: dict[tuple[str, ...], float | None] = {}
+        fallback = None
+        for lod_row in lod_result.get("data") or []:
+            value = compiled.evaluate(lod_row, member_name_by_code)
+            key = tuple(str(lod_row.get(member, "")) for member in key_members)
+            values_by_key[key] = value
+            if fallback is None:
+                fallback = value
+
+        for row in result.get("data") or []:
+            if key_members and all(member in row for member in key_members):
+                key = tuple(str(row.get(member, "")) for member in key_members)
+                row[output_name] = values_by_key.get(key)
+            elif len(values_by_key) == 1:
+                row[output_name] = fallback
+            else:
+                row[output_name] = None
+
+    def _formula_lod_dimensions(
+        self,
+        lod_type: str,
+        lod_dimensions: list[str],
+        current_dimensions: list[str],
+    ) -> list[str]:
+        lod_members = []
+        for value in lod_dimensions:
+            member = self._resolve_dimension_member(value, [])
+            if member:
+                lod_members.append(self._code_to_member_name(member["code"]))
+        if lod_type == "fixed":
+            return self._dedupe_strings(lod_members)
+        if lod_type == "exclude":
+            excluded = {self._resolve_dimension_member(value, [])["code"] for value in lod_dimensions if self._resolve_dimension_member(value, [])}
+            kept = []
+            for value in current_dimensions:
+                member = self._resolve_dimension_member(value, [])
+                if not member or member.get("code") in excluded:
+                    continue
+                kept.append(self._code_to_member_name(member["code"]))
+            return self._dedupe_strings(kept)
+        return current_dimensions
 
     def normalize_result(
         self,
@@ -317,6 +455,46 @@ class AdSemanticService:
             if raw in names or any(alias in names for alias in aliases):
                 return item
         return None
+
+    def _formula_aliases(self) -> dict[str, str]:
+        aliases: dict[str, str] = {}
+        for item in self.catalog.get("measures") or []:
+            code = str(item.get("code") or "")
+            if not code:
+                continue
+            for alias in {
+                code,
+                _member_name(self.model_name, code),
+                normalize_member_key(code),
+                str(item.get("name") or ""),
+                str(item.get("title") or ""),
+            }:
+                if alias:
+                    aliases[alias] = code
+                    aliases[alias.lower()] = code
+        return aliases
+
+    def _requested_measure_name_by_code(self, query: dict[str, Any]) -> dict[str, str]:
+        mapping = {}
+        for value in query.get("measures") if isinstance(query.get("measures"), list) else []:
+            member = self._resolve_member(value, "measure")
+            if member:
+                mapping[member["code"]] = str(
+                    value if not isinstance(value, dict)
+                    else value.get("name") or value.get("member") or value.get("code")
+                )
+        return mapping
+
+    def _base_order_for_formula_query(self, order: Any, dependency_codes: set[str]) -> Any:
+        if isinstance(order, dict):
+            result = {}
+            for key, value in order.items():
+                member = self._resolve_member(key)
+                if member and member.get("code", "") not in dependency_codes and member.get("code", "").startswith("MEAS_"):
+                    continue
+                result[key] = value
+            return result
+        return order
 
     def _logical_dimensions(self) -> list[dict[str, Any]]:
         return _logical_dimension_items(self.catalog.get("dimensions") or [])
@@ -607,5 +785,15 @@ class AdSemanticService:
             code = item.get("code")
             if code and code not in seen:
                 seen.add(code)
+                result.append(item)
+        return result
+
+    @staticmethod
+    def _dedupe_strings(items: list[str]) -> list[str]:
+        result = []
+        seen = set()
+        for item in items:
+            if item and item not in seen:
+                seen.add(item)
                 result.append(item)
         return result

@@ -1,0 +1,3 @@
+{"id":"nlq_web_sales_amount_total","tier":"p0","surface":"nlq","question":"查询网络销售金额","expected_action":"answer","expected_measure_codes":["MEAS_web_sales_amount"],"expected_fact_tables":["web_sales"],"expected_dimension_codes":[]}
+{"id":"nlq_web_sales_amount_by_month","tier":"p0","surface":"nlq","question":"按月查看网络销售金额","expected_action":"answer","expected_measure_codes":["MEAS_web_sales_amount"],"expected_fact_tables":["web_sales"],"expected_dimension_codes":["DIM_date_month"]}
+{"id":"nlq_metric_not_found_refund_rate","tier":"p0","surface":"nlq","question":"查询退款率","expected_action":"reject","expected_diagnostic_code":"METRIC_NOT_FOUND","forbidden_measure_codes":["MEAS_web_sales_amount"]}

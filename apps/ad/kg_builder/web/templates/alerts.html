@@ -145,7 +145,6 @@
       <ul class="nav flex-column" id="alertTabs">
         <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-rules"><i class="bi bi-sliders2"></i>规则管理</a></li>
         <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs"><i class="bi bi-list-ul"></i>预警日志</a></li>
-        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-documents"><i class="bi bi-receipt"></i>单据追踪</a></li>
         <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-stats"><i class="bi bi-bar-chart"></i>统计看板</a></li>
         <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-settings"><i class="bi bi-gear"></i>通知设置</a></li>
       </ul>
@@ -238,9 +237,18 @@
                   <div id="measureSelected" class="small text-muted mt-1" style="display:none;"></div>
                 </div>
                 <div>
-                  <label class="form-label small fw-bold">维度过滤 <small class="text-muted fw-normal">（可选，仅监控特定维度组合）</small></label>
+                  <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+                    <label class="form-label small fw-bold mb-0">过滤条件 <small class="text-muted fw-normal">（可选，仅监控特定组合）</small></label>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="过滤类型">
+                      <input type="radio" class="btn-check" name="filterMode" id="filterModeDimension" value="dimension" checked onchange="setFilterMode('dimension')">
+                      <label class="btn btn-outline-secondary" for="filterModeDimension">维度过滤</label>
+                      <input type="radio" class="btn-check" name="filterMode" id="filterModeField" value="field" onchange="setFilterMode('field')">
+                      <label class="btn btn-outline-secondary" for="filterModeField">表字段过滤</label>
+                    </div>
+                  </div>
+                  <div class="small text-muted mb-1" id="filterModeHint">选择指标后，可添加该指标可用维度作为过滤条件。</div>
                   <div id="dimFilters"></div>
-                  <button class="btn btn-sm btn-link p-0 mt-1" onclick="addDimFilter()"><i class="bi bi-plus"></i> 添加维度条件</button>
+                  <button class="btn btn-sm btn-link p-0 mt-1" id="addFilterBtn" onclick="addFilterCondition()"><i class="bi bi-plus"></i> 添加维度条件</button>
                 </div>
               </div>
 
@@ -332,31 +340,25 @@
                   <small class="text-muted"><i class="bi bi-info-circle"></i> 当指标值突降至接近零时自动触发，无需额外配置。</small>
                 </div>
                 <div id="condDocument" class="mt-3 p-3 rounded" style="background:#f8fafc; display:none;">
-                  <div class="row g-2 align-items-end">
-                    <div class="col-3">
-                      <label class="form-label small">明细列</label>
-                      <input class="form-control form-control-sm" id="condDocColumn" placeholder="留空自动识别">
+                  <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                    <div>
+                      <label class="form-label small fw-bold mb-0">明细下钻判定条件</label>
+                      <div class="small text-muted" id="condDocColumnHint">选择指标后加载可用维度和明细表列。</div>
                     </div>
-                    <div class="col-2">
-                      <label class="form-label small">比较方式</label>
-                      <select class="form-select form-select-sm" id="condDocOp">
-                        <option value="eq">等于</option>
-                        <option value="lte">小于等于</option>
-                        <option value="lt">小于</option>
-                        <option value="gte">大于等于</option>
-                        <option value="gt">大于</option>
-                      </select>
+                    <div class="btn-group btn-group-sm">
+                      <button class="btn btn-outline-secondary" type="button" onclick="syncRuleDocumentConditionsFromFilters()"><i class="bi bi-arrow-down-up"></i> 从过滤条件生成</button>
+                      <button class="btn btn-outline-primary" type="button" onclick="addRuleDocumentCondition()"><i class="bi bi-plus"></i> 新增表列条件</button>
                     </div>
-                    <div class="col-2">
-                      <label class="form-label small">值</label>
-                      <input class="form-control form-control-sm" id="condDocValue" type="number" step="any" value="0">
-                    </div>
-                    <div class="col-2">
+                  </div>
+                  <datalist id="condDocColumnOptions"></datalist>
+                  <div id="condDocConditions" class="d-flex flex-column gap-1"></div>
+                  <div class="row g-2 align-items-end mt-2">
+                    <div class="col-4">
                       <label class="form-label small">扫描行数</label>
                       <input class="form-control form-control-sm" id="condDocMaxRows" type="number" min="100" max="50000" value="5000">
                     </div>
-                    <div class="col-3">
-                      <small class="text-muted">查询渲染后异步执行，不阻塞首页和看板加载。</small>
+                    <div class="col-8">
+                      <small class="text-muted">上方过滤条件用于限定触发范围；这里用于触发后下钻明细时定位具体业务行。多个条件同时满足才算命中。</small>
                     </div>
                   </div>
                 </div>
@@ -414,66 +416,6 @@
               </div>
             </div>
             <div class="card-footer d-flex justify-content-between align-items-center" id="logsPagination"></div>
-          </div>
-        </div>
-
-        <!-- ════════════════════════════════ Document Trace Tab ═════════════ -->
-        <div class="tab-pane fade" id="tab-documents">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-              <h6 class="mb-0">单据追踪</h6>
-              <small class="text-muted">直接扫描指标背后的原始明细，定位异常订单、行项目或业务单据</small>
-            </div>
-          </div>
-
-          <div class="card mb-3">
-            <div class="card-header">问题单据筛查</div>
-            <div class="card-body">
-              <div class="row g-2 align-items-end">
-                <div class="col-lg-4 col-md-6">
-                  <label class="form-label small fw-bold">指标</label>
-                  <select id="docMeasureCode" class="form-select form-select-sm"></select>
-                </div>
-                <div class="col-lg-2 col-md-3">
-                  <label class="form-label small fw-bold">明细列</label>
-                  <input id="docColumnCode" class="form-control form-control-sm" placeholder="自动识别">
-                </div>
-                <div class="col-lg-2 col-md-3">
-                  <label class="form-label small fw-bold">条件</label>
-                  <select id="docOperator" class="form-select form-select-sm">
-                    <option value="eq">等于</option>
-                    <option value="lte">小于等于</option>
-                    <option value="lt">小于</option>
-                    <option value="gte">大于等于</option>
-                    <option value="gt">大于</option>
-                  </select>
-                </div>
-                <div class="col-lg-2 col-md-3">
-                  <label class="form-label small fw-bold">值</label>
-                  <input id="docValue" class="form-control form-control-sm" type="number" step="any" value="0">
-                </div>
-                <div class="col-lg-2 col-md-3">
-                  <label class="form-label small fw-bold">扫描行数</label>
-                  <input id="docMaxRows" class="form-control form-control-sm" type="number" min="100" max="50000" value="5000">
-                </div>
-              </div>
-              <div class="d-flex align-items-center gap-2 mt-3">
-                <button class="btn btn-sm btn-primary" onclick="runDocumentScan(this)"><i class="bi bi-search me-1"></i>查找问题单据</button>
-                <span id="docScanStatus" class="small text-muted">默认示例：网络销售金额明细中的销售金额 = 0。</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header d-flex align-items-center gap-2">
-              <span>命中单据</span>
-              <span id="docScanBadge" class="badge bg-secondary ms-auto">未扫描</span>
-            </div>
-            <div class="card-body p-0">
-              <div id="docScanResult" class="table-responsive">
-                <div class="empty-state"><i class="bi bi-receipt"></i>选择指标和条件后开始扫描</div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -559,6 +501,9 @@ const API = '/api/alerts';
 
 // ── Helpers ──
 function fmt(v) { return v === null || v === undefined ? '-' : String(v); }
+function escHtml(v) {
+  return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
 function sevBadge(s) {
   const m = {notice:'badge-notice',warning:'badge-warning',critical:'badge-critical'};
   return `<span class="badge ${m[s]||'bg-secondary'}">${s}</span>`;
@@ -596,7 +541,6 @@ document.querySelectorAll('#alertTabs .nav-link').forEach(el => {
     const t = e.target.getAttribute('href');
     if (t==='#tab-rules') loadRules();
     if (t==='#tab-logs') loadLogs();
-    if (t==='#tab-documents') initDocumentTrace();
     if (t==='#tab-stats') loadStats();
     if (t==='#tab-settings') loadSettings();
   });
@@ -629,6 +573,7 @@ const THRESHOLD_OPS = ['gt','lt','gte','lte','eq','between','outside'];
 const DETECT_CARDS = ['threshold','statistical','fluctuation','zero','document'];
 
 let _allMeasures = [];
+let _documentColumnCache = {};
 
 async function loadMeasures() {
   try {
@@ -674,30 +619,76 @@ function selectMeasure(code, name, table) {
   updatePreview();
   // Fetch associated dimensions for auto-suggest
   loadDimSuggestions(code);
+  loadFieldSuggestions(code);
+  loadDocumentColumnOptions(code, 'rule');
 }
 
 // ── Dimension filters ──
 let _cachedDimensions = []; // loaded by loadDimSuggestions
+let _cachedFieldColumns = [];
+let _filterMode = 'dimension';
 
-function addDimFilter(code='', name='', val='') {
+function setFilterMode(mode='dimension') {
+  _filterMode = mode === 'field' ? 'field' : 'dimension';
+  const dimRadio = document.getElementById('filterModeDimension');
+  const fieldRadio = document.getElementById('filterModeField');
+  if (dimRadio) dimRadio.checked = _filterMode === 'dimension';
+  if (fieldRadio) fieldRadio.checked = _filterMode === 'field';
+  updateFilterModeHint();
+  const measureCode = document.getElementById('editMeasureCode')?.value.trim();
+  if (_filterMode === 'field' && measureCode && !_cachedFieldColumns.length) loadFieldSuggestions(measureCode);
+}
+
+function updateFilterModeHint() {
+  const hint = document.getElementById('filterModeHint');
+  const btn = document.getElementById('addFilterBtn');
+  if (btn) btn.innerHTML = _filterMode === 'field'
+    ? '<i class="bi bi-plus"></i> 添加表字段条件'
+    : '<i class="bi bi-plus"></i> 添加维度条件';
+  if (!hint) return;
+  const measureCode = document.getElementById('editMeasureCode')?.value.trim();
+  if (!measureCode) {
+    hint.textContent = _filterMode === 'field'
+      ? '选择指标后，会自动加载该指标背后的明细表字段。'
+      : '选择指标后，可添加该指标可用维度作为过滤条件。';
+    return;
+  }
+  hint.textContent = _filterMode === 'field'
+    ? `已加载 ${_cachedFieldColumns.length} 个明细表字段，可选择字段名后手动填写过滤值。`
+    : `已加载 ${_cachedDimensions.length} 个可用维度，可选择维度后获取维值。`;
+}
+
+function addFilterCondition() {
+  addDimFilter('', '', '', _filterMode);
+}
+
+function addDimFilter(code='', name='', val='', type='dimension') {
+  const filterType = type === 'field' ? 'field' : 'dimension';
   const label = name || code;
   const div = document.createElement('div');
   div.className = 'input-group input-group-sm mb-1 dim-row';
+  div.dataset.filterType = filterType;
+  const keyPlaceholder = filterType === 'field' ? '选择表字段' : '选择维度';
+  const valueReadonly = filterType === 'field' ? '' : 'readonly';
+  const valueStyle = filterType === 'field' ? '' : 'background:#f8fafc;cursor:pointer;';
+  const valueClick = filterType === 'field' ? '' : 'onclick="toggleValDropdown(this)"';
+  const fetchButton = filterType === 'field'
+    ? ''
+    : '<button class="btn btn-sm btn-outline-secondary dim-fetch-btn" onclick="fetchDimValues(event, this.closest(\'.dim-row\'))" title="获取维值"><i class="bi bi-download"></i></button>';
   div.innerHTML = `<input type="hidden" class="dim-code" value="${code.replace(/"/g,'&quot;')}">
     <div style="position:relative;max-width:140px;">
-      <input class="form-control form-control-sm dim-label" placeholder="选择维度" value="${label.replace(/"/g,'&quot;')}" autocomplete="off"
+      <input class="form-control form-control-sm dim-label" placeholder="${keyPlaceholder}" value="${label.replace(/"/g,'&quot;')}" autocomplete="off"
         onfocus="showDimDropdown(this)" onclick="showDimDropdown(this)" style="background:#f8fafc;cursor:pointer;" readonly>
       <div class="dim-dropdown dropdown-menu" style="position:absolute;top:100%;left:0;right:0;max-height:180px;overflow:auto;display:none;"></div>
     </div>
     <span class="input-group-text">=</span>
     <div style="position:relative;flex:1;">
-      <input class="form-control form-control-sm dim-val" placeholder="筛选值" value="${val.replace(/"/g,'&quot;')}" autocomplete="off" readonly style="background:#f8fafc;cursor:pointer;"
-        onclick="toggleValDropdown(this)">
+      <input class="form-control form-control-sm dim-val" placeholder="${filterType === 'field' ? '输入筛选值' : '筛选值'}" value="${val.replace(/"/g,'&quot;')}" autocomplete="off" ${valueReadonly} style="${valueStyle}" ${valueClick} oninput="updatePreview()">
       <div class="val-dropdown dropdown-menu" style="position:absolute;top:100%;left:0;right:0;max-height:200px;overflow:auto;display:none;">
         <div class="px-2 py-1"><small class="text-muted">点击"获取维值"加载</small></div>
       </div>
     </div>
-    <button class="btn btn-sm btn-outline-secondary dim-fetch-btn" onclick="fetchDimValues(event, this.closest('.dim-row'))" title="获取维值"><i class="bi bi-download"></i></button>
+    ${fetchButton}
     <button class="btn btn-sm btn-outline-secondary" onclick="this.closest('.dim-row').remove();updatePreview();"><i class="bi bi-x"></i></button>`;
   document.getElementById('dimFilters').appendChild(div);
 }
@@ -708,16 +699,18 @@ function showDimDropdown(input) {
   // Close other dim dropdowns
   document.querySelectorAll('.dim-dropdown').forEach(d => { if (d !== dropdown) d.style.display = 'none'; });
 
-  const dims = _cachedDimensions;
+  const row = input.closest('.dim-row');
+  const isField = row?.dataset.filterType === 'field';
+  const dims = isField ? _cachedFieldColumns : _cachedDimensions;
   const q = input.value.trim().toLowerCase();
-  const filtered = q ? dims.filter(d => (d.name||d.code).toLowerCase().includes(q)) : dims;
+  const filtered = q ? dims.filter(d => `${d.name||''} ${d.code||''}`.toLowerCase().includes(q)) : dims;
 
   if (!filtered.length) {
-    dropdown.innerHTML = '<span class="dropdown-item text-muted">无匹配维度，请先选择指标</span>';
+    dropdown.innerHTML = `<span class="dropdown-item text-muted">${isField ? '无匹配表字段，请先选择指标' : '无匹配维度，请先选择指标'}</span>`;
   } else {
     dropdown.innerHTML = filtered.map(d =>
       `<a class="dropdown-item" href="#" onclick="event.preventDefault();selectDimFilter(event.target.closest('.dim-row'),'${d.code.replace(/'/g,"\\'")}','${(d.name||d.code).replace(/'/g,"\\'")}')">
-        ${d.name||d.code}
+        ${d.name||d.code} ${d.name && d.code !== d.name ? `<small class="text-muted">(${d.code})</small>` : ''}
       </a>`
     ).join('');
   }
@@ -747,6 +740,220 @@ async function loadDimSuggestions(code) {
     const r = await api(API+'/measures/'+encodeURIComponent(code)+'/dimensions');
     _cachedDimensions = r.dimensions || [];
   } catch(e) { _cachedDimensions = []; }
+  updateFilterModeHint();
+}
+
+async function loadFieldSuggestions(code) {
+  _cachedFieldColumns = [];
+  try {
+    const r = await fetchDocumentColumnOptions(code);
+    _cachedFieldColumns = (r.columns || []).map(col => ({code: col.code || '', name: col.name || col.code || ''})).filter(col => col.code);
+  } catch(e) { _cachedFieldColumns = []; }
+  updateFilterModeHint();
+}
+
+async function fetchDocumentColumnOptions(measureCode) {
+  const code = String(measureCode || '').trim();
+  if (!code) return {dimensions: [], columns: [], inferredColumn: '', inferredColumnName: ''};
+  if (_documentColumnCache[code]) return _documentColumnCache[code];
+  const [dimRes, colRes] = await Promise.all([
+    api(API+'/measures/'+encodeURIComponent(code)+'/dimensions').catch(() => ({dimensions: []})),
+    api('/api/alerts/document-columns?measureCode='+encodeURIComponent(code)+'&pageSize=50').catch(e => ({columns: [], error: e.message})),
+  ]);
+  const result = {
+    dimensions: colRes.dimensions || dimRes.dimensions || [],
+    columns: colRes.columns || [],
+    inferredColumn: colRes.inferredColumn || '',
+    inferredColumnName: colRes.inferredColumnName || '',
+    error: colRes.error || '',
+  };
+  _documentColumnCache[code] = result;
+  return result;
+}
+
+function renderDocumentColumnOptions(target, data) {
+  const datalistId = target === 'scan' ? 'docColumnOptions' : 'condDocColumnOptions';
+  const hintId = target === 'scan' ? 'docColumnHint' : 'condDocColumnHint';
+  const datalist = document.getElementById(datalistId);
+  const hint = document.getElementById(hintId);
+  if (!datalist) return;
+  const options = [];
+  const inferred = data?.inferredColumn || '';
+  (data?.columns || []).forEach(col => {
+    const code = col.code || '';
+    if (!code) return;
+    const name = col.name || code;
+    const prefix = code === inferred ? '推荐明细列' : '明细表列';
+    options.push(`<option value="${escHtml(code)}" label="${escHtml(prefix)}：${escHtml(name)} (${escHtml(code)})"></option>`);
+  });
+  (data?.dimensions || []).forEach(dim => {
+    const code = dim.code || '';
+    const detailColumn = dim.detailColumn || code;
+    if (!detailColumn) return;
+    const name = dim.name || code || detailColumn;
+    const detailName = dim.detailColumnName || detailColumn;
+    const label = code && detailColumn !== code
+      ? `维度：${name} → ${detailName} (${detailColumn})`
+      : `维度：${name} (${detailColumn})`;
+    options.push(`<option value="${escHtml(detailColumn)}" label="${escHtml(label)}"></option>`);
+  });
+  datalist.innerHTML = options.join('');
+  if (hint) {
+    if (data?.error) hint.textContent = `明细表列加载失败：${data.error}；仍可选择维度或手动输入表列名。`;
+    else if (inferred) hint.textContent = `推荐明细列：${data.inferredColumnName || inferred}（${inferred}）。也可选择维度或其它表列名。`;
+    else hint.textContent = options.length ? '可选择维度或明细表列；留空时运行时自动识别。' : '未加载到候选项，可手动输入表列名或留空自动识别。';
+  }
+}
+
+async function loadDocumentColumnOptions(measureCode, target='rule') {
+  const code = String(measureCode || '').trim();
+  const hint = document.getElementById(target === 'scan' ? 'docColumnHint' : 'condDocColumnHint');
+  if (!code) {
+    renderDocumentColumnOptions(target, {dimensions: [], columns: []});
+    return;
+  }
+  if (hint) hint.textContent = '正在加载可用维度和明细表列...';
+  try {
+    renderDocumentColumnOptions(target, await fetchDocumentColumnOptions(code));
+  } catch(e) {
+    if (hint) hint.textContent = `候选项加载失败：${e.message}`;
+  }
+}
+
+function documentOperatorOptions(selected='eq') {
+  return [
+    ['eq', '等于'],
+    ['lte', '小于等于'],
+    ['lt', '小于'],
+    ['gte', '大于等于'],
+    ['gt', '大于'],
+  ].map(([value, label]) => `<option value="${value}" ${value === selected ? 'selected' : ''}>${label}</option>`).join('');
+}
+
+function documentConditionRowHtml(condition={}, datalistId='condDocColumnOptions') {
+  const source = condition.source === 'filter' ? 'filter' : 'manual';
+  const badge = source === 'filter'
+    ? '<span class="input-group-text text-primary">过滤带入</span>'
+    : '<span class="input-group-text text-muted">表列判定</span>';
+  return `
+    <div class="input-group input-group-sm doc-cond-row" data-source="${source}">
+      ${badge}
+      <input class="form-control doc-cond-column" list="${datalistId}" placeholder="选择表字段或维度映射列" value="${escHtml(condition.columnCode || '')}" oninput="updatePreview()">
+      <select class="form-select doc-cond-op" style="max-width:112px;" onchange="updatePreview()">${documentOperatorOptions(condition.operator || 'eq')}</select>
+      <input class="form-control doc-cond-value" style="max-width:150px;" placeholder="判定值" value="${escHtml(condition.value ?? '')}" oninput="updatePreview()">
+      <button class="btn btn-outline-secondary" type="button" onclick="this.closest('.doc-cond-row').remove();updateDocumentConditionEmptyStates();updatePreview();"><i class="bi bi-x"></i></button>
+    </div>`;
+}
+
+function addDocumentConditionTo(containerId, datalistId, condition={}) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.insertAdjacentHTML('beforeend', documentConditionRowHtml(condition, datalistId));
+  updateDocumentConditionEmptyStates();
+  updatePreview();
+}
+
+function addRuleDocumentCondition(condition={}) {
+  addDocumentConditionTo('condDocConditions', 'condDocColumnOptions', {...condition, source: condition.source || 'manual'});
+}
+
+function getDocumentConditionsFrom(containerId) {
+  return Array.from(document.querySelectorAll(`#${containerId} .doc-cond-row`)).map(row => ({
+    columnCode: row.querySelector('.doc-cond-column')?.value.trim() || '',
+    operator: row.querySelector('.doc-cond-op')?.value || 'eq',
+    value: row.querySelector('.doc-cond-value')?.value ?? '',
+    source: row.dataset.source || 'manual',
+  })).filter(item => item.columnCode || item.value !== '');
+}
+
+function normalizeDocumentValue(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  const text = String(value).trim();
+  return text !== '' && !Number.isNaN(Number(text)) ? Number(text) : text;
+}
+
+function getRuleDocumentConditions() {
+  return getDocumentConditionsFrom('condDocConditions').map(item => ({...item, value: normalizeDocumentValue(item.value)}));
+}
+
+function updateDocumentConditionEmptyStates() {
+  [
+    ['condDocConditions', '单据追踪启用后，可从上方过滤条件自动生成，也可以新增表列判定条件。'],
+  ].forEach(([id, text]) => {
+    const container = document.getElementById(id);
+    if (!container) return;
+    const hasRows = !!container.querySelector('.doc-cond-row');
+    const empty = container.querySelector('.doc-cond-empty');
+    if (!hasRows && !empty) container.insertAdjacentHTML('beforeend', `<div class="doc-cond-empty small text-muted border rounded px-2 py-2">${text}</div>`);
+    if (hasRows && empty) empty.remove();
+  });
+}
+
+function documentColumnForFilterKey(key, documentData) {
+  const raw = String(key || '').trim();
+  if (!raw) return '';
+  const dim = (documentData?.dimensions || []).find(item => {
+    const candidates = [item.code, item.name, item.detailColumn].map(x => String(x || '').toLowerCase());
+    return candidates.includes(raw.toLowerCase());
+  });
+  return dim?.detailColumn || raw;
+}
+
+async function conditionsFromCurrentFilters(measureCode) {
+  const data = await fetchDocumentColumnOptions(measureCode);
+  const dims = getDimFilters();
+  const fieldFilters = dims.__fieldFilters || {};
+  delete dims.__document;
+  delete dims.__fieldFilters;
+  const conditions = [];
+  for (const [key, value] of Object.entries(dims)) {
+    if (value === '' || value === null || value === undefined) continue;
+    conditions.push({
+      columnCode: documentColumnForFilterKey(key, data),
+      operator: 'eq',
+      value,
+      source: 'filter',
+    });
+  }
+  for (const [key, value] of Object.entries(fieldFilters)) {
+    if (value === '' || value === null || value === undefined) continue;
+    conditions.push({
+      columnCode: key,
+      operator: 'eq',
+      value,
+      source: 'filter',
+    });
+  }
+  return conditions;
+}
+
+async function syncRuleDocumentConditionsFromFilters(options={}) {
+  const measureCode = document.getElementById('editMeasureCode')?.value.trim();
+  if (!measureCode) { showToast('请先选择监控指标', 'error'); return; }
+  const conditions = await conditionsFromCurrentFilters(measureCode);
+  const container = document.getElementById('condDocConditions');
+  if (!options.append && container) container.innerHTML = '';
+  conditions.forEach(addRuleDocumentCondition);
+  if (!conditions.length && !options.silent) showToast('上方过滤条件为空，已保留手动新增入口');
+  updateDocumentConditionEmptyStates();
+  updatePreview();
+}
+
+function setRuleDocumentConditions(config={}) {
+  const container = document.getElementById('condDocConditions');
+  if (container) container.innerHTML = '';
+  const conditions = Array.isArray(config.conditions) ? config.conditions : [];
+  if (conditions.length) {
+    conditions.forEach(item => addRuleDocumentCondition(item));
+  } else if (config.columnCode || config.value !== undefined) {
+    addRuleDocumentCondition({
+      columnCode: config.columnCode || '',
+      operator: config.operator || 'eq',
+      value: config.value ?? 0,
+      source: 'manual',
+    });
+  }
+  updateDocumentConditionEmptyStates();
 }
 
 // Click outside closes dropdowns
@@ -811,11 +1018,15 @@ function updateValSelection(row) {
 
 function getDimFilters() {
   const dims = {};
+  const fieldFilters = {};
   document.querySelectorAll('.dim-row').forEach(row => {
     const k = (row.querySelector('.dim-code')||row.querySelector('.dim-key')).value.trim();
     const v = row.querySelector('.dim-val').value.trim();
-    if (k && v) dims[k] = v;
+    if (!k || !v) return;
+    if (row.dataset.filterType === 'field') fieldFilters[k] = v;
+    else dims[k] = v;
   });
+  if (Object.keys(fieldFilters).length) dims.__fieldFilters = fieldFilters;
   return dims;
 }
 
@@ -828,12 +1039,15 @@ function parseDocumentRuleConfig(raw) {
 }
 
 function attachDocumentRuleConfig(dims) {
+  const conditions = getRuleDocumentConditions();
+  const first = conditions[0] || {};
   return {
     ...(dims || {}),
     __document: {
-      columnCode: document.getElementById('condDocColumn').value.trim(),
-      operator: document.getElementById('condDocOp').value || 'eq',
-      value: document.getElementById('condDocValue').value === '' ? 0 : Number(document.getElementById('condDocValue').value),
+      conditions,
+      columnCode: first.columnCode || '',
+      operator: first.operator || 'eq',
+      value: first.value ?? 0,
       maxRows: parseInt(document.getElementById('condDocMaxRows').value, 10) || 5000,
     },
   };
@@ -842,12 +1056,21 @@ function attachDocumentRuleConfig(dims) {
 function setDimFilters(dims) {
   document.getElementById('dimFilters').innerHTML = '';
   if (typeof dims === 'string') { try { dims = JSON.parse(dims); } catch(e) { dims = {}; } }
-  if (dims && typeof dims === 'object') delete dims.__document;
-  if (!dims || !Object.keys(dims).length) return;
+  const fieldFilters = dims && typeof dims === 'object' ? {...(dims.__fieldFilters || {})} : {};
+  if (dims && typeof dims === 'object') {
+    delete dims.__document;
+    delete dims.__fieldFilters;
+  }
+  if (Object.keys(fieldFilters).length && (!dims || !Object.keys(dims).length)) setFilterMode('field');
+  if ((!dims || !Object.keys(dims).length) && !Object.keys(fieldFilters).length) return;
   // Try to resolve Chinese names from cached dims
-  for (const [k,v] of Object.entries(dims)) {
+  for (const [k,v] of Object.entries(dims || {})) {
     const found = _cachedDimensions.find(d => d.code === k);
     addDimFilter(k, found ? found.name : k, v);
+  }
+  for (const [k,v] of Object.entries(fieldFilters)) {
+    const found = _cachedFieldColumns.find(d => d.code === k);
+    addDimFilter(k, found ? found.name : k, v, 'field');
   }
 }
 
@@ -891,6 +1114,13 @@ function syncDetectMethodUI() {
     document.getElementById('condThOp').value = 'lt';
     updateThVal2Visibility();
   }
+  if (methods.includes('document')) {
+    const measureCode = document.getElementById('editMeasureCode')?.value.trim();
+    if (measureCode) loadDocumentColumnOptions(measureCode, 'rule');
+    if (!document.querySelector('#condDocConditions .doc-cond-row')) {
+      syncRuleDocumentConditionsFromFilters({silent:true});
+    }
+  }
 }
 
 function selectSeverity(sev) {
@@ -908,7 +1138,7 @@ function selectSeverity(sev) {
 document.addEventListener('change', e => {
   if (e.target.id === 'condThOp') { updateThVal2Visibility(); updatePreview(); }
   if (e.target.matches('#condThValue, #condThValue2, #condFlucDir, #condFlucRatio')) updatePreview();
-  if (e.target.matches('#condDocColumn, #condDocOp, #condDocValue, #condDocMaxRows')) updatePreview();
+  if (e.target.matches('#condDocMaxRows, .doc-cond-column, .doc-cond-op, .doc-cond-value')) updatePreview();
 });
 
 function updateThVal2Visibility() {
@@ -940,10 +1170,15 @@ function updatePreview() {
   }
   if (methods.includes('zero')) conds.push('数值骤降至接近零');
   if (methods.includes('document')) {
-    const col = document.getElementById('condDocColumn')?.value || '指标明细金额列';
-    const op = document.getElementById('condDocOp')?.value || 'eq';
-    const value = document.getElementById('condDocValue')?.value || '0';
-    conds.push(`明细单据 ${col} ${OP_LABELS[op] || op} ${value}`);
+    const docConditions = getDocumentConditionsFrom('condDocConditions');
+    if (docConditions.length) {
+      const text = docConditions.slice(0, 2).map(item =>
+        `${item.columnCode || '自动识别列'} ${OP_LABELS[item.operator] || item.operator} ${item.value || ''}`
+      ).join(' 且 ');
+      conds.push(`明细单据 ${text}${docConditions.length > 2 ? ` 等 ${docConditions.length} 个条件` : ''}`);
+    } else {
+      conds.push('明细单据满足下钻判定条件');
+    }
   }
   if (methods.includes('threshold')) {
     const op = document.getElementById('condThOp')?.value || 'lt';
@@ -965,7 +1200,7 @@ function updatePreview() {
 }
 
 // Attach preview updates
-['editName','editAssignee','editCooldown','condDocColumn','condDocValue','condDocMaxRows'].forEach(id => {
+['editName','editAssignee','editCooldown','condDocMaxRows'].forEach(id => {
   document.getElementById(id).addEventListener('input', updatePreview);
 });
 document.querySelectorAll('#severityRadio input').forEach(r => r.addEventListener('change', updatePreview));
@@ -1009,7 +1244,12 @@ async function loadRules(page=1) {
         cond = '自动统计异常';
       } else if (op === 'document') {
         const doc = parseDocumentRuleConfig(rule.dimensions_json);
-        cond = `单据追踪 ${doc.columnCode || '自动识别列'} ${OP_LABELS[doc.operator] || doc.operator || '等于'} ${doc.value ?? 0}`;
+        const docConditions = Array.isArray(doc.conditions) && doc.conditions.length
+          ? doc.conditions
+          : [{columnCode: doc.columnCode || '自动识别列', operator: doc.operator || 'eq', value: doc.value ?? 0}];
+        const first = docConditions[0] || {};
+        cond = `单据追踪 ${first.columnCode || '自动识别列'} ${OP_LABELS[first.operator] || first.operator || '等于'} ${first.value ?? 0}`;
+        if (docConditions.length > 1) cond += ` 等 ${docConditions.length} 个条件`;
       }
 
       html += `<div class="rule-card ${isEnabled?'':'disabled'}">
@@ -1047,6 +1287,8 @@ function openRuleEditor(id) {
   document.getElementById('measureSelected').style.display = 'none';
   document.getElementById('dimFilters').innerHTML = '';
   document.getElementById('editMeasureSearch').value = '';
+  _cachedFieldColumns = [];
+  setFilterMode('dimension');
 
   // Default severity = warning
   document.querySelectorAll('#severityRadio .detect-card').forEach(c => c.classList.remove('active'));
@@ -1060,9 +1302,10 @@ function openRuleEditor(id) {
   document.getElementById('condThValue2').value = '';
   document.getElementById('condFlucDir').value = 'drop';
   document.getElementById('condFlucRatio').value = '30';
-  document.getElementById('condDocColumn').value = '';
-  document.getElementById('condDocOp').value = 'eq';
-  document.getElementById('condDocValue').value = '0';
+  document.getElementById('condDocColumnOptions').innerHTML = '';
+  document.getElementById('condDocColumnHint').textContent = '选择指标后加载可用维度和明细表列。';
+  document.getElementById('condDocConditions').innerHTML = '';
+  updateDocumentConditionEmptyStates();
   document.getElementById('condDocMaxRows').value = '5000';
 
   if (id) {
@@ -1098,23 +1341,26 @@ function openRuleEditor(id) {
         updateThVal2Visibility();
       } else if (op==='document') {
         const doc = parseDocumentRuleConfig(rule.dimensions_json);
-        document.getElementById('condDocColumn').value = doc.columnCode || '';
-        document.getElementById('condDocOp').value = doc.operator || 'eq';
-        document.getElementById('condDocValue').value = doc.value ?? 0;
+        setRuleDocumentConditions(doc);
         document.getElementById('condDocMaxRows').value = doc.maxRows || 5000;
       }
-
-      // Dimension filters
-      setDimFilters(rule.dimensions_json);
 
       // Show selected measure info
       if (rule.measure_code) {
         document.getElementById('measureSelected').style.display = 'block';
         document.getElementById('measureSelected').innerHTML = `指标：<code>${rule.measure_code}</code>`;
-        loadDimSuggestions(rule.measure_code);
+        Promise.all([
+          loadDimSuggestions(rule.measure_code),
+          loadFieldSuggestions(rule.measure_code),
+          loadDocumentColumnOptions(rule.measure_code, 'rule'),
+        ]).then(() => {
+          setDimFilters(rule.dimensions_json);
+          updatePreview();
+        });
+      } else {
+        setDimFilters(rule.dimensions_json);
+        updatePreview();
       }
-
-      updatePreview();
     });
   } else {
     updatePreview();
@@ -1183,7 +1429,9 @@ function buildRuleBodyForMethod(baseBody, baseName, method, suffixName=false) {
   } else if (method === 'document') {
     body.operator = 'document';
     body.builtin_type = 'document';
-    body.threshold = document.getElementById('condDocValue').value === '' ? 0 : Number(document.getElementById('condDocValue').value);
+    const docConditions = getRuleDocumentConditions();
+    const firstDocValue = docConditions[0]?.value;
+    body.threshold = firstDocValue === undefined || firstDocValue === '' || Number.isNaN(Number(firstDocValue)) ? 0 : Number(firstDocValue);
     body.dimensions_json = JSON.stringify(attachDocumentRuleConfig(getDimFilters()));
   }
   body.name = suffixName ? `${baseName} - ${methodNameForSave(body.operator)}` : baseName;
@@ -1253,103 +1501,6 @@ async function resolveLog(id) {
   const note = prompt('处理说明（可选）:');
   await api(API+'/logs/'+id+'/resolve', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note||''})});
   loadLogs(); showToast('已关闭');
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Document trace
-// ═══════════════════════════════════════════════════════════════════════════
-
-let _documentTraceReady = false;
-
-async function initDocumentTrace() {
-  if (!_allMeasures.length) await loadMeasures();
-  const select = document.getElementById('docMeasureCode');
-  if (!select) return;
-  select.innerHTML = _allMeasures.map(m =>
-    `<option value="${m.code}" ${m.code==='MEAS_web_sales_amount'?'selected':''}>${fmt(m.name||m.code)} (${m.code})</option>`
-  ).join('');
-  if (!select.value && _allMeasures.length) select.value = _allMeasures[0].code;
-  _documentTraceReady = true;
-}
-
-async function runDocumentScan(btn) {
-  if (!_documentTraceReady) await initDocumentTrace();
-  const measureCode = document.getElementById('docMeasureCode').value;
-  const columnCode = document.getElementById('docColumnCode').value.trim();
-  const operator = document.getElementById('docOperator').value;
-  const value = document.getElementById('docValue').value || 0;
-  const maxRows = parseInt(document.getElementById('docMaxRows').value, 10) || 5000;
-  const status = document.getElementById('docScanStatus');
-  const badge = document.getElementById('docScanBadge');
-  const out = document.getElementById('docScanResult');
-  btn.disabled = true;
-  status.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>正在扫描明细单据...';
-  badge.className = 'badge bg-secondary ms-auto';
-  badge.textContent = '扫描中';
-  out.innerHTML = '<div class="text-muted text-center py-5"><span class="spinner-border spinner-border-sm me-1"></span>正在查询原始明细...</div>';
-  try {
-    const payload = {measureCode, columnCode, operator, value, maxRows, pageSize:500};
-    const r = await api('/api/alerts/document-scan', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload),
-    });
-    renderDocumentScanResult(r);
-    const matched = r.summary?.matchedRows || 0;
-    const scanned = r.summary?.scannedRows || 0;
-    status.textContent = `已扫描 ${scanned} 行，命中 ${matched} 条；识别列：${r.targetColumnName || r.targetColumn || '-'}`;
-    badge.className = `badge ${matched ? 'bg-danger' : 'bg-success'} ms-auto`;
-    badge.textContent = matched ? `命中 ${matched}` : '未命中';
-  } catch(e) {
-    out.innerHTML = `<div class="alert alert-danger m-3">${fmt(e.message)}</div>`;
-    status.textContent = '扫描失败';
-    badge.className = 'badge bg-danger ms-auto';
-    badge.textContent = '失败';
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-function renderDocumentScanResult(result) {
-  const out = document.getElementById('docScanResult');
-  const matches = result.matches || [];
-  if (!matches.length) {
-    out.innerHTML = `<div class="empty-state"><i class="bi bi-check-circle"></i>未找到符合条件的问题单据<br><small>扫描 ${result.summary?.scannedRows || 0} 行，条件：${fmt(result.targetColumnName || result.targetColumn)} ${fmt(result.operator)} ${fmt(result.value)}</small></div>`;
-    return;
-  }
-  const columns = result.columns || [];
-  const importantCodes = [
-    result.orderColumn,
-    result.targetColumn,
-    ...columns.map(c => c.code).filter(code => /date|customer|item|warehouse|quantity|price|amount|profit/i.test(code)).slice(0, 8),
-  ].filter((code, idx, arr) => code && arr.indexOf(code) === idx);
-  const colName = code => (columns.find(c => c.code === code)?.name || code);
-  let html = `<div class="px-3 py-2 border-bottom small text-muted">
-    指标：<code>${fmt(result.measure?.code)}</code> · 条件：<strong>${fmt(result.targetColumnName || result.targetColumn)} ${fmt(result.operator)} ${fmt(result.value)}</strong>
-    · 订单列：<code>${fmt(result.orderColumn || '未识别')}</code>
-  </div>`;
-  html += '<table class="table table-sm table-hover mb-0"><thead><tr>';
-  html += '<th>#</th><th>订单编号</th><th>命中值</th>';
-  importantCodes.filter(code => code !== result.orderColumn && code !== result.targetColumn).forEach(code => {
-    html += `<th>${fmt(colName(code))}</th>`;
-  });
-  html += '</tr></thead><tbody>';
-  matches.forEach((item, idx) => {
-    const record = item.record || {};
-    html += `<tr>
-      <td>${idx + 1}</td>
-      <td><code>${fmt(item.orderNumber || record[result.orderColumn] || '-')}</code></td>
-      <td><strong class="text-danger">${fmt(item.targetValue)}</strong></td>`;
-    importantCodes.filter(code => code !== result.orderColumn && code !== result.targetColumn).forEach(code => {
-      html += `<td>${fmt(record[code])}</td>`;
-    });
-    html += '</tr>';
-  });
-  html += '</tbody></table>';
-  if (result.diagnostics?.reviewSql) {
-    html += `<details class="m-3"><summary class="small text-muted" style="cursor:pointer">查看执行 SQL</summary><pre class="small mt-2 p-2 rounded" style="background:#f8fafc;white-space:pre-wrap">${fmt(result.diagnostics.reviewSql)}</pre></details>`;
-  }
-  out.innerHTML = html;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -59,8 +59,23 @@ def test_same_follow_up_without_context_still_requires_clarification() -> None:
     )
 
     assert response["ok"] is False
+    assert response["action"] == "clarify"
+    assert response["diagnosticCode"] == "METRIC_AMBIGUOUS"
+    assert response["recoverable"] is True
     assert response["needsClarification"] is True
     assert response["clarification"] == "指标匹配不唯一，请明确要查哪个指标"
+
+
+def test_missing_metric_is_structured_reject_not_clarification() -> None:
+    service = _service()
+    response = service.query("查询退款率", execute=False)
+
+    assert response["ok"] is False
+    assert response["action"] == "reject"
+    assert response["diagnosticCode"] == "METRIC_NOT_FOUND"
+    assert response["recoverable"] is False
+    assert response["needsClarification"] is False
+    assert response["clarification"] == "没有在业务图谱中匹配到指标"
 
 
 def test_deep_insight_metric_match_honors_inherited_fact_table() -> None:

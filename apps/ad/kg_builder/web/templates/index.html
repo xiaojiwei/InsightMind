@@ -516,6 +516,8 @@
     .pivot-table tbody tr:nth-child(even) th { background:#fafafa; }
     .pivot-value { color:#4B5563; cursor:pointer; font-weight:600; }
     .pivot-value:hover { text-decoration:underline; }
+    .pivot-heatmap-cell { transition:background-color .15s ease,color .15s ease; }
+    .pivot-heatmap-cell .pivot-value { color:inherit; }
     .adhoc-workbench { min-height:720px; }
     .adhoc-sidebar { max-height:760px; overflow:auto; }
     .adhoc-field { border-bottom:1px solid #edf0f3; padding:7px 8px; background:#fff; cursor:pointer; }
@@ -547,6 +549,11 @@
     .dashboard-view-grid-item { min-width:0; }
     .dashboard-view-grid-item-content { width:100%; height:100%; padding:4px; box-sizing:border-box; }
     .dashboard-widget { height:100%; background:#fff; border:1px solid var(--ibm-border); border-radius:0; box-shadow:none; overflow:hidden; display:flex; flex-direction:column; }
+    .dashboard-widget:has(.adhoc-chart-canvas):hover {
+      position:relative;
+      z-index:50;
+      overflow:visible;
+    }
     .dashboard-card-active {
       border-color:#CBD0D6 !important;
       box-shadow:inset 3px 0 0 #D8DCE0;
@@ -564,6 +571,10 @@
       min-width:0;
       padding:6px;
       overflow:auto;
+    }
+    .dashboard-widget:has(.adhoc-chart-canvas):hover .dashboard-widget-body,
+    .dashboard-widget:has(.adhoc-chart-canvas):hover .dashboard-widget-chart {
+      overflow:visible;
     }
     .dashboard-widget-chart {
       width:100%;
@@ -2743,8 +2754,11 @@
                   <option value="bar">柱状图</option>
                   <option value="line">折线图</option>
                   <option value="donut">环图</option>
+                  <option value="heatmap">热力图</option>
                   <option value="funnel">漏斗图</option>
                   <option value="sankey">桑基图</option>
+                  <option value="executive_report">报告式经营分析</option>
+                  <option value="kg_attribution">异常归因链路</option>
                   <option value="table">表格</option>
                 </select>
               </div>
@@ -2776,7 +2790,72 @@
                   <label class="small fw-semibold mb-1">维度</label>
                   <div id="adhoc-dimensions" class="adhoc-dropzone mb-2"></div>
                   <div id="adhoc-dimension-recommendations" class="small mb-2"></div>
+                  <div class="border rounded p-2 mb-2 bg-light">
+                    <div class="d-flex align-items-center justify-content-between gap-2">
+                      <div>
+                        <div class="small fw-semibold">注册公式指标</div>
+                        <div class="small text-muted">受控 DSL：指标引用 + 四则运算，可保存后在 Ad-Hoc 和 Dashboard 复用</div>
+                      </div>
+                      <button class="btn btn-sm btn-outline-primary" onclick="toggleAdhocFormulaPanel()"><i class="bi bi-braces me-1"></i>配置</button>
+                    </div>
+                    <div id="adhoc-formula-panel" class="mt-2 d-none">
+                      <div class="row g-2">
+                        <div class="col-md-5">
+                          <label class="form-label small mb-1">指标名称</label>
+                          <input id="adhoc-formula-name" class="form-control form-control-sm" placeholder="如：销售利润率">
+                        </div>
+                        <div class="col-md-3">
+                          <label class="form-label small mb-1">单位</label>
+                          <input id="adhoc-formula-unit" class="form-control form-control-sm" placeholder="%, 元, 个">
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label small mb-1">LOD 模式</label>
+                          <select id="adhoc-formula-lod-type" class="form-select form-select-sm" onchange="renderAdhocFormulaPanel()">
+                            <option value="none">不固定粒度</option>
+                            <option value="fixed">FIXED 固定维度</option>
+                            <option value="exclude">EXCLUDE 排除维度</option>
+                          </select>
+                        </div>
+                        <div class="col-12">
+                          <label class="form-label small mb-1">公式表达式</label>
+                          <textarea id="adhoc-formula-expression" class="form-control form-control-sm" rows="2" placeholder="[MEAS_web_sales_amount] / [MEAS_web_net_profit] * 100"></textarea>
+                        </div>
+                        <div class="col-md-7">
+                          <label class="form-label small mb-1">插入指标引用</label>
+                          <div class="d-flex gap-2">
+                            <select id="adhoc-formula-measure-picker" class="form-select form-select-sm"></select>
+                            <button class="btn btn-sm btn-outline-secondary text-nowrap" onclick="adhocFormulaInsertMeasure()"><i class="bi bi-plus-lg me-1"></i>插入</button>
+                          </div>
+                        </div>
+                        <div class="col-md-5">
+                          <label class="form-label small mb-1">LOD 维度</label>
+                          <select id="adhoc-formula-lod-dimensions" class="form-select form-select-sm" multiple size="3"></select>
+                        </div>
+                      </div>
+                      <div class="d-flex gap-2 mt-2">
+                        <button class="btn btn-sm btn-primary" onclick="saveAdhocFormulaMetric()"><i class="bi bi-save me-1"></i>保存公式指标</button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearAdhocFormulaEditor()">清空</button>
+                      </div>
+                      <div id="adhoc-formula-list" class="small mt-2"></div>
+                    </div>
+                  </div>
                   <div id="adhoc-chart-hint" class="small text-muted mb-2"></div>
+                  <div id="adhoc-report-config-wrap" class="border rounded p-2 mb-2 d-none">
+                    <label class="small fw-semibold mb-1">报告配置</label>
+                    <input id="adhoc-report-title" class="form-control form-control-sm mb-2" placeholder="报告标题，留空使用组件名称" oninput="adhocReportConfigChanged()">
+                    <input id="adhoc-report-subtitle" class="form-control form-control-sm mb-2" placeholder="报告副标题，留空自动生成" oninput="adhocReportConfigChanged()">
+                    <div id="adhoc-report-mapping-help" class="small text-muted"></div>
+                  </div>
+                  <div id="adhoc-kg-scope-wrap" class="border rounded p-2 mb-2 d-none">
+                    <label class="small fw-semibold mb-1">归因范围</label>
+                    <div class="btn-group btn-group-sm w-100" role="group" aria-label="异常归因范围">
+                      <input type="radio" class="btn-check" name="adhoc-kg-scope" id="adhoc-kg-scope-component" value="component" autocomplete="off" onchange="adhocKgScopeChanged()">
+                      <label class="btn btn-outline-secondary" for="adhoc-kg-scope-component">组件模式</label>
+                      <input type="radio" class="btn-check" name="adhoc-kg-scope" id="adhoc-kg-scope-dashboard" value="dashboard" autocomplete="off" onchange="adhocKgScopeChanged()">
+                      <label class="btn btn-outline-secondary" for="adhoc-kg-scope-dashboard">看板模式</label>
+                    </div>
+                    <div id="adhoc-kg-scope-help" class="small text-muted mt-2"></div>
+                  </div>
                   <div id="adhoc-pivot-columns-wrap" class="d-none">
                     <label class="small fw-semibold mb-1">透视列轴</label>
                     <div id="adhoc-pivot-columns" class="adhoc-dropzone mb-2"></div>
@@ -2784,6 +2863,23 @@
                     <div class="d-flex gap-2 mb-2">
                       <select id="adhoc-pivot-column-member" class="form-select form-select-sm"></select>
                       <button class="btn btn-sm btn-outline-primary text-nowrap" onclick="adhocAddPivotColumn()"><i class="bi bi-plus-lg me-1"></i>添加列轴</button>
+                    </div>
+                    <div class="border rounded p-2 mb-2 bg-light">
+                      <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="adhoc-pivot-heatmap-enabled" onchange="adhocPivotHeatmapChanged()">
+                        <label class="form-check-label small fw-semibold" for="adhoc-pivot-heatmap-enabled">热力图效果</label>
+                      </div>
+                      <div id="adhoc-pivot-heatmap-color-wrap" class="row g-2 mt-2">
+                        <div class="col-6">
+                          <label class="small text-muted mb-1" for="adhoc-pivot-heatmap-low-color">低值颜色</label>
+                          <input class="form-control form-control-color w-100" type="color" id="adhoc-pivot-heatmap-low-color" value="#f4f8f5" oninput="adhocPivotHeatmapChanged()" onchange="adhocPivotHeatmapChanged()">
+                        </div>
+                        <div class="col-6">
+                          <label class="small text-muted mb-1" for="adhoc-pivot-heatmap-high-color">高值颜色</label>
+                          <input class="form-control form-control-color w-100" type="color" id="adhoc-pivot-heatmap-high-color" value="#14806f" oninput="adhocPivotHeatmapChanged()" onchange="adhocPivotHeatmapChanged()">
+                        </div>
+                      </div>
+                      <div class="small text-muted mt-1">按当前透视表数值深浅渲染单元格底色；监控预警和单据异常颜色优先显示。</div>
                     </div>
                   </div>
                   <label class="small fw-semibold mb-1">过滤器</label>
@@ -3980,6 +4076,7 @@ function escHtml(s) {
 
 let _adhocMeta = {measures:[], dimensions:[]};
 let _adhocSaved = [];
+let _adhocFormulaMetrics = [];
 let _adhocChart = null;
 let _adhocLastResult = null;
 let _adhocSelectedPoint = null;
@@ -4432,17 +4529,134 @@ function adhocDimensionCodeForMeasures(member, measureMembers) {
 
 async function loadAdhocMeta(force=false) {
   if (_adhocMeta.measures.length && !force) return;
-  const r = await fetch('/api/ad/v1/meta');
-  const d = await r.json();
+  const [metaRes, formulaRes] = await Promise.all([
+    fetch('/api/ad/v1/meta'),
+    fetch('/api/ad/v1/formulas').catch(() => null),
+  ]);
+  const d = await metaRes.json();
+  const formulaData = formulaRes ? await formulaRes.json().catch(() => ({})) : {};
+  const r = metaRes;
   if (!r.ok) throw new Error(d.error || '语义字段加载失败');
   const model = (d.models || [])[0] || {};
   _adhocMeta = {
     measures: model.measures || [],
     dimensions: [...(model.timeDimensions || []), ...(model.dimensions || [])],
   };
+  _adhocFormulaMetrics = formulaData.formulas || [];
   renderAdhocFields();
   renderAdhocConfig();
+  renderAdhocFormulaPanel();
   renderDashboardFilterOptions();
+}
+
+function toggleAdhocFormulaPanel() {
+  const panel = document.getElementById('adhoc-formula-panel');
+  if (!panel) return;
+  panel.classList.toggle('d-none');
+  renderAdhocFormulaPanel();
+}
+
+function renderAdhocFormulaPanel() {
+  const panel = document.getElementById('adhoc-formula-panel');
+  if (!panel || panel.classList.contains('d-none')) return;
+  const measurePicker = document.getElementById('adhoc-formula-measure-picker');
+  if (measurePicker) {
+    const physicalMeasures = (_adhocMeta.measures || []).filter(item => !item.formula);
+    measurePicker.innerHTML = physicalMeasures.map(item =>
+      `<option value="${escHtml(item.code)}">${escHtml(item.title || item.name)} (${escHtml(item.code)})</option>`
+    ).join('') || '<option value="" disabled>暂无可引用指标</option>';
+  }
+  const lodType = document.getElementById('adhoc-formula-lod-type')?.value || 'none';
+  const lodDims = document.getElementById('adhoc-formula-lod-dimensions');
+  if (lodDims) {
+    lodDims.disabled = lodType === 'none';
+    lodDims.innerHTML = (_adhocMeta.dimensions || []).map(item =>
+      `<option value="${escHtml(item.code)}">${escHtml(item.title || item.name)} (${escHtml(item.code)})</option>`
+    ).join('');
+  }
+  const list = document.getElementById('adhoc-formula-list');
+  if (list) {
+    list.innerHTML = (_adhocFormulaMetrics || []).length ? `
+      <div class="text-muted mb-1">已注册公式指标</div>
+      <div class="d-flex flex-wrap gap-1">
+        ${_adhocFormulaMetrics.map(item => `<span class="badge bg-light text-dark border">
+          ${escHtml(item.name || item.code)}
+          <button class="btn btn-sm p-0 ms-1 border-0 text-danger" title="删除" onclick="deleteAdhocFormulaMetric('${escHtml(item.code)}')"><i class="bi bi-x"></i></button>
+        </span>`).join('')}
+      </div>` : '<span class="text-muted">暂无注册公式指标</span>';
+  }
+}
+
+function adhocFormulaInsertMeasure() {
+  const picker = document.getElementById('adhoc-formula-measure-picker');
+  const textarea = document.getElementById('adhoc-formula-expression');
+  const code = picker?.value || '';
+  if (!code || !textarea) return;
+  const insert = `[${code}]`;
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? textarea.value.length;
+  textarea.value = textarea.value.slice(0, start) + insert + textarea.value.slice(end);
+  textarea.focus();
+  textarea.selectionStart = textarea.selectionEnd = start + insert.length;
+}
+
+function clearAdhocFormulaEditor() {
+  ['adhoc-formula-name','adhoc-formula-unit','adhoc-formula-expression'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const lod = document.getElementById('adhoc-formula-lod-type');
+  if (lod) lod.value = 'none';
+  const dims = document.getElementById('adhoc-formula-lod-dimensions');
+  if (dims) Array.from(dims.options).forEach(opt => opt.selected = false);
+  renderAdhocFormulaPanel();
+}
+
+async function saveAdhocFormulaMetric() {
+  try {
+    const name = (document.getElementById('adhoc-formula-name')?.value || '').trim();
+    const unit = (document.getElementById('adhoc-formula-unit')?.value || '').trim();
+    const expression = (document.getElementById('adhoc-formula-expression')?.value || '').trim();
+    const lodType = document.getElementById('adhoc-formula-lod-type')?.value || 'none';
+    const lodDims = Array.from(document.getElementById('adhoc-formula-lod-dimensions')?.selectedOptions || []).map(opt => opt.value);
+    if (!name) throw new Error('请填写公式指标名称');
+    if (!expression) throw new Error('请填写公式表达式');
+    const r = await fetch('/api/ad/v1/formulas', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name, unit, expression, lod:{type:lodType, dimensions:lodDims}}),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '公式指标保存失败');
+    clearAdhocFormulaEditor();
+    await loadAdhocMeta(true);
+    const member = `ad.${adhocSimpleMemberKey(d.code)}`;
+    if (!_adhocState.query.measures.includes(member)) _adhocState.query.measures.push(member);
+    renderAdhocFields();
+    renderAdhocConfig();
+    showToast('公式指标已保存并加入当前查询', 'success');
+  } catch(e) {
+    showToast(e.message || e, 'error');
+  }
+}
+
+async function deleteAdhocFormulaMetric(code) {
+  if (!code) return;
+  try {
+    const r = await fetch(`/api/ad/v1/formulas/${encodeURIComponent(code)}`, {method:'DELETE'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '删除失败');
+    await loadAdhocMeta(true);
+    _adhocState.query.measures = (_adhocState.query.measures || []).filter(member => {
+      const meta = adhocFindMeasure(member);
+      return meta?.code !== code && member !== code;
+    });
+    renderAdhocFields();
+    renderAdhocConfig();
+    showToast(d.ok ? '公式指标已删除' : '公式指标不存在', d.ok ? 'success' : 'info');
+  } catch(e) {
+    showToast(e.message || e, 'error');
+  }
 }
 
 async function initAdhocTab() {
@@ -4750,13 +4964,60 @@ function renderAdhocConfig() {
   const hint = document.getElementById('adhoc-chart-hint');
   if (hint) {
     const hintMap = {
+      heatmap: '热力图：选择 1 个指标 + 2 个维度；第 1 个维度作为行，第 2 个维度作为列，颜色按指标值深浅展示。',
       funnel: '漏斗图：选择 1 个指标 + 1 个阶段维度；维度值会按指标值从高到低展示阶段转化/掉点。',
       sankey: '桑基图：选择 1 个指标 + 至少 2 个路径维度；维度顺序就是流向层级，例如 渠道 → 团队 → 产品 → 结果。',
+      executive_report: '报告式经营分析：通过 Ad-Hoc 选择字段。第 1 个指标作为销售/主指标，第 2 个指标作为利润/辅助指标；第 1 个时间维度作为周期，第 2 个维度作为分组。',
+      kg_attribution: '异常归因链路：选择 1 个指标；系统自动读取该指标的监控预警规则、明细字段、事实表、维度映射和命中单据。',
     };
     hint.textContent = viewType === 'chart' ? (hintMap[chartType] || '') : '';
   }
   const pivotColumnsWrap = document.getElementById('adhoc-pivot-columns-wrap');
   if (pivotColumnsWrap) pivotColumnsWrap.classList.toggle('d-none', viewType !== 'pivot');
+  const pivotHeatmapToggle = document.getElementById('adhoc-pivot-heatmap-enabled');
+  if (pivotHeatmapToggle) pivotHeatmapToggle.checked = !!_adhocState.view?.encoding?.pivotHeatmapEnabled;
+  const heatmapLowColor = document.getElementById('adhoc-pivot-heatmap-low-color');
+  const heatmapHighColor = document.getElementById('adhoc-pivot-heatmap-high-color');
+  if (heatmapLowColor && document.activeElement !== heatmapLowColor) {
+    heatmapLowColor.value = pivotHeatmapColor(_adhocState.view?.encoding?.pivotHeatmapLowColor, '#f4f8f5');
+  }
+  if (heatmapHighColor && document.activeElement !== heatmapHighColor) {
+    heatmapHighColor.value = pivotHeatmapColor(_adhocState.view?.encoding?.pivotHeatmapHighColor, '#14806f');
+  }
+  const heatmapColorWrap = document.getElementById('adhoc-pivot-heatmap-color-wrap');
+  if (heatmapColorWrap) heatmapColorWrap.classList.toggle('opacity-50', !pivotHeatmapToggle?.checked);
+  const reportWrap = document.getElementById('adhoc-report-config-wrap');
+  const isExecutiveReport = viewType === 'chart' && chartType === 'executive_report';
+  if (reportWrap) reportWrap.classList.toggle('d-none', !isExecutiveReport);
+  if (isExecutiveReport) {
+    const encoding = _adhocState.view?.encoding || {};
+    const titleInput = document.getElementById('adhoc-report-title');
+    const subtitleInput = document.getElementById('adhoc-report-subtitle');
+    if (titleInput && document.activeElement !== titleInput) titleInput.value = encoding.reportTitle || _adhocState.name || '';
+    if (subtitleInput && document.activeElement !== subtitleInput) subtitleInput.value = encoding.reportSubtitle || '';
+    const measures = _adhocState.query?.measures || [];
+    const dimensions = _adhocState.query?.dimensions || [];
+    const timeDim = dimensions.find(dim => adhocFindMember(dim)?.type === 'time') || dimensions[0] || '未选择';
+    const groupDim = dimensions.find(dim => dim !== timeDim) || dimensions[1] || '未选择';
+    const mapping = document.getElementById('adhoc-report-mapping-help');
+    if (mapping) {
+      mapping.innerHTML = `当前映射：主指标 <b>${escHtml(adhocMemberLabel(measures[0] || '未选择'))}</b>，辅助指标 <b>${escHtml(adhocMemberLabel(measures[1] || measures[0] || '未选择'))}</b>，周期维度 <b>${escHtml(adhocMemberLabel(timeDim))}</b>，分组维度 <b>${escHtml(adhocMemberLabel(groupDim))}</b>。`;
+    }
+  }
+  const kgScopeWrap = document.getElementById('adhoc-kg-scope-wrap');
+  const isKgAttribution = viewType === 'chart' && chartType === 'kg_attribution';
+  if (kgScopeWrap) kgScopeWrap.classList.toggle('d-none', !isKgAttribution);
+  const kgScope = _adhocState.view?.encoding?.attributionScope || 'component';
+  const kgComponent = document.getElementById('adhoc-kg-scope-component');
+  const kgDashboard = document.getElementById('adhoc-kg-scope-dashboard');
+  if (kgComponent) kgComponent.checked = kgScope !== 'dashboard';
+  if (kgDashboard) kgDashboard.checked = kgScope === 'dashboard';
+  const kgHelp = document.getElementById('adhoc-kg-scope-help');
+  if (kgHelp) {
+    kgHelp.textContent = kgScope === 'dashboard'
+      ? '看板模式：保存到 Dashboard 后自动汇总当前看板所有组件的异常规则和单据命中；在 Ad-Hoc 预览中按当前指标预览。'
+      : '组件模式：只分析当前 Ad-Hoc 组件选择的指标。';
+  }
   byId('adhoc-pivot-columns', ((_adhocState.view?.encoding?.pivotColumns) || []).map(x=>chip('pivotColumns', x, 'dimension')).join(''));
   byId('adhoc-filters', _adhocState.query.filters.map(x=>`<span class="adhoc-chip">${escHtml(dashboardFilterKind(x)==='measure'?'指标':'维度')} · ${escHtml(adhocMemberLabel(x.member))}: ${escHtml(dashboardFilterDescription(x))}<button class="btn btn-sm p-0 border-0" onclick="adhocRemoveField('filters','${escHtml(x.member)}')"><i class="bi bi-x"></i></button></span>`).join(''));
   byId('adhoc-drill-path', _adhocState.drill.path.map(x=>chip('drill', x, 'dimension')).join(''));
@@ -4932,7 +5193,12 @@ function adhocBuildPivotConfig(extraFilters=[]) {
     columns,
     filters,
     limit: parseInt(_adhocState.query.limit || document.getElementById('adhoc-limit')?.value || 1000, 10),
-    settings: _adhocState.settings || {},
+    settings: {
+      ...(_adhocState.settings || {}),
+      pivotHeatmapEnabled: !!_adhocState.view?.encoding?.pivotHeatmapEnabled,
+      pivotHeatmapLowColor: pivotHeatmapColor(_adhocState.view?.encoding?.pivotHeatmapLowColor, '#f4f8f5'),
+      pivotHeatmapHighColor: pivotHeatmapColor(_adhocState.view?.encoding?.pivotHeatmapHighColor, '#14806f'),
+    },
   };
 }
 
@@ -5016,11 +5282,12 @@ async function runAdhocPivotQuery(extraFilters=[], targetId='adhoc-preview', sta
   let alertRenderEnabled = true;
   if (spec) _adhocState = spec;
   try {
+    alertRenderEnabled = adhocMonitoringAlertRenderEnabled(_adhocState);
     const pivotConfig = adhocBuildPivotConfig(extraFilters);
     if (!pivotConfig.measures.length) throw new Error('请至少选择一个指标');
     if (!pivotConfig.rows.length && !pivotConfig.columns.length) throw new Error('透视表请至少选择一个行轴或列轴维度');
     resetDocumentAlertRender(targetId, {forceRules: options.forceAlertRefresh});
-    documentAlertLoadingStart(targetId);
+    if (alertRenderEnabled) documentAlertLoadingStart(targetId);
     const r = await fetch('/api/pivot/query', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -5032,7 +5299,11 @@ async function runAdhocPivotQuery(extraFilters=[], targetId='adhoc-preview', sta
     _adhocLastResult = d;
     const renderResult = adhocResultForAlertRender(d, alertRenderEnabled);
     renderPivotResult(targetId, renderResult, pivotConfig);
-    schedulePivotDocumentAlertScans(targetId, d, pivotConfig, {forceRules: options.forceAlertRefresh});
+    if (alertRenderEnabled) {
+      schedulePivotDocumentAlertScans(targetId, d, pivotConfig, {forceRules: options.forceAlertRefresh});
+    } else {
+      resetDocumentAlertRender(targetId);
+    }
     if (statusEl) {
       const alertText = renderResult.alerts?.count ? ` · ${renderResult.alerts.count} 个预警` : '';
       statusEl.textContent = `${d.diagnostics?.rowCount ?? 0} 条聚合记录 · ${d.diagnostics?.elapsedMs ?? '-'} ms${alertText}`;
@@ -5063,9 +5334,41 @@ function adhocViewTypeChanged() {
 
 function adhocChartTypeChanged() {
   _adhocState.view = _adhocState.view || {};
+  _adhocState.view.encoding = _adhocState.view.encoding || {};
   _adhocState.view.chartType = document.getElementById('adhoc-chart-type')?.value || 'auto';
+  if (_adhocState.view.chartType === 'kg_attribution') {
+    _adhocState.view.encoding.attributionScope = _adhocState.view.encoding.attributionScope || 'component';
+  }
+  if (_adhocState.view.chartType === 'executive_report') {
+    _adhocState.view.encoding.reportTitle = _adhocState.view.encoding.reportTitle || _adhocState.name || '';
+  }
   renderAdhocConfig();
   if (_adhocState.query.measures.length) runAdhocQuery();
+}
+
+function adhocPivotHeatmapChanged() {
+  _adhocState.view = _adhocState.view || {};
+  _adhocState.view.encoding = _adhocState.view.encoding || {};
+  _adhocState.view.encoding.pivotHeatmapEnabled = !!document.getElementById('adhoc-pivot-heatmap-enabled')?.checked;
+  _adhocState.view.encoding.pivotHeatmapLowColor = pivotHeatmapColor(document.getElementById('adhoc-pivot-heatmap-low-color')?.value, '#f4f8f5');
+  _adhocState.view.encoding.pivotHeatmapHighColor = pivotHeatmapColor(document.getElementById('adhoc-pivot-heatmap-high-color')?.value, '#14806f');
+  renderAdhocConfig();
+  if (_adhocState.view?.type === 'pivot' && _adhocState.query?.measures?.length) runAdhocQuery();
+}
+
+function adhocReportConfigChanged() {
+  _adhocState.view = _adhocState.view || {};
+  _adhocState.view.encoding = _adhocState.view.encoding || {};
+  _adhocState.view.encoding.reportTitle = document.getElementById('adhoc-report-title')?.value || '';
+  _adhocState.view.encoding.reportSubtitle = document.getElementById('adhoc-report-subtitle')?.value || '';
+}
+
+function adhocKgScopeChanged() {
+  _adhocState.view = _adhocState.view || {};
+  _adhocState.view.encoding = _adhocState.view.encoding || {};
+  _adhocState.view.encoding.attributionScope = document.querySelector('input[name="adhoc-kg-scope"]:checked')?.value || 'component';
+  renderAdhocConfig();
+  if (_adhocState.view?.chartType === 'kg_attribution' && _adhocState.query.measures.length) runAdhocQuery();
 }
 
 function ensureAdhocAlertStyles() {
@@ -5076,12 +5379,8 @@ function ensureAdhocAlertStyles() {
     .ad-alert-self-l1{background:#fff7d6!important}
     .ad-alert-self-l2{background:#ffe9cc!important}
     .ad-alert-self-l3{background:#fbe0df!important}
-    .ad-alert-expression-l1{outline:1px solid #ef7772!important;outline-offset:-1px}
-    .ad-alert-expression-l2{outline:1.5px solid #dc2626!important;outline-offset:-1px}
-    .ad-alert-expression-l3{outline:2px solid #991b1b!important;outline-offset:-1px}
-    .ad-alert-path-l1{--ad-alert-path-color:#ef7772;--ad-alert-path-width:1px}
-    .ad-alert-path-l2{--ad-alert-path-color:#dc2626;--ad-alert-path-width:1.5px}
-    .ad-alert-path-l3{--ad-alert-path-color:#991b1b;--ad-alert-path-width:2px}
+    .ad-alert-expression-l1,.ad-alert-expression-l2,.ad-alert-expression-l3{outline:1px solid var(--ad-alert-expression-color,var(--ad-alert-color,#d99042))!important;outline-offset:-1px}
+    .ad-alert-path-l1,.ad-alert-path-l2,.ad-alert-path-l3{--ad-alert-path-width:1px}
     .pivot-table td.ad-alert-cell{position:relative;background-clip:border-box;box-shadow:inset 0 0 0 2px var(--ad-alert-color,#d99042);padding-right:30px!important}
     .ad-alert-cell{position:relative;background-clip:border-box}
     .ad-alert-path::before{content:"";position:absolute;inset:3px;border:var(--ad-alert-path-width,1px) dashed var(--ad-alert-path-color,#dc2626);border-radius:2px;pointer-events:none;z-index:1}
@@ -5090,6 +5389,11 @@ function ensureAdhocAlertStyles() {
     .ad-alert-cell-enter:not(.ad-alert-path)::before{content:none}
     .ad-alert-cell-enter::after{animation:ad-alert-dot-pop 1.35s ease-out 1}
     .ad-alert-badge{font-size:10px;border-radius:999px;padding:2px 7px;border:1px solid rgba(0,0,0,.08);background:#fff}
+    .ad-alert-badge.clickable{cursor:pointer;user-select:none}
+    .ad-alert-badge.clickable:hover{text-decoration:underline;filter:brightness(.98)}
+    .pivot-table td.ad-alert-focus,.ad-doc-alert-cell.ad-alert-focus{animation:ad-alert-focus-pulse .72s ease-in-out 0s 4!important;position:relative;z-index:3}
+    .adhoc-chart-canvas{height:calc(100% - 30px);min-height:180px;width:100%}
+    .adhoc-chart-canvas.ad-chart-alert-focus{animation:ad-chart-alert-focus .72s ease-in-out 0s 4}
     .ad-doc-alert-cell{position:relative;background-clip:padding-box;cursor:pointer}
     .ad-doc-alert-cell::after{content:"!";position:absolute;right:5px;top:50%;transform:translateY(-50%);width:13px;height:13px;border-radius:999px;background:var(--ad-doc-alert-color,#d99042);color:#fff;font-size:9px;font-weight:800;line-height:13px;text-align:center;z-index:3;box-shadow:0 0 0 1px #fff}
     .ad-doc-alert-cell.ad-alert-cell::after{right:5px;top:50%;transform:translateY(-50%);width:13px;height:13px;border-radius:999px}
@@ -5118,10 +5422,95 @@ function ensureAdhocAlertStyles() {
     .cell-insight-hypothesis{background:#f8fafc;border:1px solid #e5ebf1;border-radius:6px;padding:7px 9px;font-size:12px}
     .cell-insight-doc{border-bottom:1px solid #eef1f4;padding:6px 0}
     .cell-insight-doc:last-child{border-bottom:0}
+    .kg-attribution-panel{height:100%;overflow:auto;background:#fbfcfe;color:#2f3b4a;font-size:12px}
+    .kg-attribution-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid #e5ebf2;background:#fff}
+    .kg-attribution-body{display:grid;grid-template-columns:minmax(220px,1.05fr) minmax(340px,1.65fr) minmax(240px,1fr);gap:12px;padding:12px}
+    .kg-attribution-section{min-width:0}
+    .kg-attribution-label{font-size:11px;color:#6a7686;margin-bottom:5px}
+    .kg-attribution-title{font-weight:700;color:#223044;line-height:1.35}
+    .kg-attribution-rule{border-left:4px solid var(--kg-severity-color,#d99042);background:#fff;padding:10px 12px;box-shadow:inset 0 0 0 1px #e5ebf2}
+    .kg-attribution-rule + .kg-attribution-rule{margin-top:8px}
+    .kg-attribution-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--kg-severity-color,#d99042);color:var(--kg-severity-color,#d99042);background:#fff;padding:1px 7px;border-radius:999px;font-size:11px;line-height:18px}
+    .kg-attribution-chain{display:flex;align-items:stretch;gap:7px;min-width:0}
+    .kg-attribution-node{flex:1;min-width:0;background:#fff;border:1px solid #dbe3ec;padding:9px 9px 8px;position:relative}
+    .kg-attribution-node::after{content:"";position:absolute;right:-7px;top:50%;width:7px;border-top:1px solid #aeb9c7}
+    .kg-attribution-node:last-child::after{display:none}
+    .kg-attribution-node strong{display:block;color:#253246;font-size:12px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .kg-attribution-node span{display:block;color:#6d7988;font-size:11px;line-height:1.35;word-break:break-word}
+    .kg-attribution-list{background:#fff;border:1px solid #dbe3ec;padding:9px 10px}
+    .kg-attribution-kv{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px dashed #e6ebf0}
+    .kg-attribution-kv:last-child{border-bottom:0}
+    .kg-attribution-kv span:first-child{color:#6d7988;white-space:nowrap}
+    .kg-attribution-kv span:last-child{text-align:right;font-weight:600;color:#334155;word-break:break-word}
+    .kg-attribution-docs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}
+    .kg-attribution-doc{background:#fff;border:1px solid #e1e7ef;padding:6px 8px;min-width:0}
+    .kg-attribution-doc strong{display:block;font-size:11px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .kg-attribution-doc span{display:block;color:#6d7988;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .kg-attribution-dim{display:inline-flex;align-items:center;gap:4px;margin:0 5px 5px 0;padding:2px 7px;background:#f6f8fb;border:1px solid #dbe3ec;border-radius:999px;color:#475569;font-size:11px}
+    .exec-report-shell{height:100%;overflow:auto;background:#f4efe6;color:#20332f;font-size:12px;line-height:1.45}
+    .exec-report-hero{background:linear-gradient(135deg,#0b4b43,#123f38);color:#fff;padding:28px 34px 24px;border-bottom:4px solid #d9b36a}
+    .exec-report-hero-kicker{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);font-size:11px;margin-bottom:10px}
+    .exec-report-hero h2{margin:0;font-size:24px;letter-spacing:0;font-weight:800}
+    .exec-report-hero p{margin:7px 0 0;color:rgba(255,255,255,.76);max-width:780px}
+    .exec-report-body{padding:18px 22px 28px;max-width:1120px;margin:0 auto}
+    .exec-report-section{margin-top:16px;background:#fff;border:1px solid #e6ded2;box-shadow:0 1px 3px rgba(39,55,48,.06)}
+    .exec-report-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid #ece5db;font-weight:800;color:#163d36}
+    .exec-report-section-title::before{content:"";width:4px;height:18px;background:#14806f;display:inline-block;margin-right:8px}
+    .exec-report-section-title span:first-child{display:flex;align-items:center}
+    .exec-report-section-note{font-size:11px;font-weight:500;color:#7a6d5d}
+    .exec-report-kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;padding:12px}
+    .exec-report-kpi{background:#fff;border:1px solid #e8dfd2;border-top:3px solid var(--exec-accent,#14806f);padding:12px;min-height:86px}
+    .exec-report-kpi-label{font-size:11px;color:#776b5d;margin-bottom:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .exec-report-kpi-value{font-size:22px;font-weight:800;color:var(--exec-accent,#14806f);line-height:1.05}
+    .exec-report-kpi-sub{margin-top:7px;color:#8a7d70;font-size:11px}
+    .exec-report-two-col{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;padding:12px}
+    .exec-report-card{background:#fff;border:1px solid #e8dfd2;padding:12px}
+    .exec-report-card-title{font-weight:800;color:#173d36;margin-bottom:8px}
+    .exec-report-mini-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:12px}
+    .exec-report-status{border:1px solid #e8dfd2;background:#fff;padding:10px;min-height:78px}
+    .exec-report-status b{display:block;color:#173d36;margin-bottom:5px}
+    .exec-report-status strong{font-size:18px;color:var(--exec-accent,#14806f)}
+    .exec-report-bar-row{display:grid;grid-template-columns:90px 1fr 70px;gap:8px;align-items:center;margin:8px 0}
+    .exec-report-bar-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#4a5b55}
+    .exec-report-track{height:10px;background:#eee8dc;position:relative;overflow:hidden}
+    .exec-report-fill{position:absolute;left:0;top:0;bottom:0;background:var(--exec-accent,#14806f)}
+    .exec-report-fill.alt{background:#d96d67}
+    .exec-report-bar-value{text-align:right;color:#665b50;font-variant-numeric:tabular-nums}
+    .exec-report-hint{margin:10px 12px 12px;padding:10px 12px;background:#eaf6ea;border-left:4px solid #14806f;color:#37584e}
+    .exec-report-heatmap-wrap{padding:12px;overflow:auto}
+    .exec-report-heatmap{width:100%;border-collapse:separate;border-spacing:0;font-size:11px;min-width:840px}
+    .exec-report-heatmap th{background:#124a43;color:#fff;padding:7px 6px;border-right:1px solid rgba(255,255,255,.18);font-weight:700;text-align:center;white-space:nowrap}
+    .exec-report-heatmap td{padding:6px;border-right:1px solid #e8dfd2;border-bottom:1px solid #e8dfd2;text-align:right;font-variant-numeric:tabular-nums}
+    .exec-report-heatmap td:first-child,.exec-report-heatmap th:first-child{text-align:left;position:sticky;left:0;z-index:1}
+    .exec-report-heatmap td:first-child{background:#fbf8f1;font-weight:700;color:#33534b}
+    .adhoc-heatmap-shell{height:100%;overflow:auto;background:#fbfaf6;color:#20332f;font-size:12px}
+    .adhoc-heatmap-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-bottom:1px solid #e6ded2;background:#fff}
+    .adhoc-heatmap-title{font-weight:800;color:#173d36}
+    .adhoc-heatmap-note{color:#756a5e;font-size:11px}
+    .adhoc-heatmap-wrap{padding:12px;overflow:auto}
+    .adhoc-heatmap-table{width:100%;border-collapse:separate;border-spacing:0;min-width:760px;font-size:11px}
+    .adhoc-heatmap-table th{background:#124a43;color:#fff;padding:7px 6px;border-right:1px solid rgba(255,255,255,.16);font-weight:700;text-align:center;white-space:nowrap}
+    .adhoc-heatmap-table td{padding:7px 8px;border-right:1px solid #e6ded2;border-bottom:1px solid #e6ded2;text-align:right;font-variant-numeric:tabular-nums}
+    .adhoc-heatmap-table td:first-child,.adhoc-heatmap-table th:first-child{text-align:left;position:sticky;left:0;z-index:1}
+    .adhoc-heatmap-table td:first-child{background:#fffdf8;font-weight:700;color:#33534b}
+    .adhoc-heatmap-legend{display:flex;align-items:center;gap:8px;padding:0 12px 12px;color:#756a5e;font-size:11px}
+    .adhoc-heatmap-gradient{width:120px;height:10px;background:linear-gradient(90deg,#f1c7c8,#f7f8f5,#79c3b9);border:1px solid #e6ded2}
+    .exec-report-insight-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px}
+    .exec-report-insight{border-left:4px solid var(--exec-accent,#14806f);background:#fff;padding:10px 12px;box-shadow:inset 0 0 0 1px #e8dfd2}
+    .exec-report-insight b{display:block;color:#173d36;margin-bottom:5px}
+    .exec-report-insight p{margin:0;color:#60584f}
+    .exec-report-reco-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:12px}
+    .exec-report-reco{background:#fbfaf6;border:1px solid #e8dfd2;border-top:4px solid var(--exec-accent,#14806f);padding:12px;min-height:120px}
+    .exec-report-reco b{display:block;color:#173d36;margin-bottom:8px}
+    .exec-report-tag{display:inline-flex;align-items:center;gap:4px;border:1px solid rgba(20,128,111,.3);background:#eef8f4;color:#126255;padding:1px 7px;margin:0 5px 5px 0;font-size:11px}
+    @media (max-width: 1100px){.exec-report-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exec-report-two-col,.exec-report-insight-list,.exec-report-reco-grid{grid-template-columns:1fr}.exec-report-mini-grid{grid-template-columns:1fr}}
+    @media (max-width: 1100px){.kg-attribution-body{grid-template-columns:1fr}.kg-attribution-chain{overflow-x:auto}.kg-attribution-node{min-width:150px}}
     @keyframes ad-alert-loading-pulse{0%,100%{opacity:.42;box-shadow:none}45%{opacity:1;box-shadow:0 0 0 2px rgba(217,144,66,.16)}}
     @keyframes ad-alert-cell-flash{0%{filter:brightness(1);box-shadow:none}18%{filter:brightness(1.04);box-shadow:inset 0 0 0 9999px rgba(217,144,66,.12)}58%{filter:brightness(1.02);box-shadow:inset 0 0 0 9999px rgba(217,144,66,.06)}100%{filter:none;box-shadow:none}}
     @keyframes ad-alert-cell-ring{0%{opacity:0;transform:scale(.94)}18%{opacity:1;transform:scale(1)}78%{opacity:.45;transform:scale(1.03)}100%{opacity:0;transform:scale(1.06)}}
     @keyframes ad-alert-dot-pop{0%{opacity:0;transform:translateY(-50%) scale(.35)}24%{opacity:1;transform:translateY(-50%) scale(1.45)}50%{transform:translateY(-50%) scale(.9)}76%{transform:translateY(-50%) scale(1.12)}100%{transform:translateY(-50%) scale(1)}}
+    @keyframes ad-alert-focus-pulse{0%,100%{filter:none;box-shadow:inset 0 0 0 2px var(--ad-alert-color,#d99042),0 0 0 0 rgba(200,75,75,0)}45%{filter:brightness(1.08);box-shadow:inset 0 0 0 3px var(--ad-alert-color,#d99042),0 0 0 4px rgba(200,75,75,.24)}}
+    @keyframes ad-chart-alert-focus{0%,100%{outline:0 solid rgba(217,144,66,0)}45%{outline:3px solid rgba(217,144,66,.42);outline-offset:-3px}}
     @keyframes ad-doc-alert-cell-flash{0%{background:#fff!important}18%{background:#fff1d8!important}52%{background:#fff8ea!important}100%{background:inherit}}
     @keyframes ad-doc-alert-cell-ring{0%{opacity:0;transform:scale(.92)}20%{opacity:1;transform:scale(1)}72%{opacity:.55;transform:scale(1.03)}100%{opacity:0;transform:scale(1.08)}}
     @keyframes ad-doc-alert-bang-pop{0%{opacity:0;transform:translateY(-50%) scale(.45)}22%{opacity:1;transform:translateY(-50%) scale(1.28)}45%{transform:translateY(-50%) scale(.94)}68%{transform:translateY(-50%) scale(1.08)}100%{transform:translateY(-50%) scale(1)}}
@@ -5131,6 +5520,10 @@ function ensureAdhocAlertStyles() {
 
 function adhocAlertTop(alerts=[]) {
   return (alerts || []).slice().sort((a,b)=>(b.level||0)-(a.level||0))[0] || null;
+}
+
+function adhocAlertTopByType(alerts=[], type='') {
+  return adhocAlertTop((alerts || []).filter(a => a?.type === type));
 }
 
 function adhocAlertClasses(alerts=[]) {
@@ -5147,7 +5540,14 @@ function adhocAlertClasses(alerts=[]) {
 
 function adhocAlertStyle(alerts=[]) {
   const top = adhocAlertTop(alerts);
-  return top ? `--ad-alert-color:${top.color || '#d99042'}` : '';
+  if (!top) return '';
+  const pathTop = adhocAlertTopByType(alerts, 'path');
+  const expressionTop = adhocAlertTopByType(alerts, 'expression');
+  return [
+    `--ad-alert-color:${top.color || '#d99042'}`,
+    pathTop ? `--ad-alert-path-color:${pathTop.color || '#d99042'}` : '',
+    expressionTop ? `--ad-alert-expression-color:${expressionTop.color || '#d99042'}` : '',
+  ].filter(Boolean).join(';');
 }
 
 function adhocAlertTitle(alerts=[]) {
@@ -5178,6 +5578,8 @@ function adhocChartTooltipHtml(name, value, meas, alerts=[]) {
 
 function adhocChartTooltipOptions(extra={}) {
   return {
+    appendToBody: true,
+    confine: false,
     backgroundColor: '#f2f2f2',
     borderColor: '#9ca3af',
     borderWidth: 1,
@@ -5188,14 +5590,16 @@ function adhocChartTooltipOptions(extra={}) {
       lineHeight: 14,
       fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif',
     },
-    extraCssText: 'box-shadow:none;border-radius:2px;white-space:normal;max-width:320px;',
+    extraCssText: 'box-shadow:none;border-radius:2px;white-space:normal;max-width:360px;z-index:2147483647!important;pointer-events:none;',
     ...extra,
   };
 }
 
 function adhocChartDataPoint(row, dim, chartType='bar') {
   const alerts = row.alerts || [];
-  return {
+  const top = adhocAlertTop(alerts);
+  const color = top ? (top.color || '#d99042') : '';
+  const point = {
     value: row.value,
     __member: dim,
     __value: row.label,
@@ -5204,6 +5608,25 @@ function adhocChartDataPoint(row, dim, chartType='bar') {
     __alertTooltip: adhocAlertTooltipHtml(alerts),
     itemStyle: adhocChartItemStyle(alerts, chartType),
   };
+  if (top && chartType !== 'donut') {
+    point.label = {
+      show: true,
+      formatter: top.severityLabel || top.label || '预警',
+      position: chartType === 'line' ? 'top' : 'insideTop',
+      color,
+      fontSize: 10,
+      fontWeight: 700,
+      backgroundColor: '#fff',
+      borderColor: color,
+      borderWidth: 1,
+      borderRadius: 3,
+      padding: [1, 4],
+    };
+    if (chartType === 'line') {
+      point.symbolSize = 10;
+    }
+  }
+  return point;
 }
 
 function adhocAlertsFor(row, member=null) {
@@ -5224,13 +5647,134 @@ function adhocMergeAlerts(list) {
 
 function adhocAlertSummaryHtml(summary) {
   if (!summary?.count) return '';
-  const items = (summary.items || []).slice(0, 5);
+  const items = adhocAlertSummaryItems(summary.items || []).slice(0, 8);
   const max = summary.maxLevel || 1;
   const tone = max >= 3 ? '#c84b4b' : max >= 2 ? '#d99042' : '#9b7b24';
-  return `<div class="d-flex flex-wrap align-items-center gap-1 mb-2 small" style="color:${tone}">
-    <span class="ad-alert-badge" style="border-color:${tone};color:${tone}"><i class="bi bi-exclamation-triangle me-1"></i>${summary.count} 个智能预警</span>
-    ${items.map(a => `<span class="ad-alert-badge">${escHtml(a.label || '')} · ${escHtml(a.severityLabel || '')}</span>`).join('')}
+  return `<div class="d-flex flex-wrap align-items-center gap-1 mb-2 small">
+    <span class="ad-alert-badge clickable" onclick="focusPivotAlertsFromBadge(event)" title="点击定位全部异常单元格" style="border-color:${tone};color:${tone}"><i class="bi bi-exclamation-triangle me-1"></i>${summary.count} 个智能预警</span>
+    ${items.map(a => {
+      const color = adhocAlertSeverityColor(a);
+      return `<span class="ad-alert-badge clickable" onclick="focusPivotAlertsFromBadge(event, '${_escJs(a.label || '')}', '${_escJs(a.severityLabel || '')}')" title="点击定位该规则异常单元格" style="border-color:${color};color:${color};background:${adhocAlertTint(color)}">${escHtml(a.label || '')} · ${escHtml(a.severityLabel || '')}</span>`;
+    }).join('')}
   </div>`;
+}
+
+function adhocAlertSummaryItems(items=[]) {
+  const seen = new Set();
+  return (items || [])
+    .map((item, index) => ({item, index, rank: adhocAlertSeverityRank(item)}))
+    .filter(({item}) => {
+      const key = `${item?.label || ''}|${item?.severityLabel || item?.severity || ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => b.rank - a.rank || a.index - b.index)
+    .map(({item}) => item);
+}
+
+function adhocAlertSeverityRank(alert={}) {
+  const level = Number(alert.level || 0);
+  if (level >= 3 || alert.severity === 'critical' || alert.severityLabel === '严重') return 3;
+  if (level >= 2 || alert.severity === 'warning' || alert.severityLabel === '异常') return 2;
+  return 1;
+}
+
+function focusPivotAlertsFromBadge(event, label='', severityLabel='') {
+  event?.stopPropagation?.();
+  const source = event?.currentTarget || event?.target;
+  const componentScope = source?.closest?.('.dashboard-widget, #adhoc-preview, #pivot-result, #pivot-result-wrap');
+  const scope = componentScope || source?.closest?.('.tabpanel') || document;
+  const cells = Array.from(scope.querySelectorAll('.pivot-table [data-pivot-cell-index], .adhoc-measure-cell, [data-adhoc-kpi-click].ad-doc-alert-cell'));
+  const matches = cells.filter(cell => {
+    const title = cell.getAttribute('title') || cell.querySelector('.pivot-value')?.getAttribute('title') || '';
+    if (!label) return title.includes('｜') || cell.classList.contains('ad-alert-cell') || cell.classList.contains('ad-doc-alert-cell');
+    const exact = severityLabel ? `${label}｜${severityLabel}` : label;
+    return severityLabel ? title.includes(exact) : title.includes(label);
+  });
+  if (matches.length) {
+    matches.forEach(cell => {
+      cell.classList.remove('ad-alert-focus');
+      void cell.offsetWidth;
+      cell.classList.add('ad-alert-focus');
+      window.setTimeout(() => cell.classList.remove('ad-alert-focus'), 3100);
+    });
+    matches[0].scrollIntoView({block:'center', inline:'center', behavior:'smooth'});
+    return;
+  }
+  if (focusChartAlertsFromBadge(scope, label, severityLabel)) return;
+  showToast('当前组件没有找到对应的异常数据', 'info');
+}
+
+function focusChartAlertsFromBadge(scope, label='', severityLabel='') {
+  const chartEls = Array.from(scope.querySelectorAll('.adhoc-chart-canvas'));
+  if (scope.classList?.contains('adhoc-chart-canvas')) chartEls.unshift(scope);
+  const uniqueChartEls = Array.from(new Set(chartEls));
+  if (!uniqueChartEls.length) return false;
+  const pulseCharts = () => {
+    uniqueChartEls.forEach(el => {
+      el.classList.remove('ad-chart-alert-focus');
+      void el.offsetWidth;
+      el.classList.add('ad-chart-alert-focus');
+      window.setTimeout(() => el.classList.remove('ad-chart-alert-focus'), 3200);
+    });
+    uniqueChartEls[0].scrollIntoView({block:'center', inline:'center', behavior:'smooth'});
+    return true;
+  };
+  if (!window.echarts || typeof window.echarts.getInstanceByDom !== 'function') return pulseCharts();
+  let focused = false;
+  uniqueChartEls.forEach(el => {
+    const chart = window.echarts.getInstanceByDom(el);
+    if (!chart || typeof chart.getOption !== 'function') return;
+    const option = chart.getOption() || {};
+    const targets = [];
+    (option.series || []).forEach((series, seriesIndex) => {
+      (series.data || []).forEach((point, dataIndex) => {
+        const alerts = Array.isArray(point?.__alerts) ? point.__alerts : [];
+        if (adhocAlertListMatches(alerts, label, severityLabel)) targets.push({seriesIndex, dataIndex});
+      });
+      (series.links || []).forEach((link, dataIndex) => {
+        const alerts = Array.isArray(link?.__alerts) ? link.__alerts : [];
+        if (adhocAlertListMatches(alerts, label, severityLabel)) targets.push({seriesIndex, dataIndex});
+      });
+    });
+    if (!targets.length) return;
+    focused = true;
+    chart.dispatchAction({type:'downplay'});
+    targets.forEach(target => chart.dispatchAction({type:'highlight', ...target}));
+    chart.dispatchAction({type:'showTip', ...targets[0]});
+    el.classList.remove('ad-chart-alert-focus');
+    void el.offsetWidth;
+    el.classList.add('ad-chart-alert-focus');
+    window.setTimeout(() => {
+      el.classList.remove('ad-chart-alert-focus');
+      targets.forEach(target => chart.dispatchAction({type:'downplay', ...target}));
+    }, 3200);
+    el.scrollIntoView({block:'center', inline:'center', behavior:'smooth'});
+  });
+  return focused || pulseCharts();
+}
+
+function adhocAlertListMatches(alerts=[], label='', severityLabel='') {
+  const items = (alerts || []).filter(Boolean);
+  if (!label) return items.length > 0;
+  return items.some(alert => {
+    const sameLabel = String(alert.label || '') === String(label || '');
+    if (!sameLabel) return false;
+    return severityLabel ? String(alert.severityLabel || alert.severity || '') === String(severityLabel) : true;
+  });
+}
+
+function adhocAlertSeverityColor(alert={}) {
+  if (alert.color) return alert.color;
+  const level = Number(alert.level || 0);
+  if (level >= 3 || alert.severity === 'critical' || alert.severityLabel === '严重') return '#c84b4b';
+  if (level >= 2 || alert.severity === 'warning' || alert.severityLabel === '异常') return '#d99042';
+  return '#9b7b24';
+}
+
+function adhocAlertTint(color) {
+  return `${color}12`;
 }
 
 function documentAlertSeverityColor(severity='warning') {
@@ -5239,6 +5783,692 @@ function documentAlertSeverityColor(severity='warning') {
 
 function documentAlertSeverityLabel(severity='warning') {
   return {notice:'关注', warning:'异常', critical:'严重'}[severity] || severity;
+}
+
+function kgAttributionOperatorLabel(operator='eq') {
+  return ({eq:'等于', ne:'不等于', gt:'大于', gte:'大于等于', lt:'小于', lte:'小于等于'}[String(operator || 'eq').toLowerCase()] || operator || '等于');
+}
+
+function kgAttributionConditionLabel(condition={}) {
+  const column = condition.columnName || condition.columnCode || condition.column || '明细字段';
+  const value = condition.value === undefined || condition.value === null ? '' : condition.value;
+  return `${column} ${kgAttributionOperatorLabel(condition.operator)} ${value}`;
+}
+
+function kgAttributionTableName(columns=[]) {
+  const codes = (columns || []).map(col => String(col.code || '')).filter(Boolean);
+  const prefix = codes.find(code => code.includes('_'))?.split('_')?.[0] || '';
+  const prefixMap = {ws:'web_sales', ss:'store_sales', cs:'catalog_sales', inv:'inventory'};
+  return prefixMap[prefix] || (prefix ? `${prefix}_*` : '明细事实表');
+}
+
+function kgAttributionFieldName(code='', columns=[]) {
+  const col = (columns || []).find(item => item.code === code);
+  return col?.name || code || '-';
+}
+
+function kgAttributionRuleRank(rule={}, matchedRows=0) {
+  const severityRank = {critical:30, warning:20, notice:10}[rule.severity || 'warning'] || 0;
+  return severityRank * 100000 + Number(matchedRows || 0);
+}
+
+async function kgAttributionScanRule(rule) {
+  const cfg = documentAlertConfig(rule);
+  const r = await fetch('/api/alerts/document-scan', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      measureCode: rule.measure_code,
+      conditions: Array.isArray(cfg.conditions) ? cfg.conditions : undefined,
+      columnCode: cfg.columnCode || '',
+      operator: cfg.operator || 'eq',
+      value: cfg.value ?? rule.threshold ?? 0,
+      maxRows: cfg.maxRows || 500,
+      maxMatches: 8,
+      pageSize: 500,
+    }),
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || data.detail || '单据追踪失败');
+  return data;
+}
+
+function kgAttributionRenderEmpty(target, message) {
+  target.innerHTML = `<div class="kg-attribution-panel d-flex align-items-center justify-content-center text-muted">${escHtml(message || '暂无可展示的归因链路')}</div>`;
+}
+
+function kgAttributionScope(spec={}) {
+  return spec.view?.encoding?.attributionScope === 'dashboard' ? 'dashboard' : 'component';
+}
+
+function kgAttributionIsSpec(spec={}) {
+  return spec.kind === 'kg_attribution' || (spec.view?.type === 'chart' && spec.view?.chartType === 'kg_attribution');
+}
+
+function kgAttributionMeasureItemsFromSpec(spec={}, sourceName='当前组件') {
+  const members = (spec.query?.measures || [spec.measureCode || spec.measure]).filter(Boolean);
+  const byCode = new Map();
+  members.forEach(member => {
+    const measureCode = documentAlertMemberCode(member);
+    if (!measureCode) return;
+    const meta = adhocFindMeasure(member) || dashboardFindMeasure?.(member) || {};
+    const current = byCode.get(measureCode) || {
+      measureCode,
+      member,
+      measureName: meta.name || meta.title || measureCode,
+      sourceNames: [],
+    };
+    if (sourceName && !current.sourceNames.includes(sourceName)) current.sourceNames.push(sourceName);
+    byCode.set(measureCode, current);
+  });
+  return Array.from(byCode.values());
+}
+
+function kgAttributionDashboardMeasureItems(widget={}) {
+  const byCode = new Map();
+  (_dashboardState.widgets || []).forEach(item => {
+    if (!item || item.id === widget.id) return;
+    const spec = item.spec || {};
+    if (kgAttributionIsSpec(spec) || item.type === 'kg_attribution') return;
+    kgAttributionMeasureItemsFromSpec(spec, item.name || spec.name || item.id || '看板组件').forEach(measureItem => {
+      const current = byCode.get(measureItem.measureCode) || {...measureItem, sourceNames: []};
+      measureItem.sourceNames.forEach(name => {
+        if (name && !current.sourceNames.includes(name)) current.sourceNames.push(name);
+      });
+      byCode.set(measureItem.measureCode, current);
+    });
+  });
+  return Array.from(byCode.values());
+}
+
+async function kgAttributionLoadMeasureHits(measureItem, allRules=[]) {
+  const measureCode = documentAlertMemberCode(measureItem.measureCode);
+  const scopedRules = (allRules || []).filter(rule => documentAlertMemberCode(rule.measure_code) === measureCode);
+  if (!scopedRules.length) return {measureItem, columnMeta:null, hits:[], scanned:[]};
+  const columnMeta = await fetch(`/api/alerts/document-columns?measureCode=${encodeURIComponent(measureCode)}&pageSize=50`).then(async r => {
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || d.detail || '指标明细列加载失败');
+    return d;
+  });
+  const scanned = await Promise.all(scopedRules.map(async rule => {
+    try {
+      const result = await kgAttributionScanRule(rule);
+      return {rule, result, error:'', measureItem, columnMeta, sourceNames: measureItem.sourceNames || []};
+    } catch(e) {
+      return {rule, result:{summary:{matchedRows:0}, matches:[]}, error:String(e.message || e), measureItem, columnMeta, sourceNames: measureItem.sourceNames || []};
+    }
+  }));
+  return {
+    measureItem,
+    columnMeta,
+    scanned,
+    hits: scanned.filter(item => Number(item.result?.summary?.matchedRows || 0) > 0),
+  };
+}
+
+function kgAttributionCollectDashboardHits(widget={}) {
+  const hits = [];
+  (_dashboardState.widgets || []).forEach(item => {
+    if (!item || item.id === widget.id) return;
+    const spec = item.spec || {};
+    if (kgAttributionIsSpec(spec) || item.type === 'kg_attribution') return;
+    const targetId = `dash-chart-${item.id}`;
+    (_documentAlertResultsByTarget[targetId] || [])
+      .filter(entry => Number(entry.result?.summary?.matchedRows || 0) > 0)
+      .forEach(entry => {
+        const measureCode = documentAlertMemberCode(entry.rule?.measure_code || entry.result?.measure?.code);
+        hits.push({
+          ...entry,
+          measureItem: {
+            measureCode,
+            measureName: entry.result?.measure?.name || measureCode,
+            sourceNames: [item.name || spec.name || item.id || '看板组件'],
+          },
+          columnMeta: {
+            measure: entry.result?.measure,
+            columns: entry.result?.columns || [],
+            dimensions: [],
+            orderColumn: entry.result?.orderColumn || '',
+          },
+          sourceNames: [item.name || spec.name || item.id || '看板组件'],
+        });
+      });
+  });
+  const byRule = new Map();
+  hits.forEach(item => {
+    const key = `${item.rule?.id || item.rule?.name}|${documentAlertMemberCode(item.rule?.measure_code)}`;
+    const current = byRule.get(key);
+    if (!current) {
+      byRule.set(key, {
+        ...item,
+        sourceNames: [...(item.sourceNames || [])],
+        result: {
+          ...(item.result || {}),
+          summary: {...(item.result?.summary || {})},
+          matches: [...(item.result?.matches || [])],
+        },
+      });
+      return;
+    }
+    (item.sourceNames || []).forEach(name => {
+      if (name && !current.sourceNames.includes(name)) current.sourceNames.push(name);
+    });
+    current.result.summary.matchedRows = Math.max(Number(current.result.summary.matchedRows || 0), Number(item.result?.summary?.matchedRows || 0));
+    current.result.summary.returnedRows = Math.max(Number(current.result.summary.returnedRows || 0), Number(item.result?.summary?.returnedRows || 0));
+    current.result.matches = [...(current.result.matches || []), ...(item.result?.matches || [])].slice(0, 8);
+  });
+  return Array.from(byRule.values())
+    .sort((a, b) => kgAttributionRuleRank(b.rule, b.result.summary.matchedRows) - kgAttributionRuleRank(a.rule, a.result.summary.matchedRows));
+}
+
+function kgAttributionCollectDashboardDomHits(widget={}, allRules=[], measureItems=[]) {
+  const ruleByName = new Map((allRules || []).map(rule => [rule.name || '', rule]));
+  const fallbackMeasureCode = measureItems[0]?.measureCode || 'MEAS_web_sales_amount';
+  const severityByLabel = {关注:'notice', 异常:'warning', 严重:'critical'};
+  const hits = [];
+  document.querySelectorAll('.dashboard-widget').forEach(widgetEl => {
+    const itemEl = widgetEl.closest('[data-widget-id]');
+    const widgetId = itemEl?.dataset?.widgetId || '';
+    if (!widgetId || widgetId === widget.id) return;
+    const dashboardWidget = (_dashboardState.widgets || []).find(item => item.id === widgetId);
+    const spec = dashboardWidget?.spec || {};
+    if (kgAttributionIsSpec(spec) || dashboardWidget?.type === 'kg_attribution') return;
+    const sourceName = dashboardWidget?.name || spec.name || widgetEl.querySelector('.dashboard-widget-header span')?.textContent?.trim() || widgetId;
+    const widgetMeasureItems = kgAttributionMeasureItemsFromSpec(spec, sourceName);
+    const widgetMeasureCode = widgetMeasureItems[0]?.measureCode || fallbackMeasureCode;
+    const widgetMeasureName = widgetMeasureItems[0]?.measureName || widgetMeasureCode;
+    const slotText = widgetEl.querySelector('.ad-doc-alert-summary-slot')?.innerText || '';
+    slotText.split('\n').map(line => line.trim()).filter(Boolean).forEach(line => {
+      const match = line.match(/^(.+?)\s*·\s*(关注|异常|严重)\s*·\s*(\d+)\s*条/);
+      if (!match) return;
+      const ruleName = match[1].trim();
+      const severityLabel = match[2];
+      const rule = ruleByName.get(ruleName) || {
+        name: ruleName,
+        severity: severityByLabel[severityLabel] || 'warning',
+        measure_code: fallbackMeasureCode,
+      };
+      const cfg = documentAlertConfig(rule);
+      const conditions = Array.isArray(cfg.conditions) && cfg.conditions.length
+        ? cfg.conditions
+        : [{columnCode: cfg.columnCode || '', operator: cfg.operator || 'eq', value: cfg.value ?? rule.threshold ?? 0}];
+      hits.push({
+        rule,
+        result: {
+          measure: {code: documentAlertMemberCode(rule.measure_code), name: documentAlertMemberCode(rule.measure_code)},
+          targetColumn: conditions[0]?.columnCode || '',
+          orderColumn: '',
+          conditions,
+          columns: [],
+          matches: [],
+          summary: {
+            matchedRows: Number(match[3] || 0),
+            returnedRows: 0,
+            scannedRows: 0,
+          },
+        },
+        measureItem: {
+          measureCode: documentAlertMemberCode(rule.measure_code),
+          measureName: documentAlertMemberCode(rule.measure_code),
+          sourceNames: [sourceName],
+        },
+        columnMeta: null,
+        sourceNames: [sourceName],
+      });
+    });
+    widgetEl.querySelectorAll('.ad-alert-badge').forEach(badge => {
+      const text = (badge.textContent || '').trim();
+      if (!text || /\d+\s*个智能预警/.test(text) || /\d+\s*条单据异常/.test(text) || /·\s*\d+\s*条/.test(text)) return;
+      const match = text.match(/^(.+?)\s*·\s*(关注|异常|严重)$/);
+      if (!match) return;
+      const ruleName = match[1].trim();
+      const severityLabel = match[2];
+      const severity = severityByLabel[severityLabel] || 'warning';
+      const rule = ruleByName.get(ruleName) || {
+        name: ruleName,
+        severity,
+        measure_code: widgetMeasureCode,
+      };
+      const measureCode = documentAlertMemberCode(rule.measure_code || widgetMeasureCode);
+      hits.push({
+        rule,
+        result: {
+          measure: {code: measureCode, name: widgetMeasureName},
+          targetColumn: 'chart_alert',
+          orderColumn: '',
+          conditions: [{columnCode:'chart_alert', columnName:'图表预警', operator:'eq', value:severityLabel}],
+          columns: [],
+          dimensions: [],
+          matches: [],
+          summary: {
+            matchedRows: 1,
+            returnedRows: 0,
+            scannedRows: 0,
+          },
+        },
+        measureItem: {
+          measureCode,
+          measureName: widgetMeasureName,
+          sourceNames: [sourceName],
+        },
+        columnMeta: {
+          measure: {code: measureCode, name: widgetMeasureName},
+          columns: [],
+          dimensions: [],
+          orderColumn: '',
+        },
+        sourceNames: [sourceName],
+      });
+    });
+  });
+  const byRule = new Map();
+  hits.forEach(item => {
+    const key = `${item.rule?.id || item.rule?.name}|${documentAlertMemberCode(item.rule?.measure_code)}`;
+    const current = byRule.get(key);
+    if (!current) {
+      byRule.set(key, {...item, sourceNames:[...(item.sourceNames || [])]});
+      return;
+    }
+    (item.sourceNames || []).forEach(name => {
+      if (name && !current.sourceNames.includes(name)) current.sourceNames.push(name);
+    });
+    current.result.summary.matchedRows = Math.max(Number(current.result.summary.matchedRows || 0), Number(item.result?.summary?.matchedRows || 0));
+  });
+  return Array.from(byRule.values())
+    .sort((a, b) => kgAttributionRuleRank(b.rule, b.result.summary.matchedRows) - kgAttributionRuleRank(a.rule, a.result.summary.matchedRows));
+}
+
+function execReportNumber(value, digits=0) {
+  const n = Number(String(value ?? 0).replace(/,/g, ''));
+  if (!Number.isFinite(n)) return '-';
+  return new Intl.NumberFormat('zh-CN', {maximumFractionDigits:digits}).format(n);
+}
+
+function execReportWan(value) {
+  const n = Number(String(value ?? 0).replace(/,/g, ''));
+  if (!Number.isFinite(n)) return '-';
+  return `${execReportNumber(n / 10000, 1)}万`;
+}
+
+function execReportPct(value, digits=1) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '-';
+  return `${n.toFixed(digits)}%`;
+}
+
+function execReportValue(row, key) {
+  const n = Number(String(row?.[key] ?? 0).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function execReportHasGroupValue(row, key) {
+  const value = String(row?.[key] ?? '').trim();
+  return Boolean(value && value !== '-' && value.toLowerCase() !== 'null');
+}
+
+async function execReportLoad(query) {
+  const r = await fetch('/api/ad/v1/load', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(query)
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || d.detail || '报告数据加载失败');
+  return d.data || [];
+}
+
+function execReportBarRows(rows, labelKey, valueKey, options={}) {
+  const max = Math.max(1, ...rows.map(row => Math.abs(execReportValue(row, valueKey))));
+  return rows.map((row, idx) => {
+    const value = execReportValue(row, valueKey);
+    const pct = Math.max(4, Math.min(100, Math.abs(value) / max * 100));
+    const alt = options.altEveryOther && idx % 2 === 1 ? ' alt' : '';
+    return `<div class="exec-report-bar-row">
+      <div class="exec-report-bar-label" title="${escHtml(row[labelKey] ?? '')}">${escHtml(row[labelKey] ?? '-')}</div>
+      <div class="exec-report-track"><div class="exec-report-fill${alt}" style="width:${pct.toFixed(1)}%"></div></div>
+      <div class="exec-report-bar-value">${escHtml(options.wan ? execReportWan(value) : execReportNumber(value))}</div>
+    </div>`;
+  }).join('');
+}
+
+function execReportHeatmapHtml(rows, monthKey, itemKey, valueKey, productOrder=[]) {
+  const months = Array.from(new Set(rows.map(row => row[monthKey]).filter(Boolean))).sort().slice(-8);
+  const productTotals = new Map();
+  rows.forEach(row => {
+    const product = row[itemKey];
+    if (!product) return;
+    productTotals.set(product, (productTotals.get(product) || 0) + execReportValue(row, valueKey));
+  });
+  const rankedProducts = Array.from(productTotals.entries()).sort((a, b) => b[1] - a[1]).map(item => item[0]);
+  const orderedProducts = productOrder.filter(product => productTotals.has(product));
+  const products = (orderedProducts.length >= 4 ? orderedProducts : rankedProducts).slice(0, 12);
+  const valueMap = new Map();
+  rows.forEach(row => valueMap.set(`${row[monthKey]}||${row[itemKey]}`, execReportValue(row, valueKey)));
+  const values = months.flatMap(month => products.map(product => valueMap.get(`${month}||${product}`) || 0));
+  const max = Math.max(1, ...values);
+  const avg = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+  const groupLabel = adhocMemberLabel(itemKey);
+  const periodLabel = adhocMemberLabel(monthKey);
+  const header = `<tr><th>${escHtml(periodLabel)}</th>${products.map(product => `<th>${escHtml(groupLabel)} ${escHtml(product)}</th>`).join('')}</tr>`;
+  const body = months.map(month => {
+    const cells = products.map(product => {
+      const value = valueMap.get(`${month}||${product}`) || 0;
+      const ratio = value / max;
+      const isLow = value > 0 && value < avg * 0.55;
+      const bg = isLow
+        ? `rgba(217,109,103,${Math.max(.13, Math.min(.34, .12 + (1 - ratio) * .28)).toFixed(2)})`
+        : `rgba(20,128,111,${Math.max(.08, Math.min(.42, .08 + ratio * .36)).toFixed(2)})`;
+      return `<td style="background:${bg}" title="${escHtml(periodLabel)} ${escHtml(month)}，${escHtml(groupLabel)} ${escHtml(product)}，${escHtml(adhocMemberLabel(valueKey))} ${escHtml(execReportNumber(value))}">${escHtml(execReportNumber(value))}</td>`;
+    }).join('');
+    return `<tr><td>${escHtml(month)}</td>${cells}</tr>`;
+  }).join('');
+  return `<table class="exec-report-heatmap"><thead>${header}</thead><tbody>${body}</tbody></table>`;
+}
+
+async function renderExecutiveReportWidget(targetId, spec={}, widget={}) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  ensureAdhocAlertStyles();
+  target.innerHTML = `<div class="exec-report-shell d-flex align-items-center justify-content-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>正在生成报告式经营看板...</div>`;
+  const specMeasures = spec.query?.measures || [];
+  const specDimensions = spec.query?.dimensions || [];
+  const timeDim = specDimensions.find(dim => adhocFindMember(dim)?.type === 'time') || specDimensions[0];
+  const groupDim = specDimensions.find(dim => dim !== timeDim) || specDimensions[1];
+  const salesMeasure = spec.salesMeasure || specMeasures[0];
+  const profitMeasure = spec.profitMeasure || specMeasures[1] || specMeasures[0];
+  const monthDim = spec.monthDimension || timeDim;
+  const itemDim = spec.itemDimension || groupDim;
+  const encoding = spec.view?.encoding || {};
+  try {
+    if (!salesMeasure || !monthDim || !itemDim) {
+      throw new Error('报告式经营分析需要在 Ad-Hoc 中至少选择 1 个指标、1 个周期维度和 1 个分组维度');
+    }
+    const [salesMonthRaw, profitMonthRaw, salesProductRaw, monthItemRaw, profitAttentionRaw] = await Promise.all([
+      execReportLoad({measures:[salesMeasure], dimensions:[monthDim], filters:[], order:{[monthDim]:'asc'}, limit:20}),
+      execReportLoad({measures:[profitMeasure], dimensions:[monthDim], filters:[], order:{[monthDim]:'asc'}, limit:20}),
+      execReportLoad({measures:[salesMeasure], dimensions:[itemDim], filters:[], order:{[salesMeasure]:'desc'}, limit:12}),
+      execReportLoad({measures:[salesMeasure], dimensions:[monthDim, itemDim], filters:[], order:{[monthDim]:'asc'}, limit:1000}),
+      execReportLoad({measures:[profitMeasure], dimensions:[itemDim], filters:[], order:{[profitMeasure]:'asc'}, limit:12})
+    ]);
+    const salesMonth = [...salesMonthRaw].filter(row => execReportHasGroupValue(row, monthDim)).sort((a, b) => String(a[monthDim] || '').localeCompare(String(b[monthDim] || '')));
+    const profitMonth = [...profitMonthRaw].filter(row => execReportHasGroupValue(row, monthDim)).sort((a, b) => String(a[monthDim] || '').localeCompare(String(b[monthDim] || '')));
+    const salesProduct = [...salesProductRaw].sort((a, b) => execReportValue(b, salesMeasure) - execReportValue(a, salesMeasure));
+    const profitAttention = [...profitAttentionRaw].sort((a, b) => execReportValue(a, profitMeasure) - execReportValue(b, profitMeasure)).slice(0, 4);
+    const latest = salesMonth[salesMonth.length - 1] || {};
+    const prev = salesMonth[salesMonth.length - 2] || {};
+    const totalSales = salesMonth.reduce((sum, row) => sum + execReportValue(row, salesMeasure), 0);
+    const totalProfit = profitMonth.reduce((sum, row) => sum + execReportValue(row, profitMeasure), 0);
+    const latestSales = execReportValue(latest, salesMeasure);
+    const prevSales = execReportValue(prev, salesMeasure);
+    const mom = prevSales ? (latestSales - prevSales) / prevSales * 100 : 0;
+    const profitRate = totalSales ? totalProfit / totalSales * 100 : 0;
+    const bestProduct = salesProduct[0] || {};
+    const bestMonth = [...salesMonth].sort((a, b) => execReportValue(b, salesMeasure) - execReportValue(a, salesMeasure))[0] || {};
+    const productOrder = salesProduct.map(row => row[itemDim]).filter(Boolean);
+    const heatMonths = salesMonth.map(row => row[monthDim]).filter(Boolean).slice(-8);
+    const matrixMonths = new Set(monthItemRaw.map(row => row[monthDim]).filter(Boolean));
+    let monthItemRows = monthItemRaw;
+    if (heatMonths.length > 1 && matrixMonths.size < Math.min(heatMonths.length, 2)) {
+      monthItemRows = (await Promise.all(heatMonths.map(month => execReportLoad({
+        measures:[salesMeasure],
+        dimensions:[monthDim, itemDim],
+        filters:[{kind:'dimension', member:monthDim, operator:'equals', values:[String(month)]}],
+        order:{[salesMeasure]:'desc'},
+        limit:80
+      })))).flat();
+    }
+    const heatmap = execReportHeatmapHtml(monthItemRows, monthDim, itemDim, salesMeasure, productOrder);
+    const riskProductText = profitAttention.length ? profitAttention.map(row => `${adhocMemberLabel(itemDim)} ${row[itemDim]}`).join('、') : '暂无';
+    const monthBars = execReportBarRows(salesMonth.slice(-8), monthDim, salesMeasure, {wan:true});
+    const productBars = execReportBarRows(salesProduct.slice(0, 10), itemDim, salesMeasure, {wan:true, altEveryOther:true});
+    const profitBars = execReportBarRows(profitAttention, itemDim, profitMeasure, {wan:true});
+    const reportTitle = encoding.reportTitle || spec.title || widget.name || spec.name || '经营分析报告';
+    const reportSubtitle = encoding.reportSubtitle || spec.subtitle || `基于 Ad-Hoc 配置的 ${adhocMemberLabel(salesMeasure)}、${adhocMemberLabel(profitMeasure)}、${adhocMemberLabel(monthDim)} 和 ${adhocMemberLabel(itemDim)} 自动生成经营分析报告。`;
+    target.innerHTML = `<div class="exec-report-shell">
+      <div class="exec-report-hero">
+        <div class="exec-report-hero-kicker"><i class="bi bi-bar-chart-line"></i> 经营分析报告</div>
+        <h2>${escHtml(reportTitle)}</h2>
+        <p>${escHtml(reportSubtitle)}</p>
+      </div>
+      <div class="exec-report-body">
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>一、全局摘要</span><span class="exec-report-section-note">数据来自 Ad-Hoc 指标查询</span></div>
+          <div class="exec-report-kpi-grid">
+            <div class="exec-report-kpi" style="--exec-accent:#14806f"><div class="exec-report-kpi-label">累计${escHtml(adhocMemberLabel(salesMeasure))}</div><div class="exec-report-kpi-value">${escHtml(execReportWan(totalSales))}</div><div class="exec-report-kpi-sub">覆盖 ${escHtml(salesMonth.length)} 个周期</div></div>
+            <div class="exec-report-kpi" style="--exec-accent:#14806f"><div class="exec-report-kpi-label">最新周期${escHtml(adhocMemberLabel(salesMeasure))}</div><div class="exec-report-kpi-value">${escHtml(execReportWan(latestSales))}</div><div class="exec-report-kpi-sub">${escHtml(latest[monthDim] || '-')}</div></div>
+            <div class="exec-report-kpi" style="--exec-accent:#d99042"><div class="exec-report-kpi-label">环比变化</div><div class="exec-report-kpi-value">${escHtml(execReportPct(mom))}</div><div class="exec-report-kpi-sub">相对上一月</div></div>
+            <div class="exec-report-kpi" style="--exec-accent:#14806f"><div class="exec-report-kpi-label">累计${escHtml(adhocMemberLabel(profitMeasure))}</div><div class="exec-report-kpi-value">${escHtml(execReportWan(totalProfit))}</div><div class="exec-report-kpi-sub">辅助指标观察</div></div>
+            <div class="exec-report-kpi" style="--exec-accent:#c84b4b"><div class="exec-report-kpi-label">关注分组</div><div class="exec-report-kpi-value">${escHtml(profitAttention.length)}</div><div class="exec-report-kpi-sub">低值样本</div></div>
+            <div class="exec-report-kpi" style="--exec-accent:#5f7f9f"><div class="exec-report-kpi-label">辅助指标占比</div><div class="exec-report-kpi-value">${escHtml(execReportPct(profitRate))}</div><div class="exec-report-kpi-sub">辅助 / 主指标</div></div>
+          </div>
+        </section>
+
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>二、经营诊断</span><span class="exec-report-section-note">趋势、结构、风险三类信号</span></div>
+          <div class="exec-report-two-col">
+            <div class="exec-report-card">
+              <div class="exec-report-card-title">${escHtml(adhocMemberLabel(monthDim))}${escHtml(adhocMemberLabel(salesMeasure))}趋势</div>
+              ${monthBars || '<div class="text-muted">暂无月度数据</div>'}
+            </div>
+            <div class="exec-report-card">
+              <div class="exec-report-card-title">${escHtml(adhocMemberLabel(profitMeasure))}关注分组</div>
+              ${profitBars || '<div class="text-muted">暂无关注点</div>'}
+              <div class="exec-report-hint">少量异常用于演示预警能力，整体报告保持正常经营场景。</div>
+            </div>
+          </div>
+          <div class="exec-report-mini-grid">
+            <div class="exec-report-status" style="--exec-accent:#14806f"><b>规模状态</b><strong>稳定</strong><div class="text-muted mt-1">最佳月份 ${escHtml(bestMonth[monthDim] || '-')}</div></div>
+            <div class="exec-report-status" style="--exec-accent:#d99042"><b>结构状态</b><strong>集中</strong><div class="text-muted mt-1">Top ${escHtml(adhocMemberLabel(itemDim))} ${escHtml(bestProduct[itemDim] || '-')}</div></div>
+            <div class="exec-report-status" style="--exec-accent:#c84b4b"><b>关注状态</b><strong>少量</strong><div class="text-muted mt-1">${escHtml(riskProductText)}</div></div>
+          </div>
+        </section>
+
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>三、${escHtml(adhocMemberLabel(monthDim))}${escHtml(adhocMemberLabel(itemDim))}热力透视</span><span class="exec-report-section-note">颜色越深代表贡献越高，红色为相对低值</span></div>
+          <div class="exec-report-heatmap-wrap">${heatmap}</div>
+        </section>
+
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>四、知识图谱解释</span><span class="exec-report-section-note">指标、维度和事实表关系驱动</span></div>
+          <div class="exec-report-insight-list">
+            <div class="exec-report-insight" style="--exec-accent:#14806f"><b>指标语义自动对齐</b><p>${escHtml(adhocMemberLabel(salesMeasure))}、${escHtml(adhocMemberLabel(profitMeasure))}、${escHtml(adhocMemberLabel(monthDim))}和${escHtml(adhocMemberLabel(itemDim))}来自 Ad-Hoc 配置，组件无需手写 SQL 即可组合。</p></div>
+            <div class="exec-report-insight" style="--exec-accent:#d99042"><b>异常入口保持克制</b><p>仅保留 ${escHtml(profitAttention.length)} 个利润关注点，适合演示正常经营中发现少量风险。</p></div>
+            <div class="exec-report-insight" style="--exec-accent:#5f7f9f"><b>可钻取路径清晰</b><p>从月份或商品继续下钻到订单明细时，可沿图谱关系定位网络销售事实表和订单字段。</p></div>
+            <div class="exec-report-insight" style="--exec-accent:#c84b4b"><b>关注分组待复核</b><p>${escHtml(riskProductText)} 的辅助指标较低，建议结合明细字段和图谱关系继续归因。</p></div>
+          </div>
+        </section>
+
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>五、${escHtml(adhocMemberLabel(itemDim))}贡献排名</span><span class="exec-report-section-note">Top 分组横向对比</span></div>
+          <div class="exec-report-two-col">
+            <div class="exec-report-card">
+              <div class="exec-report-card-title">${escHtml(adhocMemberLabel(salesMeasure))} Top 10</div>
+              ${productBars || '<div class="text-muted">暂无商品数据</div>'}
+            </div>
+            <div class="exec-report-card">
+              <div class="exec-report-card-title">演示标签</div>
+              <span class="exec-report-tag">报告式布局</span><span class="exec-report-tag">KPI 摘要</span><span class="exec-report-tag">热力透视</span><span class="exec-report-tag">知识图谱解释</span>
+              <div class="exec-report-hint">该看板参考报告型 BI 页面组织方式，首屏给摘要，中段给诊断和热力表，底部给解释与行动建议。</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>六、行动建议</span><span class="exec-report-section-note">面向演示汇报</span></div>
+          <div class="exec-report-reco-grid">
+            <div class="exec-report-reco" style="--exec-accent:#14806f"><b>保留稳定增长叙事</b><div>用累计销售、最新月销售和月度趋势说明整体经营处于稳定区间。</div></div>
+            <div class="exec-report-reco" style="--exec-accent:#d99042"><b>突出少量预警价值</b><div>通过利润关注商品展示系统能在正常数据中识别局部风险。</div></div>
+            <div class="exec-report-reco" style="--exec-accent:#5f7f9f"><b>连接知识图谱能力</b><div>把指标、维度、订单字段和事实表链路作为下一步钻取与归因入口。</div></div>
+          </div>
+        </section>
+      </div>
+    </div>`;
+    _dashboardWidgetResults[widget?.id || targetId] = {
+      rows:salesMonth,
+      query:{measures:[salesMeasure, profitMeasure], dimensions:[monthDim, itemDim], filters:[]},
+      name:widget.name || spec.name || reportTitle
+    };
+  } catch(e) {
+    target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
+  }
+}
+
+async function renderKgAttributionWidget(targetId, spec={}, widget={}) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  const scope = kgAttributionScope(spec);
+  const useDashboardScope = scope === 'dashboard' && widget?.id && widget.id !== 'adhoc-preview' && (_dashboardState.widgets || []).length;
+  const loadingText = useDashboardScope ? '正在汇总当前看板的异常归因链路...' : '正在生成知识图谱归因链路...';
+  target.innerHTML = `<div class="kg-attribution-panel d-flex align-items-center justify-content-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>${escHtml(loadingText)}</div>`;
+  try {
+    let measureItems = useDashboardScope
+      ? kgAttributionDashboardMeasureItems(widget)
+      : kgAttributionMeasureItemsFromSpec(spec, widget?.name || spec.name || '当前组件');
+    if (!measureItems.length) return kgAttributionRenderEmpty(target, useDashboardScope ? '当前看板没有可汇总的指标组件' : '请先选择一个指标');
+    let scanned = [];
+    let hits = [];
+    if (useDashboardScope) {
+      hits = kgAttributionCollectDashboardHits(widget);
+      scanned = hits;
+      if (!hits.length) {
+        hits = kgAttributionCollectDashboardDomHits(widget, _documentAlertRulesCache || [], measureItems);
+        scanned = hits;
+      }
+      const retryCount = Number(spec.__kgCollectRetry || 0);
+      if (!hits.length && retryCount < 8) {
+        window.setTimeout(() => renderKgAttributionWidget(targetId, {...spec, __kgCollectRetry:retryCount + 1}, widget), 3500);
+        return;
+      }
+    } else {
+      const rules = await loadDocumentAlertRules(Boolean(spec.forceRules));
+      const bundles = await Promise.all(measureItems.map(item => kgAttributionLoadMeasureHits(item, rules)));
+      scanned = bundles.flatMap(bundle => bundle.scanned || []);
+      hits = bundles.flatMap(bundle => bundle.hits || [])
+        .sort((a, b) => kgAttributionRuleRank(b.rule, b.result.summary.matchedRows) - kgAttributionRuleRank(a.rule, a.result.summary.matchedRows));
+    }
+    if (!scanned.length) return kgAttributionRenderEmpty(target, useDashboardScope ? '当前看板还没有产生可汇总的单据异常' : '当前指标没有启用的单据追踪规则');
+    if (!hits.length) return kgAttributionRenderEmpty(target, '单据追踪规则已加载，但当前样本未命中异常单据');
+
+    const primary = hits[0];
+    const primaryCfg = documentAlertConfig(primary.rule);
+    const primaryConditions = primary.result.conditions?.length
+      ? primary.result.conditions
+      : (Array.isArray(primaryCfg.conditions) ? primaryCfg.conditions : [{columnCode: primaryCfg.columnCode, operator: primaryCfg.operator, value: primaryCfg.value}]);
+    const measureCode = documentAlertMemberCode(primary.measureItem?.measureCode || primary.rule.measure_code);
+    let columnMeta = primary.columnMeta || {};
+    if (!useDashboardScope && !(columnMeta.dimensions || []).length) {
+      try {
+        columnMeta = await fetch(`/api/alerts/document-columns?measureCode=${encodeURIComponent(measureCode)}&pageSize=50`).then(async r => {
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.error || d.detail || '指标明细列加载失败');
+          return d;
+        });
+      } catch(e) {}
+    }
+    const measure = columnMeta.measure || primary.result.measure || {code: measureCode, name: primary.measureItem?.measureName || measureCode};
+    const columns = columnMeta.columns || primary.result.columns || [];
+    const dimensions = columnMeta.dimensions || [];
+    const tableName = kgAttributionTableName(columns);
+    const orderColumn = primary.result.orderColumn || columnMeta.orderColumn || '';
+    const targetColumn = primary.result.targetColumn || primaryConditions[0]?.columnCode || '';
+    const severityColor = documentAlertSeverityColor(primary.rule.severity || 'warning');
+    const totalRows = hits.reduce((sum, item) => sum + Number(item.result?.summary?.matchedRows || 0), 0);
+    const sourceWidgetNames = Array.from(new Set(hits.flatMap(item => item.sourceNames || []))).filter(Boolean);
+    const docs = (primary.result.matches || []).slice(0, 6);
+    const dimensionHtml = dimensions.slice(0, 7).map(dim =>
+      `<span class="kg-attribution-dim" title="${escHtml(dim.code || '')}"><i class="bi bi-diagram-3"></i>${escHtml(dim.name || dim.code)}：${escHtml(dim.detailColumnName || dim.detailColumn || '-')}</span>`
+    ).join('') || '<span class="text-muted">未识别到可关联维度</span>';
+    const ruleRows = hits.slice(0, 5).map(item => {
+      const color = documentAlertSeverityColor(item.rule.severity || 'warning');
+      const cfg = documentAlertConfig(item.rule);
+      const conds = item.result.conditions?.length
+        ? item.result.conditions
+        : (Array.isArray(cfg.conditions) ? cfg.conditions : [{columnCode: cfg.columnCode, operator: cfg.operator, value: cfg.value}]);
+      return `<div class="kg-attribution-rule" style="--kg-severity-color:${color}">
+        <div class="d-flex align-items-center justify-content-between gap-2">
+          <div class="kg-attribution-title text-truncate" title="${escHtml(item.rule.name || '')}">${escHtml(item.rule.name || '单据追踪')}</div>
+          <span class="kg-attribution-chip">${escHtml(documentAlertSeverityLabel(item.rule.severity || 'warning'))}</span>
+        </div>
+        <div class="text-muted mt-1">${escHtml(conds.map(kgAttributionConditionLabel).join(' 且 '))}</div>
+        ${useDashboardScope && item.sourceNames?.length ? `<div class="text-muted mt-1">来源组件：${escHtml(item.sourceNames.slice(0, 3).join('、'))}${item.sourceNames.length > 3 ? ` 等 ${item.sourceNames.length} 个` : ''}</div>` : ''}
+        <div class="mt-1 fw-semibold" style="color:${color}">命中 ${escHtml(item.result.summary?.matchedRows || 0)} 条</div>
+      </div>`;
+    }).join('');
+    const sampleDocHtml = docs.length ? docs.map(doc => {
+      const values = doc.conditionValues || {};
+      const valueText = Object.keys(values).slice(0, 2).map(key => `${key}=${values[key]}`).join('，') || `目标值 ${doc.targetValue ?? '-'}`;
+      return `<div class="kg-attribution-doc">
+        <strong>${escHtml(doc.orderNumber || '未识别订单号')}</strong>
+        <span title="${escHtml(valueText)}">${escHtml(valueText)}</span>
+      </div>`;
+    }).join('') : '<div class="text-muted">暂无返回样本单据</div>';
+
+    target.innerHTML = `<div class="kg-attribution-panel">
+      <div class="kg-attribution-toolbar">
+        <div>
+          <div class="kg-attribution-title"><i class="bi bi-diagram-3 me-1"></i>知识图谱异常归因链路</div>
+          <div class="text-muted mt-1">${useDashboardScope ? '看板模式：汇总当前 Dashboard 所有组件的异常规则，沿指标、事实表、明细字段和维度关系定位异常单据。' : '组件模式：从当前组件的监控预警规则出发，沿指标、事实表、明细字段和维度关系定位异常单据。'}</div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+          <span class="badge text-bg-light border">${useDashboardScope ? '看板模式' : '组件模式'}</span>
+          <span class="kg-attribution-chip" style="--kg-severity-color:${severityColor}">${escHtml(documentAlertSeverityLabel(primary.rule.severity || 'warning'))}</span>
+          <span class="badge text-bg-light border">${escHtml(totalRows)} 条命中</span>
+        </div>
+      </div>
+      <div class="kg-attribution-body">
+        <div class="kg-attribution-section">
+          <div class="kg-attribution-label">命中规则</div>
+          ${ruleRows}
+        </div>
+        <div class="kg-attribution-section">
+          <div class="kg-attribution-label">归因链路</div>
+          <div class="kg-attribution-chain">
+            <div class="kg-attribution-node"><strong>预警规则</strong><span>${escHtml(primary.rule.name || '单据追踪')}</span></div>
+            <div class="kg-attribution-node"><strong>指标</strong><span>${escHtml(measure.name || measure.code)}<br>${escHtml(measure.code || measureCode)}</span></div>
+            <div class="kg-attribution-node"><strong>事实表</strong><span>${escHtml(tableName)}<br>订单键 ${escHtml(kgAttributionFieldName(orderColumn, columns))}</span></div>
+            <div class="kg-attribution-node"><strong>判定字段</strong><span>${escHtml(primaryConditions.map(kgAttributionConditionLabel).join(' 且 '))}</span></div>
+            <div class="kg-attribution-node"><strong>命中单据</strong><span>${escHtml(primary.result.summary?.matchedRows || 0)} 条<br>返回 ${escHtml(primary.result.summary?.returnedRows || 0)} 条样本</span></div>
+          </div>
+          <div class="kg-attribution-list mt-2">
+            <div class="kg-attribution-label mb-1">图谱识别的可下钻维度</div>
+            ${dimensionHtml}
+          </div>
+          <div class="kg-attribution-docs">${sampleDocHtml}</div>
+        </div>
+        <div class="kg-attribution-section">
+          <div class="kg-attribution-label">图谱证据</div>
+          <div class="kg-attribution-list">
+            <div class="kg-attribution-kv"><span>指标编码</span><span>${escHtml(measure.code || measureCode)}</span></div>
+            <div class="kg-attribution-kv"><span>归因范围</span><span>${useDashboardScope ? '当前 Dashboard' : '当前组件'}</span></div>
+            ${useDashboardScope ? `<div class="kg-attribution-kv"><span>来源组件</span><span>${escHtml(sourceWidgetNames.slice(0, 4).join('、') || '-')}${sourceWidgetNames.length > 4 ? ` 等 ${sourceWidgetNames.length} 个` : ''}</span></div>` : ''}
+            <div class="kg-attribution-kv"><span>明细事实表</span><span>${escHtml(tableName)}</span></div>
+            <div class="kg-attribution-kv"><span>订单字段</span><span>${escHtml(kgAttributionFieldName(orderColumn, columns))}</span></div>
+            <div class="kg-attribution-kv"><span>主判定字段</span><span>${escHtml(kgAttributionFieldName(targetColumn, columns))}</span></div>
+            <div class="kg-attribution-kv"><span>扫描行数</span><span>${escHtml(primary.result.summary?.scannedRows || 0)}</span></div>
+            ${useDashboardScope ? `<div class="kg-attribution-kv"><span>汇总指标</span><span>${escHtml(measureItems.length)} 个</span></div>` : ''}
+            <div class="kg-attribution-kv"><span>维度映射</span><span>${escHtml(dimensions.length)} 个</span></div>
+          </div>
+          <div class="kg-attribution-list mt-2">
+            <div class="kg-attribution-label mb-1">建议动作</div>
+            <div class="small">优先按 ${escHtml((dimensions.find(d => /order/i.test(d.code || '')) || dimensions[0] || {}).name || '订单维度')} 下钻，查看 ${escHtml(kgAttributionFieldName(targetColumn, columns))} 的异常单据；再按商品和周聚合判断是否为局部业务问题。</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    _dashboardWidgetResults[widget?.id || targetId] = {
+      name: widget?.name || spec.name || '异常归因链路面板',
+      query: {measures:measureItems.map(item => item.measureCode), dimensions:dimensions.slice(0, 3).map(d => d.code), filters:[]},
+      rows: hits.map(item => ({
+        rule: item.rule.name,
+        measure: item.measureItem?.measureName || item.measureItem?.measureCode || '',
+        sourceWidgets: (item.sourceNames || []).join('、'),
+        severity: documentAlertSeverityLabel(item.rule.severity || 'warning'),
+        matchedRows: item.result.summary?.matchedRows || 0,
+      })),
+    };
+  } catch(e) {
+    target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
+  }
 }
 
 function documentAlertConfig(rule) {
@@ -5273,18 +6503,22 @@ async function loadDocumentAlertRules(force=false) {
 
 function documentAlertMeasureCodesFromQuery(query) {
   return (query?.measures || []).map(member => {
-    const meta = adhocFindMeasure(member);
-    return meta?.code || member;
+    return documentAlertMemberCode(member);
   }).filter(Boolean);
 }
 
 function documentAlertMeasureCodesFromPivot(config) {
-  return (config?.measures || []).map(item => item.code || item).filter(Boolean);
+  return (config?.measures || []).map(item => documentAlertMemberCode(item.code || item)).filter(Boolean);
 }
 
 function documentAlertMemberCode(member) {
   const meta = adhocFindMeasure(member);
-  return meta?.code || member || '';
+  const raw = String(meta?.code || member || '').trim();
+  if (!raw) return '';
+  const simple = adhocSimpleMemberKey(raw);
+  if (raw.includes('.') && simple) return `MEAS_${simple}`;
+  if (/^meas_/i.test(raw)) return `MEAS_${raw.replace(/^meas_/i, '')}`;
+  return raw;
 }
 
 function markPivotDocumentAlertCell(el, color) {
@@ -5333,6 +6567,8 @@ function clearDocumentAlertPanel(targetId) {
   const panel = document.getElementById(`doc-alert-${targetId}`);
   if (panel) panel.remove();
   const target = document.getElementById(targetId);
+  const slot = target?.querySelector('.ad-doc-alert-summary-slot');
+  if (slot) slot.innerHTML = '';
   target?.querySelectorAll('.ad-doc-alert-cell').forEach(cell => {
     if (cell.dataset.docMarkerScope === 'pivot-cell') return;
     cell.classList.remove('ad-doc-alert-cell');
@@ -5349,6 +6585,33 @@ function documentAlertPanelHost(targetId) {
   const card = target.closest('.card');
   if (card) return card;
   return target.parentElement || target;
+}
+
+function documentAlertSummaryBadgesHtml(targetId, results=[]) {
+  const hits = (results || [])
+    .map((item, index) => ({...item, index}))
+    .filter(item => item.result?.summary?.matchedRows > 0);
+  if (!hits.length) return '';
+  const maxSeverity = hits.some(x => x.rule.severity === 'critical') ? 'critical'
+    : hits.some(x => x.rule.severity === 'warning') ? 'warning'
+    : 'notice';
+  const color = documentAlertSeverityColor(maxSeverity);
+  const totalRows = hits.reduce((sum, item) => sum + Number(item.result?.summary?.matchedRows || 0), 0);
+  return `<div class="d-flex flex-wrap align-items-center gap-1 mb-2 small">
+    <span class="ad-alert-badge clickable" onclick="focusPivotAlertsFromBadge(event, '单据级异常')" title="点击定位单据级异常" style="border-color:${color};color:${color};background:${adhocAlertTint(color)}"><i class="bi bi-receipt-cutoff me-1"></i>${totalRows} 条单据异常</span>
+    ${hits.slice(0, 7).map(({rule, result}) => {
+      const severity = rule.severity || 'warning';
+      const ruleColor = documentAlertSeverityColor(severity);
+      const label = rule.name || '单据追踪';
+      return `<span class="ad-alert-badge clickable" onclick="focusPivotAlertsFromBadge(event, '${_escJs(label)}')" title="点击定位该单据异常规则" style="border-color:${ruleColor};color:${ruleColor};background:${adhocAlertTint(ruleColor)}">${escHtml(label)} · ${escHtml(documentAlertSeverityLabel(severity))} · ${escHtml(result.summary.matchedRows)} 条</span>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderDocumentAlertSummaryBadges(targetId, results=[]) {
+  const slot = document.getElementById(targetId)?.querySelector('.ad-doc-alert-summary-slot');
+  if (!slot) return;
+  slot.innerHTML = documentAlertSummaryBadgesHtml(targetId, results);
 }
 
 function documentAlertLoadingHost(targetId) {
@@ -5516,7 +6779,8 @@ async function scheduleDocumentAlertScans(targetId, measureCodes, options={}) {
   _documentAlertScanTokens[targetId] = token;
   documentAlertLoadingStart(targetId);
   try {
-    const rules = (await loadDocumentAlertRules(Boolean(options.forceRules))).filter(rule => codes.includes(rule.measure_code));
+    const codeSet = new Set(codes.map(code => documentAlertMemberCode(code)));
+    const rules = (await loadDocumentAlertRules(Boolean(options.forceRules))).filter(rule => codeSet.has(documentAlertMemberCode(rule.measure_code)));
     if (!rules.length) {
       _documentAlertResultsByTarget[targetId] = [];
       return clearDocumentAlertPanel(targetId);
@@ -5530,6 +6794,7 @@ async function scheduleDocumentAlertScans(targetId, measureCodes, options={}) {
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
             measureCode: rule.measure_code,
+            conditions: Array.isArray(cfg.conditions) ? cfg.conditions : undefined,
             columnCode: cfg.columnCode || '',
             operator: cfg.operator || 'eq',
             value: cfg.value ?? rule.threshold ?? 0,
@@ -5549,6 +6814,7 @@ async function scheduleDocumentAlertScans(targetId, measureCodes, options={}) {
     _documentAlertResultsByTarget[targetId] = results;
     renderDocumentAlertPanel(targetId, results);
     applyDocumentAlertMarkers(targetId, results);
+    renderDocumentAlertSummaryBadges(targetId, results);
   } finally {
     documentAlertLoadingEnd(targetId);
   }
@@ -5562,12 +6828,41 @@ async function schedulePivotDocumentAlertScans(targetId, result, config, options
   _documentAlertScanTokens[`pivot:${targetId}`] = token;
   documentAlertLoadingStart(targetId);
   try {
-    const rules = (await loadDocumentAlertRules(Boolean(options.forceRules))).filter(rule => codes.includes(rule.measure_code));
+    const codeSet = new Set(codes.map(code => documentAlertMemberCode(code)));
+    const rules = (await loadDocumentAlertRules(Boolean(options.forceRules))).filter(rule => codeSet.has(documentAlertMemberCode(rule.measure_code)));
     if (!rules.length) return;
     const target = document.getElementById(targetId);
-    const visibleCells = (result.cells || []).slice(0, 120);
+    const summaryResults = await Promise.all(rules.map(async rule => {
+      const cfg = documentAlertConfig(rule);
+      try {
+        const r = await fetch('/api/alerts/document-scan', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            measureCode: rule.measure_code,
+            conditions: Array.isArray(cfg.conditions) ? cfg.conditions : undefined,
+            columnCode: cfg.columnCode || '',
+            operator: cfg.operator || 'eq',
+            value: cfg.value ?? rule.threshold ?? 0,
+            maxRows: cfg.maxRows || 500,
+            maxMatches: 50,
+            pageSize: 500,
+          }),
+        });
+        const scan = await r.json();
+        if (!r.ok) throw new Error(scan.error || scan.detail || '单据追踪失败');
+        return {rule, result: scan};
+      } catch(e) {
+        return {rule, result:{summary:{matchedRows:0}, error:String(e.message || e)}};
+      }
+    }));
+    _documentAlertResultsByTarget[targetId] = summaryResults;
+    renderDocumentAlertSummaryBadges(targetId, summaryResults);
+    const visibleCells = (result.cells || []).slice(0, 40);
+    const allCellResults = [];
     await Promise.all(visibleCells.map(async (cell, idx) => {
       const cellResults = await scanDocumentAlertsForPivotCell(targetId, idx, cell, rules);
+      allCellResults.push(...cellResults);
       if (_documentAlertScanTokens[`pivot:${targetId}`] !== token) return;
       const hits = cellResults.filter(item => item.result?.summary?.matchedRows > 0);
       const el = target?.querySelector(`[data-pivot-cell-index="${idx}"]`);
@@ -5585,6 +6880,31 @@ async function schedulePivotDocumentAlertScans(targetId, result, config, options
       const valueEl = el.querySelector('.pivot-value');
       if (valueEl) valueEl.setAttribute('title', nextTitle);
     }));
+    const aggregated = [];
+    const byRule = new Map();
+    allCellResults
+      .filter(item => item?.result?.summary?.matchedRows > 0)
+      .forEach(item => {
+        const key = item.rule?.id || item.rule?.name || item.rule?.measure_code;
+        const current = byRule.get(key);
+        if (!current) {
+          byRule.set(key, {
+            rule: item.rule,
+            result: {
+              ...item.result,
+              summary: {...(item.result.summary || {})},
+              matches: [...(item.result.matches || [])],
+            },
+          });
+          return;
+        }
+        current.result.summary.matchedRows = Number(current.result.summary.matchedRows || 0) + Number(item.result.summary?.matchedRows || 0);
+        current.result.summary.returnedRows = Number(current.result.summary.returnedRows || 0) + Number(item.result.summary?.returnedRows || 0);
+        current.result.matches = [...(current.result.matches || []), ...(item.result.matches || [])].slice(0, 50);
+      });
+    byRule.forEach(item => aggregated.push(item));
+    _documentAlertResultsByTarget[targetId] = aggregated;
+    renderDocumentAlertSummaryBadges(targetId, aggregated);
   } finally {
     documentAlertLoadingEnd(targetId);
   }
@@ -5604,11 +6924,12 @@ async function scanDocumentAlertsForPivotCell(targetId, cellIndex, cell, rules=n
       const r = await fetch('/api/alerts/document-scan', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          measureCode: rule.measure_code,
-          columnCode: cfg.columnCode || '',
-          operator: cfg.operator || 'eq',
-          value: cfg.value ?? rule.threshold ?? 0,
+          body:JSON.stringify({
+            measureCode: rule.measure_code,
+            conditions: Array.isArray(cfg.conditions) ? cfg.conditions : undefined,
+            columnCode: cfg.columnCode || '',
+            operator: cfg.operator || 'eq',
+            value: cfg.value ?? rule.threshold ?? 0,
           maxRows: cfg.maxRows || 5000,
           maxMatches: 50,
           pageSize: 500,
@@ -5637,6 +6958,18 @@ async function runAdhocQuery(extraFilters=[]) {
     if (!_adhocState.query.measures.length) throw new Error('请至少选择一个指标');
     renderAdhocConfig();
     if (status) status.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>查询中...';
+    if (_adhocState.view.type === 'chart' && _adhocState.view.chartType === 'kg_attribution') {
+      const spec = adhocCurrentSpec();
+      await renderKgAttributionWidget('adhoc-preview', spec, {id:'adhoc-preview', name:spec.name});
+      if (status) status.textContent = '知识图谱归因链路已生成';
+      return;
+    }
+    if (_adhocState.view.type === 'chart' && _adhocState.view.chartType === 'executive_report') {
+      const spec = adhocCurrentSpec();
+      await renderExecutiveReportWidget('adhoc-preview', spec, {id:'adhoc-preview', name:spec.name});
+      if (status) status.textContent = '报告式经营分析已生成';
+      return;
+    }
     if (_adhocState.view.type === 'pivot') {
       await runAdhocPivotQuery(extraFilters, 'adhoc-preview', status);
       return;
@@ -5665,6 +6998,12 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
   if (!target) return;
   ensureAdhocAlertStyles();
   _adhocRenderedQueries[targetId] = query;
+  if (_adhocState.view?.type === 'chart' && _adhocState.view?.chartType === 'kg_attribution') {
+    return renderKgAttributionWidget(targetId, _adhocState, {id:targetId, name:_adhocState.name});
+  }
+  if (_adhocState.view?.type === 'chart' && _adhocState.view?.chartType === 'executive_report') {
+    return renderExecutiveReportWidget(targetId, _adhocState, {id:targetId, name:_adhocState.name});
+  }
   const rows = result.data || [];
   adhocClearChartTarget(target);
   if (!rows.length) {
@@ -5677,20 +7016,22 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
   if (chartType === 'kpi') return renderAdhocKpi(target, rows, query, result.alerts, targetId, clickHandler);
   const dim = query.dimensions[0];
   const meas = query.measures[0];
-  if (chartType === 'funnel') return renderAdhocFunnel(target, rows, query, clickHandler, targetId);
-  if (chartType === 'sankey') return renderAdhocSankey(target, rows, query, clickHandler, targetId);
+  if (chartType === 'funnel') return renderAdhocFunnel(target, rows, query, clickHandler, targetId, result.alerts);
+  if (chartType === 'sankey') return renderAdhocSankey(target, rows, query, clickHandler, targetId, result.alerts);
+  if (chartType === 'heatmap') return renderAdhocHeatmap(target, rows, query, clickHandler, targetId, result.alerts);
   const grouped = adhocGroupRowsForChart(rows, dim, meas);
   const labels = grouped.map(row => row.label);
   const values = grouped.map(row => row.value);
   let option;
+  const chartTarget = prepareAdhocChartCanvas(target, result.alerts, targetId);
   if (!window.echarts || typeof window.echarts.init !== 'function') {
-    return renderAdhocSvgChart(target, chartType, grouped, dim, meas, query, clickHandler);
+    return renderAdhocSvgChart(chartTarget, chartType, grouped, dim, meas, query, clickHandler);
   }
   let chart;
   try {
-    chart = window.echarts.init(target);
+    chart = window.echarts.init(chartTarget);
   } catch(e) {
-    return renderAdhocSvgChart(target, chartType, grouped, dim, meas, query, clickHandler);
+    return renderAdhocSvgChart(chartTarget, chartType, grouped, dim, meas, query, clickHandler);
   }
   if (chartType === 'donut') {
     option = {
@@ -5708,7 +7049,7 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
           return list.map(p => `${escHtml(first.axisValueLabel || p.name)}<br>${escHtml(adhocMemberLabel(meas))}：${escHtml(p.value)}${p.data?.__alertTooltip || adhocAlertTooltipHtml(p.data?.__alerts || [])}`).join('<br>');
         },
       }),
-      grid:{left:48,right:24,top:28,bottom:48},
+      grid:{left:48,right:42,top:44,bottom:48,containLabel:true},
       xAxis:{type:'category', data:labels, axisLabel:{interval:0, rotate:labels.length>8?25:0}},
       yAxis:{type:'value'},
       series:[{type:chartType === 'line' ? 'line' : 'bar', smooth:chartType === 'line', data:grouped.map(row=>adhocChartDataPoint(row, dim, chartType)), itemStyle:{borderRadius: chartType === 'bar' ? [4,4,0,0] : 0}}],
@@ -5716,8 +7057,8 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
   }
   chart.setOption(option);
   setTimeout(() => {
-    if (!target.querySelector('canvas, svg')) {
-      renderAdhocSvgChart(target, chartType, grouped, dim, meas, query, clickHandler);
+    if (!chartTarget.querySelector('canvas, svg')) {
+      renderAdhocSvgChart(chartTarget, chartType, grouped, dim, meas, query, clickHandler);
     }
   }, 80);
   chart.off('click');
@@ -5726,12 +7067,20 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
     echartsClickAt = Date.now();
     clickHandler(params, query, rows);
   });
-  target.onclick = event => {
+  chartTarget.onclick = event => {
     if (Date.now() - echartsClickAt < 250) return;
-    const fallback = adhocChartPointFromPointer(event, target, grouped, dim, chartType);
+    const fallback = adhocChartPointFromPointer(event, chartTarget, grouped, dim, chartType);
     if (fallback) clickHandler(fallback, query, rows);
   };
   if (targetId === 'adhoc-preview') _adhocChart = chart;
+}
+
+function prepareAdhocChartCanvas(target, alertSummary=null, targetId='adhoc-preview') {
+  const summaryHtml = adhocAlertSummaryHtml(alertSummary);
+  const docSummaryHtml = `<div class="ad-doc-alert-summary-slot w-100">${documentAlertSummaryBadgesHtml(targetId, _documentAlertResultsByTarget[targetId] || [])}</div>`;
+  if (!summaryHtml && targetId === 'adhoc-preview') return target;
+  target.innerHTML = `${summaryHtml}${docSummaryHtml}<div class="adhoc-chart-canvas"></div>`;
+  return target.querySelector('.adhoc-chart-canvas') || target;
 }
 
 function adhocKpiShouldRenderDrillChart(query) {
@@ -5749,15 +7098,149 @@ function adhocRecommendDrillChart(query) {
 function adhocClearChartTarget(target) {
   try {
     if (window.echarts && typeof window.echarts.getInstanceByDom === 'function') {
-      const existing = window.echarts.getInstanceByDom(target);
-      if (existing) window.echarts.dispose(existing);
+      [target, ...Array.from(target.querySelectorAll('.adhoc-chart-canvas'))].forEach(el => {
+        const existing = window.echarts.getInstanceByDom(el);
+        if (existing) window.echarts.dispose(existing);
+      });
     }
   } catch(e) {}
   target.onclick = null;
   target.innerHTML = '';
 }
 
-function renderAdhocFunnel(target, rows, query, clickHandler, targetId='adhoc-preview') {
+function adhocHeatmapHasValue(value) {
+  const text = String(value ?? '').trim();
+  return Boolean(text && text !== '-' && text.toLowerCase() !== 'null');
+}
+
+async function adhocHeatmapRows(query, initialRows=[]) {
+  const rowDim = query.dimensions?.[0];
+  const colDim = query.dimensions?.[1];
+  const meas = query.measures?.[0];
+  const baseFilters = query.filters || [];
+  const initialRowValues = new Set((initialRows || []).map(row => row[rowDim]).filter(adhocHeatmapHasValue));
+  const initialColValues = new Set((initialRows || []).map(row => row[colDim]).filter(adhocHeatmapHasValue));
+  const hasRowFilter = baseFilters.some(filter => filter?.member === rowDim && (filter.values || []).length);
+  if ((initialRows || []).length >= 50 && initialColValues.size >= 2 && (initialRowValues.size >= 2 || hasRowFilter)) {
+    return initialRows;
+  }
+  const rowSummary = await execReportLoad({
+    measures:[meas],
+    dimensions:[rowDim],
+    filters:baseFilters,
+    order:query.order || {[rowDim]:'asc'},
+    limit:40
+  });
+  const rowValues = rowSummary
+    .filter(row => adhocHeatmapHasValue(row[rowDim]))
+    .map(row => ({
+      label: String(row[rowDim]),
+      filterValue: String(row.__filterValues?.[rowDim] ?? row[rowDim]),
+    }))
+    .slice(0, 8);
+  if (!rowValues.length) return initialRows || [];
+  const bundles = await Promise.all(rowValues.map(item => execReportLoad({
+    measures:[meas],
+    dimensions:[rowDim, colDim],
+    filters:[...baseFilters, {kind:'dimension', member:rowDim, operator:'equals', values:[item.filterValue]}],
+    order:{[meas]:'desc'},
+    limit:80
+  })));
+  return bundles.flat();
+}
+
+function adhocHeatmapColor(value, max, avg) {
+  if (!value) return '#f4f7f5';
+  const ratio = Math.max(0, Math.min(1, value / Math.max(max, 1)));
+  if (value < avg * 0.55) {
+    const alpha = Math.max(.16, Math.min(.42, .14 + (1 - ratio) * .32));
+    return `rgba(217,109,103,${alpha.toFixed(2)})`;
+  }
+  const alpha = Math.max(.10, Math.min(.48, .08 + ratio * .42));
+  return `rgba(20,128,111,${alpha.toFixed(2)})`;
+}
+
+async function renderAdhocHeatmap(target, rows, query, clickHandler=adhocChartClicked, targetId='adhoc-preview', alertSummary=null) {
+  const rowDim = query.dimensions?.[0];
+  const colDim = query.dimensions?.[1];
+  const meas = query.measures?.[0];
+  if (!rowDim || !colDim || !meas) {
+    target.innerHTML = '<div class="alert alert-warning m-2">热力图需要 1 个指标和 2 个维度：第 1 个维度作为行，第 2 个维度作为列。</div>';
+    return;
+  }
+  target.innerHTML = `${adhocAlertSummaryHtml(alertSummary)}<div class="adhoc-heatmap-shell d-flex align-items-center justify-content-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>正在生成热力图...</div>`;
+  try {
+    const matrixRows = await adhocHeatmapRows(query, rows);
+    const rowValues = Array.from(new Set(matrixRows.map(row => row[rowDim]).filter(adhocHeatmapHasValue))).sort();
+    const colTotals = new Map();
+    const valueMap = new Map();
+    const alertMap = new Map();
+    matrixRows.forEach(row => {
+      const rowKey = row[rowDim];
+      const colKey = row[colDim];
+      if (!adhocHeatmapHasValue(rowKey) || !adhocHeatmapHasValue(colKey)) return;
+      const cellKey = `${rowKey}||${colKey}`;
+      const value = execReportValue(row, meas);
+      valueMap.set(cellKey, (valueMap.get(cellKey) || 0) + value);
+      alertMap.set(cellKey, adhocMergeAlerts([alertMap.get(cellKey) || [], adhocAlertsFor(row, meas)]));
+      colTotals.set(colKey, (colTotals.get(colKey) || 0) + value);
+    });
+    const alertCols = Array.from(new Set(matrixRows
+      .filter(row => adhocAlertsFor(row, meas).length && adhocHeatmapHasValue(row[colDim]))
+      .map(row => row[colDim])));
+    const rankedCols = Array.from(colTotals.entries()).sort((a, b) => b[1] - a[1]).map(item => item[0]);
+    const colValues = Array.from(new Set([...alertCols, ...rankedCols])).slice(0, Math.max(16, alertCols.length));
+    const values = rowValues.flatMap(rowKey => colValues.map(colKey => valueMap.get(`${rowKey}||${colKey}`) || 0));
+    const max = Math.max(1, ...values);
+    const avg = values.reduce((sum, value) => sum + value, 0) / Math.max(values.length, 1);
+    if (!rowValues.length || !colValues.length) {
+      target.innerHTML = '<div class="text-muted text-center py-5">当前条件下无法形成热力矩阵</div>';
+      return;
+    }
+    const header = `<tr><th>${escHtml(adhocMemberLabel(rowDim))}</th>${colValues.map(col => `<th>${escHtml(adhocMemberLabel(colDim))} ${escHtml(col)}</th>`).join('')}</tr>`;
+    const body = rowValues.map(rowKey => {
+      const cells = colValues.map(colKey => {
+        const cellKey = `${rowKey}||${colKey}`;
+        const value = valueMap.get(cellKey) || 0;
+        const alerts = alertMap.get(cellKey) || [];
+        const bg = adhocHeatmapColor(value, max, avg);
+        const title = [
+          `${adhocMemberLabel(rowDim)} ${rowKey}，${adhocMemberLabel(colDim)} ${colKey}，${adhocMemberLabel(meas)} ${execReportNumber(value)}`,
+          adhocAlertTitle(alerts),
+        ].filter(Boolean).join('\n');
+        return `<td class="adhoc-heatmap-cell ${adhocAlertClasses(alerts)}" data-row-value="${escHtml(rowKey)}" data-col-value="${escHtml(colKey)}" style="background:${bg};${adhocAlertStyle(alerts)}" title="${escHtml(title)}">${escHtml(execReportNumber(value))}</td>`;
+      }).join('');
+      return `<tr><td>${escHtml(rowKey)}</td>${cells}</tr>`;
+    }).join('');
+    target.innerHTML = `${adhocAlertSummaryHtml(alertSummary)}<div class="ad-doc-alert-summary-slot w-100">${documentAlertSummaryBadgesHtml(targetId, _documentAlertResultsByTarget[targetId] || [])}</div>
+      <div class="adhoc-heatmap-shell">
+        <div class="adhoc-heatmap-head">
+          <div class="adhoc-heatmap-title">${escHtml(adhocMemberLabel(rowDim))} × ${escHtml(adhocMemberLabel(colDim))} 热力图</div>
+          <div class="adhoc-heatmap-note">颜色越深代表贡献越高，红色为相对低值</div>
+        </div>
+        <div class="adhoc-heatmap-wrap"><table class="adhoc-heatmap-table"><thead>${header}</thead><tbody>${body}</tbody></table></div>
+        <div class="adhoc-heatmap-legend"><span>相对低值</span><span class="adhoc-heatmap-gradient"></span><span>相对高值</span></div>
+      </div>`;
+    target.querySelectorAll('.adhoc-heatmap-cell').forEach(cell => {
+      cell.addEventListener('click', event => {
+        event.stopPropagation();
+        const rowValue = cell.dataset.rowValue || '';
+        clickHandler({
+          name: rowValue,
+          data: {
+            __member: rowDim,
+            __value: rowValue,
+            __filterValues: [rowValue],
+          },
+        }, query, matrixRows);
+      });
+    });
+  } catch(e) {
+    target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
+  }
+}
+
+function renderAdhocFunnel(target, rows, query, clickHandler, targetId='adhoc-preview', alertSummary=null) {
   const dim = query.dimensions?.[0];
   const meas = query.measures?.[0];
   if (!dim || !meas) {
@@ -5765,14 +7248,15 @@ function renderAdhocFunnel(target, rows, query, clickHandler, targetId='adhoc-pr
     return;
   }
   const grouped = adhocGroupRowsForChart(rows, dim, meas).sort((a, b) => b.value - a.value);
+  const chartTarget = prepareAdhocChartCanvas(target, alertSummary);
   if (!window.echarts || typeof window.echarts.init !== 'function') {
-    return renderAdhocTable(target, grouped.map(x => ({[dim]: x.label, [meas]: x.value})));
+    return renderAdhocTable(chartTarget, grouped.map(x => ({[dim]: x.label, [meas]: x.value})));
   }
   let chart;
   try {
-    chart = window.echarts.init(target);
+    chart = window.echarts.init(chartTarget);
   } catch(e) {
-    return renderAdhocTable(target, grouped.map(x => ({[dim]: x.label, [meas]: x.value})));
+    return renderAdhocTable(chartTarget, grouped.map(x => ({[dim]: x.label, [meas]: x.value})));
   }
   chart.setOption({
     tooltip:adhocChartTooltipOptions({trigger:'item', formatter:p => `${escHtml(p.name)}<br>${escHtml(adhocMemberLabel(meas))}：${escHtml(p.value)}${p.data?.__alertTooltip || adhocAlertTooltipHtml(p.data?.__alerts || [])}`}),
@@ -5851,7 +7335,7 @@ function adhocBuildSankeyData(rows, query) {
   return {nodes:Array.from(nodeMap.values()), links:Array.from(linkMap.values()).filter(x => x.value > 0)};
 }
 
-function renderAdhocSankey(target, rows, query, clickHandler, targetId='adhoc-preview') {
+function renderAdhocSankey(target, rows, query, clickHandler, targetId='adhoc-preview', alertSummary=null) {
   const dims = query.dimensions || [];
   const meas = query.measures?.[0];
   if (dims.length < 2 || !meas) {
@@ -5863,14 +7347,15 @@ function renderAdhocSankey(target, rows, query, clickHandler, targetId='adhoc-pr
     target.innerHTML = '<div class="text-muted text-center py-5">当前数据无法形成有效流向</div>';
     return;
   }
+  const chartTarget = prepareAdhocChartCanvas(target, alertSummary);
   if (!window.echarts || typeof window.echarts.init !== 'function') {
-    return renderAdhocTable(target, sankey.links.map(x => ({source:x.source, target:x.target, value:x.value})));
+    return renderAdhocTable(chartTarget, sankey.links.map(x => ({source:x.source, target:x.target, value:x.value})));
   }
   let chart;
   try {
-    chart = window.echarts.init(target);
+    chart = window.echarts.init(chartTarget);
   } catch(e) {
-    return renderAdhocTable(target, sankey.links.map(x => ({source:x.source, target:x.target, value:x.value})));
+    return renderAdhocTable(chartTarget, sankey.links.map(x => ({source:x.source, target:x.target, value:x.value})));
   }
   chart.setOption({
     tooltip:adhocChartTooltipOptions({
@@ -6007,11 +7492,15 @@ function adhocChartItemStyle(alerts=[], chartType='bar') {
   const alert = adhocAlertTop(alerts);
   if (!alert) return {};
   const color = alert.color || '#d99042';
+  const pathTop = adhocAlertTopByType(alerts, 'path');
+  const expressionTop = adhocAlertTopByType(alerts, 'expression');
+  const borderAlert = pathTop || expressionTop || alert;
+  const borderColor = borderAlert.color || color;
   return {
     color,
-    borderColor: color,
-    borderWidth: alert.type === 'self' ? 0 : 2,
-    borderType: alert.type === 'path' ? 'dashed' : 'solid',
+    borderColor,
+    borderWidth: (pathTop || expressionTop) ? 2 : (alert.type === 'self' ? 0 : 2),
+    borderType: pathTop ? 'dashed' : 'solid',
     borderRadius: chartType === 'bar' ? [4,4,0,0] : 0,
   };
 }
@@ -6025,6 +7514,7 @@ function renderAdhocKpi(target, rows, query, alertSummary=null, targetId='adhoc-
   const measureCode = documentAlertMemberCode(meas);
   target.innerHTML = `<div class="h-100 d-flex flex-column justify-content-center align-items-start px-4 ${cls}" data-adhoc-kpi-click="1" data-doc-measure-code="${escHtml(measureCode)}" style="${adhocAlertStyle(alerts)};cursor:pointer" title="${escHtml(title || '点击下钻')}">
     ${adhocAlertSummaryHtml(alertSummary)}
+    <div class="ad-doc-alert-summary-slot w-100">${documentAlertSummaryBadgesHtml(targetId, _documentAlertResultsByTarget[targetId] || [])}</div>
     <div class="text-muted mb-2">${escHtml(adhocMemberLabel(meas))}</div>
     <div class="adhoc-kpi">${escHtml(value)}</div>
   </div>`;
@@ -6036,6 +7526,7 @@ function renderAdhocKpi(target, rows, query, alertSummary=null, targetId='adhoc-
     });
   }
   applyDocumentAlertMarkers(targetId, _documentAlertResultsByTarget[targetId] || []);
+  renderDocumentAlertSummaryBadges(targetId, _documentAlertResultsByTarget[targetId] || []);
 }
 
 function adhocKpiClicked(rows, query, clickHandler=adhocChartClicked) {
@@ -6406,6 +7897,18 @@ function adhocCurrentSpec() {
   _adhocState.view.type = document.getElementById('adhoc-view-type')?.value || _adhocState.view.type || 'chart';
   _adhocState.view.chartType = document.getElementById('adhoc-chart-type')?.value || _adhocState.view.chartType || 'auto';
   _adhocState.view.encoding = _adhocState.view.encoding || {};
+  if (_adhocState.view.chartType === 'kg_attribution') {
+    _adhocState.view.encoding.attributionScope = document.querySelector('input[name="adhoc-kg-scope"]:checked')?.value || _adhocState.view.encoding.attributionScope || 'component';
+  }
+  if (_adhocState.view.chartType === 'executive_report') {
+    _adhocState.view.encoding.reportTitle = document.getElementById('adhoc-report-title')?.value || _adhocState.view.encoding.reportTitle || _adhocState.name || '';
+    _adhocState.view.encoding.reportSubtitle = document.getElementById('adhoc-report-subtitle')?.value || _adhocState.view.encoding.reportSubtitle || '';
+  }
+  if (_adhocState.view.type === 'pivot') {
+    _adhocState.view.encoding.pivotHeatmapEnabled = !!document.getElementById('adhoc-pivot-heatmap-enabled')?.checked;
+    _adhocState.view.encoding.pivotHeatmapLowColor = pivotHeatmapColor(document.getElementById('adhoc-pivot-heatmap-low-color')?.value, '#f4f8f5');
+    _adhocState.view.encoding.pivotHeatmapHighColor = pivotHeatmapColor(document.getElementById('adhoc-pivot-heatmap-high-color')?.value, '#14806f');
+  }
   _adhocState.settings = _adhocState.settings || {};
   _adhocState.settings.monitoringAlertRenderEnabled = !!document.getElementById('adhoc-alert-render-enabled')?.checked;
   _adhocState.query.limit = parseInt(document.getElementById('adhoc-limit')?.value || _adhocState.query.limit || 1000, 10);
@@ -6487,6 +7990,15 @@ function loadAdhocSpecIntoEditor(spec) {
   document.getElementById('adhoc-name').value = d.name || d.id || '未命名组件';
   document.getElementById('adhoc-view-type').value = d.view?.type || 'chart';
   document.getElementById('adhoc-chart-type').value = d.view?.chartType || 'auto';
+  const reportTitle = document.getElementById('adhoc-report-title');
+  const reportSubtitle = document.getElementById('adhoc-report-subtitle');
+  if (reportTitle) reportTitle.value = d.view?.encoding?.reportTitle || d.name || '';
+  if (reportSubtitle) reportSubtitle.value = d.view?.encoding?.reportSubtitle || '';
+  const scope = d.view?.encoding?.attributionScope || 'component';
+  const kgComponent = document.getElementById('adhoc-kg-scope-component');
+  const kgDashboard = document.getElementById('adhoc-kg-scope-dashboard');
+  if (kgComponent) kgComponent.checked = scope !== 'dashboard';
+  if (kgDashboard) kgDashboard.checked = scope === 'dashboard';
   document.getElementById('adhoc-limit').value = d.query?.limit || 1000;
   const alertRenderToggle = document.getElementById('adhoc-alert-render-enabled');
   if (alertRenderToggle) alertRenderToggle.checked = adhocMonitoringAlertRenderEnabled(_adhocState);
@@ -7382,12 +8894,13 @@ async function dashboardAddWidget(adhocId) {
   const r = await fetch(`/api/adhoc/v1/${encodeURIComponent(adhocId)}`);
   const spec = await r.json();
   if (!r.ok) return showToast(spec.error || '组件加载失败', 'error');
+  const isExecutiveReport = spec.kind === 'executive_report' || (spec.view?.type === 'chart' && spec.view?.chartType === 'executive_report');
   _dashboardState.widgets.push({
     id: `w_${Date.now()}`,
     adhocId,
     name: spec.name || adhocId,
     spec,
-    layout: {x:0, y:0, w:6, h:4},
+    layout: isExecutiveReport ? {x:0, y:0, w:12, h:30} : {x:0, y:0, w:6, h:4},
   });
   dashboardPersistDraft();
   renderDashboardCanvas();
@@ -7505,6 +9018,14 @@ async function dashboardRenderWidget(widgetId, options={}) {
   if (!spec) {
     const target = document.getElementById(targetId);
     if (target) target.innerHTML = '<div class="alert alert-warning m-2">源 Ad-Hoc 组件不存在，也没有可用快照。请从组件库重新添加。</div>';
+    return;
+  }
+  if (spec.kind === 'executive_report' || widget.type === 'executive_report' || (spec.view?.type === 'chart' && spec.view?.chartType === 'executive_report')) {
+    await renderExecutiveReportWidget(targetId, spec, widget);
+    return;
+  }
+  if (spec.kind === 'kg_attribution' || widget.type === 'kg_attribution' || (spec.view?.type === 'chart' && spec.view?.chartType === 'kg_attribution')) {
+    await renderKgAttributionWidget(targetId, spec, widget);
     return;
   }
   spec.drill = spec.drill || {mode:'path', path:[], stack:[]};
@@ -8518,6 +10039,69 @@ function pivotColumnGroups(columns, level) {
   return groups;
 }
 
+function pivotHeatmapEnabled(config={}) {
+  return !!(config?.settings?.pivotHeatmapEnabled || config?.pivotHeatmapEnabled);
+}
+
+function pivotHeatmapColor(value, fallback) {
+  const text = String(value || '').trim();
+  return /^#[0-9a-fA-F]{6}$/.test(text) ? text.toLowerCase() : fallback;
+}
+
+function pivotHeatmapRgb(value, fallback) {
+  const color = pivotHeatmapColor(value, fallback);
+  return [
+    parseInt(color.slice(1, 3), 16),
+    parseInt(color.slice(3, 5), 16),
+    parseInt(color.slice(5, 7), 16),
+  ];
+}
+
+function pivotHeatmapTextColor(rgb) {
+  const [r, g, b] = rgb.map(v => {
+    const channel = v / 255;
+    return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+  });
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance < 0.46 ? '#fff' : '#25332f';
+}
+
+function pivotCellNumber(value) {
+  const text = String(value ?? '').replace(/,/g, '').trim();
+  if (!text || text === '-') return null;
+  const n = Number(text);
+  return Number.isFinite(n) ? n : null;
+}
+
+function pivotHeatmapStats(cells=[]) {
+  const byMeasure = new Map();
+  (cells || []).forEach(cell => {
+    const n = pivotCellNumber(cell?.value);
+    if (n === null) return;
+    const key = cell.measureCode || '';
+    const stat = byMeasure.get(key) || {min:n, max:n};
+    stat.min = Math.min(stat.min, n);
+    stat.max = Math.max(stat.max, n);
+    byMeasure.set(key, stat);
+  });
+  return byMeasure;
+}
+
+function pivotHeatmapStyle(cell, stats, config={}) {
+  const n = pivotCellNumber(cell?.value);
+  if (n === null) return '';
+  const stat = stats.get(cell.measureCode || '');
+  if (!stat) return '';
+  const span = Math.max(1, stat.max - stat.min);
+  const ratio = Math.max(0, Math.min(1, (n - stat.min) / span));
+  const low = pivotHeatmapRgb(config?.settings?.pivotHeatmapLowColor || config?.pivotHeatmapLowColor, '#f4f8f5');
+  const high = pivotHeatmapRgb(config?.settings?.pivotHeatmapHighColor || config?.pivotHeatmapHighColor, '#14806f');
+  const alpha = 0.18 + ratio * 0.58;
+  const bg = high.map((c, idx) => Math.round(low[idx] + (c - low[idx]) * ratio));
+  const color = pivotHeatmapTextColor(bg);
+  return `background:rgba(${bg[0]},${bg[1]},${bg[2]},${alpha.toFixed(2)});color:${color};`;
+}
+
 function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=_pivotConfig) {
   const out = document.getElementById(targetId);
   const d = result;
@@ -8531,6 +10115,8 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
   }
   const cellMap = new Map();
   d.cells.forEach((cell, idx) => cellMap.set(`${cell.rowKey}|${cell.columnKey}|${cell.measureCode}`, {cell,idx}));
+  const heatmapEnabled = pivotHeatmapEnabled(config);
+  const heatmapStats = heatmapEnabled ? pivotHeatmapStats(d.cells) : new Map();
   const displayRows = [...d.rows].sort((left, right) => {
     const leftValues = (left.path || []).map(x=>String(x.value ?? ''));
     const rightValues = (right.path || []).map(x=>String(x.value ?? ''));
@@ -8542,7 +10128,9 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
   });
   const columnLevels = config.columns.length;
   const rowHeaders = config.rows.length ? config.rows : [{name:'数值'}];
-  let html = adhocAlertSummaryHtml(d.alerts) + '<table class="table table-sm table-bordered mb-0 pivot-table"><thead>';
+  let html = adhocAlertSummaryHtml(d.alerts)
+    + `<div class="ad-doc-alert-summary-slot w-100">${documentAlertSummaryBadgesHtml(targetId, _documentAlertResultsByTarget[targetId] || [])}</div>`
+    + '<table class="table table-sm table-bordered mb-0 pivot-table"><thead>';
   if (columnLevels) {
     for (let level = 0; level < columnLevels; level++) {
       html += '<tr>';
@@ -8573,8 +10161,10 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
       const hit = cellMap.get(`${row.key}|${col.key}|${measure.code}`);
       const docMeasureCode = documentAlertMemberCode(measure.code);
       const title = hit ? pivotAlertTitle(hit.cell.alerts || []) : '';
+      const heatmapStyle = hit && !hit.cell.alerts?.length ? pivotHeatmapStyle(hit.cell, heatmapStats, config) : '';
+      const cellStyle = `${heatmapStyle}${hit ? adhocAlertStyle(hit.cell.alerts || []) : ''}`;
       html += hit
-        ? `<td class="text-end ${adhocAlertClasses(hit.cell.alerts || [])}" data-doc-marker-scope="pivot-cell" data-pivot-cell-index="${hit.idx}" data-doc-measure-code="${escHtml(docMeasureCode)}" style="${adhocAlertStyle(hit.cell.alerts || [])}" title="${escHtml(title)}"><span class="pivot-value" title="${escHtml(title)}" onclick="${targetId === 'pivot-result' ? `openPivotCellAction(${hit.idx}, 'pivot-result')` : `openAdhocPivotActionFromRendered('${_escJs(targetId)}', ${hit.idx})`}">${escHtml(hit.cell.value ?? '-')}</span></td>`
+        ? `<td class="text-end ${heatmapEnabled ? 'pivot-heatmap-cell' : ''} ${adhocAlertClasses(hit.cell.alerts || [])}" data-doc-marker-scope="pivot-cell" data-pivot-cell-index="${hit.idx}" data-doc-measure-code="${escHtml(docMeasureCode)}" style="${cellStyle}" title="${escHtml(title)}"><span class="pivot-value" title="${escHtml(title)}" onclick="${targetId === 'pivot-result' ? `openPivotCellAction(${hit.idx}, 'pivot-result')` : `openAdhocPivotActionFromRendered('${_escJs(targetId)}', ${hit.idx})`}">${escHtml(hit.cell.value ?? '-')}</span></td>`
         : '<td class="text-end text-muted">-</td>';
     }));
     html += '</tr>';

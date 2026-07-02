@@ -42,17 +42,23 @@ def passthrough_filters(filters):
 
 
 def fake_da_query(payload):
-    assert payload["configureList"][0]["code"] == "MEAS_total_sales_amount"
+    codes = [item["code"] for item in payload["configureList"]]
+    assert codes[0] in {"MEAS_total_sales_amount", "MEAS_profit_amount"}
+    cells = []
+    if "DIM_date_month" in codes:
+        cells.append({"code": "DIM_date_month", "type": "DIMENSION", "data": "2026-01"})
+    if "DIM_channel" in codes:
+        cells.append({"code": "DIM_channel", "type": "DIMENSION", "data": "web"})
+    if "MEAS_total_sales_amount" in codes:
+        cells.append({"code": "MEAS_total_sales_amount", "type": "MEASURE", "data": 100})
+    if "MEAS_profit_amount" in codes:
+        cells.append({"code": "MEAS_profit_amount", "type": "MEASURE", "data": 25})
     return {
         "code": 200,
         "data": {
             "cost": 12,
             "reviewSql": "select ...",
-            "cellList": [[
-                {"code": "DIM_date_month", "type": "DIMENSION", "data": "2026-01"},
-                {"code": "DIM_channel", "type": "DIMENSION", "data": "web"},
-                {"code": "MEAS_total_sales_amount", "type": "MEASURE", "data": 100},
-            ]],
+            "cellList": [cells],
         },
     }
 
@@ -357,4 +363,57 @@ def test_public_non_time_dimensions_are_compatible_across_fact_tables():
         "MEAS_catalog_net_profit",
         "MEAS_web_net_profit",
         "DIM_warehouse",
+    ]
+
+
+def test_formula_measure_is_exposed_and_computed_from_dependencies():
+    catalog = {
+        "measures": [
+            {
+                "code": "MEAS_total_sales_amount",
+                "name": "总销售额",
+                "unit": "元",
+                "tables": ["sales"],
+                "dimensionCodes": ["DIM_date_month", "DIM_channel"],
+            },
+            {
+                "code": "MEAS_profit_amount",
+                "name": "利润额",
+                "unit": "元",
+                "tables": ["sales"],
+                "dimensionCodes": ["DIM_date_month", "DIM_channel"],
+            },
+            {
+                "code": "MEAS_formula_margin_rate",
+                "name": "利润率",
+                "unit": "%",
+                "tables": ["sales"],
+                "dimensionCodes": ["DIM_date_month", "DIM_channel"],
+                "formula": True,
+                "expression": "[MEAS_profit_amount] / [MEAS_total_sales_amount] * 100",
+                "dependencies": ["MEAS_profit_amount", "MEAS_total_sales_amount"],
+            },
+        ],
+        "dimensions": CATALOG["dimensions"],
+    }
+    service = AdSemanticService(catalog, fake_da_query, passthrough_filters)
+
+    meta = service.meta()["models"][0]
+    formula = next(item for item in meta["measures"] if item["code"] == "MEAS_formula_margin_rate")
+    assert formula["name"] == "ad.formula_margin_rate"
+    assert formula["formula"] is True
+
+    result = service.load({
+        "measures": ["ad.formula_margin_rate"],
+        "dimensions": ["ad.channel"],
+    })
+
+    assert result["data"] == [{
+        "ad.date_month": "2026-01",
+        "ad.channel": "web",
+        "ad.formula_margin_rate": 25.0,
+    }]
+    assert result["formulaDiagnostics"]["expandedMeasures"] == [
+        "MEAS_profit_amount",
+        "MEAS_total_sales_amount",
     ]

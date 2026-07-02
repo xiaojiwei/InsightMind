@@ -178,8 +178,14 @@ class NaturalLanguageQueryService:
         }
         self._attach_resolved_context(response, conversation_context, is_follow_up)
         if not plan["ok"] or not execute:
+            response["action"] = plan.get("action") or ("answer" if plan.get("ok") else "clarify")
+            if plan.get("diagnosticCode"):
+                response["diagnosticCode"] = plan.get("diagnosticCode")
+            if "recoverable" in plan:
+                response["recoverable"] = plan.get("recoverable")
             response["needsClarification"] = plan.get("needsClarification", False)
             response["clarification"] = plan.get("clarification", "")
+            response["suggestedAlternatives"] = plan.get("suggestedAlternatives", [])
             if plan.get("ok") and mode == "explain":
                 response["graphAnswer"] = self._build_graph_answer(plan, graph_context)
                 response["ok"] = True
@@ -4750,11 +4756,55 @@ class NaturalLanguageQueryService:
             f"返回 {max(row_count, 0)} 行。"
         )
 
+    def _failure_boundary(self, error: str, diagnostics: dict[str, Any]) -> dict[str, Any]:
+        text = str(error or "")
+        if "匹配不唯一" in text or "请明确" in text or diagnostics.get("measureCandidates"):
+            if "没有" not in text and "未匹配" not in text:
+                return {
+                    "action": "clarify",
+                    "diagnosticCode": "METRIC_AMBIGUOUS",
+                    "recoverable": True,
+                    "needsClarification": True,
+                }
+        if "没有在业务图谱中匹配到指标" in text or "没有匹配到" in text:
+            return {
+                "action": "reject",
+                "diagnosticCode": "METRIC_NOT_FOUND",
+                "recoverable": False,
+                "needsClarification": False,
+            }
+        if "不支持" in text or "暂不支持" in text or "能力" in text:
+            return {
+                "action": "reject",
+                "diagnosticCode": "UNSUPPORTED_QUERY",
+                "recoverable": False,
+                "needsClarification": False,
+            }
+        return {
+            "action": "error",
+            "diagnosticCode": "NLQ_PLANNING_ERROR",
+            "recoverable": True,
+            "needsClarification": False,
+        }
+
+    def _suggested_alternatives_from_diagnostics(self, diagnostics: dict[str, Any]) -> list[str]:
+        alternatives: list[str] = []
+        for item in diagnostics.get("measureCandidates") or []:
+            name = item.get("name") if isinstance(item, dict) else ""
+            if name and name not in alternatives:
+                alternatives.append(str(name))
+        return alternatives[:8]
+
     def _failed_plan(self, question: str, error: str, diagnostics: dict[str, Any]) -> dict[str, Any]:
+        boundary = self._failure_boundary(error, diagnostics)
         return {
             "ok": False,
-            "needsClarification": True,
+            "action": boundary["action"],
+            "diagnosticCode": boundary["diagnosticCode"],
+            "recoverable": boundary["recoverable"],
+            "needsClarification": boundary["needsClarification"],
             "clarification": error,
+            "suggestedAlternatives": self._suggested_alternatives_from_diagnostics(diagnostics),
             "intent": {"rawQuestion": question},
             "matched": {},
             "diagnostics": diagnostics,
@@ -4762,6 +4812,10 @@ class NaturalLanguageQueryService:
 
     def _clarify_plan(self, question: str, message: str, diagnostics: dict[str, Any]) -> dict[str, Any]:
         plan = self._failed_plan(question, message, diagnostics)
+        plan["action"] = "clarify"
+        plan["diagnosticCode"] = "METRIC_AMBIGUOUS"
+        plan["recoverable"] = True
+        plan["needsClarification"] = True
         plan["clarification"] = message
         return plan
 

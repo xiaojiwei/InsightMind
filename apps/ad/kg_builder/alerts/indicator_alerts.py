@@ -480,6 +480,8 @@ def _rule_dimensions_match(row: dict[str, Any], dim_match: Any) -> bool:
     if not isinstance(dim_match, dict) or not dim_match:
         return True
     for member, expected in dim_match.items():
+        if str(member).startswith("__"):
+            continue
         actual = row.get(member)
         values = expected if isinstance(expected, list) else [expected]
         if str(actual) not in {str(value) for value in values}:

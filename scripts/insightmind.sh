@@ -35,13 +35,30 @@ if ! python_has_ad_deps "$AD_PYTHON"; then
   fi
 fi
 
-JAVA_BIN="${INSIGHTMIND_JAVA:-/opt/homebrew/Cellar/openjdk@11/11.0.27/bin/java}"
+JAVA_BIN="${INSIGHTMIND_JAVA:-/Library/Java/JavaVirtualMachines/jdk1.8.0_321.jdk/Contents/Home/bin/java}"
 if [[ ! -x "$JAVA_BIN" ]]; then
   JAVA_BIN="$(command -v java)"
 fi
 
 DA_JAR="$DA_DIR/target/da-indicator-0.0.1-SNAPSHOT.jar"
 KG_PATH="$AD_DIR/output/business_kg/indicator-data.ttl"
+
+kg_value() {
+  local prop="$1"
+  local file="$2"
+  [[ -f "$file" ]] || return 0
+  awk -v prop="ind:${prop}" '
+    $1 == prop && $2 ~ /^"/ {
+      value = $0
+      sub("^[[:space:]]*" prop "[[:space:]]+", "", value)
+      sub("[[:space:]]*;[[:space:]]*$", "", value)
+      sub("[[:space:]]*\\.[[:space:]]*$", "", value)
+      gsub(/^"|"$/, "", value)
+      print value
+      exit
+    }
+  ' "$file"
+}
 
 ensure_demo_assets() {
   if [[ -f "$KG_PATH" ]]; then
@@ -88,7 +105,7 @@ wait_for_port() {
   local name="$1"
   local port="$2"
 
-  for _ in {1..60}; do
+  for _ in {1..180}; do
     if is_running "$port"; then
       echo "$name is listening on port $port"
       return
@@ -175,7 +192,14 @@ start_da() {
     return 1
   fi
 
-  submit_job "$DA_LABEL" "$DA_LOG" "cd '$DA_DIR' && exec '$JAVA_BIN' -jar '$DA_JAR' --spring.profiles.active=dev --server.port='$DA_PORT' --indicator.graph.data-path='$KG_PATH'"
+  local da_mysql_user da_mysql_password da_mysql_url
+  da_mysql_user="${INSIGHTMIND_DA_MYSQL_USER:-${MYSQL_USER:-$(kg_value dbUser "$KG_PATH")}}"
+  da_mysql_password="${INSIGHTMIND_DA_MYSQL_PASSWORD:-${MYSQL_PASSWORD:-$(kg_value dbPassword "$KG_PATH")}}"
+  da_mysql_user="${da_mysql_user:-root}"
+  da_mysql_password="${da_mysql_password:-root}"
+  da_mysql_url="${INSIGHTMIND_DA_MYSQL_URL:-jdbc:mysql://127.0.0.1:3306/indbtest?allowMultiQueries=true&useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&autoReconnect=true&failOverReadOnly=false&maxReconnects=30&initialTimeout=2&connectTimeout=3000}"
+
+  submit_job "$DA_LABEL" "$DA_LOG" "cd '$DA_DIR' && exec '$JAVA_BIN' -jar '$DA_JAR' --spring.config.additional-location='file:$DA_DIR/application-local.yml' --spring.profiles.active=dev --server.port='$DA_PORT' --spring.datasource.dynamic.primary=mysql --spring.datasource.dynamic.datasource.mysql.url='$da_mysql_url' --spring.datasource.dynamic.datasource.mysql.driver-class-name=com.mysql.cj.jdbc.Driver --spring.datasource.dynamic.datasource.mysql.username='$da_mysql_user' --spring.datasource.dynamic.datasource.mysql.password='$da_mysql_password' --indicator.graph.data-path='$KG_PATH'"
   echo "Started DA -> http://localhost:$DA_PORT"
   echo "DA log: $DA_LOG"
   wait_for_port "DA" "$DA_PORT"
