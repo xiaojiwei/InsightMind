@@ -11192,6 +11192,49 @@ function pivotCollectAlerts(cells) {
   return alerts;
 }
 
+function pivotMeasureCodeBySuffix(result, suffix) {
+  const lower = String(suffix || '').toLowerCase();
+  const hit = (result?.measures || []).find(measure => String(measure.code || '').toLowerCase().endsWith(lower))
+    || (result?.measures || []).find(measure => String(measure.code || '').toLowerCase().includes(lower));
+  return hit?.code || '';
+}
+
+function pivotRowMeasureValue(result, row, measureCode) {
+  if (!measureCode || !row?.key) return null;
+  const cells = (result?.cells || []).filter(cell => !cell.syntheticTotal && cell.rowKey === row.key && cell.measureCode === measureCode);
+  if (!cells.length) return null;
+  const nums = cells.map(pivotRawNumber).filter(value => value !== null);
+  if (!nums.length) return null;
+  return nums.reduce((sum, value) => sum + value, 0);
+}
+
+function pivotRiskRowSort(left, right, result) {
+  const lowQualityCode = pivotMeasureCodeBySuffix(result, 'low_quality_call_count');
+  const lowCoverageCode = pivotMeasureCodeBySuffix(result, 'low_coverage_call_count');
+  const avgScoreCode = pivotMeasureCodeBySuffix(result, 'avg_call_quality_score');
+  const missingCode = pivotMeasureCodeBySuffix(result, 'missing_slot_count');
+  const callCountCode = pivotMeasureCodeBySuffix(result, 'phone_call_count') || pivotMeasureCodeBySuffix(result, 'quality_record_count');
+  if (!lowQualityCode && !lowCoverageCode && !avgScoreCode) return null;
+  const comparisons = [
+    [lowQualityCode, 'desc'],
+    [lowCoverageCode, 'desc'],
+    [avgScoreCode, 'asc'],
+    [missingCode, 'desc'],
+    [callCountCode, 'desc'],
+  ];
+  for (const [code, dir] of comparisons) {
+    if (!code) continue;
+    const leftValue = pivotRowMeasureValue(result, left, code);
+    const rightValue = pivotRowMeasureValue(result, right, code);
+    if (leftValue === null && rightValue === null) continue;
+    if (leftValue === null) return 1;
+    if (rightValue === null) return -1;
+    if (Math.abs(leftValue - rightValue) < 1e-9) continue;
+    return dir === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+  }
+  return null;
+}
+
 function pivotApplyTopN(result, adv) {
   if (!adv.topNEnabled || !result.columns?.length || result.columns.length <= adv.topN) return result;
   const colTotals = new Map();
@@ -11497,6 +11540,8 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
   const heatmapEnabled = pivotHeatmapEnabled(config);
   const heatmapStats = heatmapEnabled ? pivotHeatmapStats(d.cells) : new Map();
   const displayRows = [...d.rows].sort((left, right) => {
+    const riskCompared = pivotRiskRowSort(left, right, d);
+    if (riskCompared !== null && riskCompared !== 0) return riskCompared;
     if ((left.sortOrder ?? 0) !== (right.sortOrder ?? 0)) return (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
     const leftValues = (left.path || []).map(x=>String(x.value ?? ''));
     const rightValues = (right.path || []).map(x=>String(x.value ?? ''));
