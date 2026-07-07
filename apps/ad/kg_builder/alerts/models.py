@@ -179,7 +179,8 @@ def init_db():
                 "VALUES('feishu',0,'{}','22:00','08:00',:now)"
             ), {"now": _now()})
             conn.commit()
-        _seed_demo_alert_rules(conn)
+        if os.getenv("ALERT_SEED_DEMO_RULES", "").lower() in {"1", "true", "yes"}:
+            _seed_demo_alert_rules(conn)
     finally:
         conn.close()
 

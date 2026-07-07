@@ -16,7 +16,9 @@ from typing import Dict, List, Optional
 
 from kg_builder.utils.llm_config import (
     DEFAULT_LLM_MODEL,
+    chat_completions_url,
     llm_config_from_env,
+    llm_request_headers,
     validate_llm_config,
 )
 
@@ -249,11 +251,8 @@ class LLMTranslator:
         """Call an OpenAI-compatible /chat/completions endpoint via httpx."""
         import httpx
 
-        url = cfg["base_url"].rstrip("/") + "/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {cfg['api_key']}",
-            "Content-Type":  "application/json",
-        }
+        url = chat_completions_url(cfg["base_url"])
+        headers = llm_request_headers(cfg)
         payload = {
             "model": cfg["model"],
             "max_tokens": 4096,

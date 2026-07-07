@@ -157,6 +157,50 @@ submit_job() {
   launchctl submit -l "$label" -o "$log_path" -e "$log_path" -- /bin/zsh -lc "$command"
 }
 
+propagate_ad_llm_env() {
+  if [[ -f "$AD_DIR/.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$AD_DIR/.env"
+    set +a
+  fi
+
+  local name value
+  for name in \
+    DEEPSEEK_API_KEY DEEPSEEK_BASE_URL DEEPSEEK_MODEL_NAME \
+    LLM_API_KEY LLM_BASE_URL LLM_MODEL_NAME \
+    GPT55_API_KEY GPT55_BASE_URL GPT55_MODEL_NAME \
+    OPENAI_API_KEY OPENAI_BASE_URL OPENAI_MODEL OPENAI_MODEL_NAME \
+    BUSINESS_KG_MODEL; do
+    value="${!name:-}"
+    if [[ -n "$value" ]]; then
+      launchctl setenv "$name" "$value" >/dev/null 2>&1 || true
+    fi
+  done
+
+  if [[ -z "${DEEPSEEK_API_KEY:-}" && -n "${LLM_API_KEY:-}" ]]; then
+    launchctl setenv DEEPSEEK_API_KEY "$LLM_API_KEY" >/dev/null 2>&1 || true
+  elif [[ -z "${DEEPSEEK_API_KEY:-}" && -n "${OPENAI_API_KEY:-}" ]]; then
+    launchctl setenv DEEPSEEK_API_KEY "$OPENAI_API_KEY" >/dev/null 2>&1 || true
+  fi
+  if [[ -z "${DEEPSEEK_BASE_URL:-}" && -n "${LLM_BASE_URL:-}" ]]; then
+    launchctl setenv DEEPSEEK_BASE_URL "$LLM_BASE_URL" >/dev/null 2>&1 || true
+  elif [[ -z "${DEEPSEEK_BASE_URL:-}" && -n "${OPENAI_BASE_URL:-}" ]]; then
+    launchctl setenv DEEPSEEK_BASE_URL "$OPENAI_BASE_URL" >/dev/null 2>&1 || true
+  elif [[ -z "${DEEPSEEK_BASE_URL:-}" ]]; then
+    launchctl unsetenv DEEPSEEK_BASE_URL >/dev/null 2>&1 || true
+  fi
+  if [[ -z "${DEEPSEEK_MODEL_NAME:-}" && -n "${LLM_MODEL_NAME:-}" ]]; then
+    launchctl setenv DEEPSEEK_MODEL_NAME "$LLM_MODEL_NAME" >/dev/null 2>&1 || true
+  elif [[ -z "${DEEPSEEK_MODEL_NAME:-}" && -n "${OPENAI_MODEL_NAME:-}" ]]; then
+    launchctl setenv DEEPSEEK_MODEL_NAME "$OPENAI_MODEL_NAME" >/dev/null 2>&1 || true
+  elif [[ -z "${DEEPSEEK_MODEL_NAME:-}" && -n "${OPENAI_MODEL:-}" ]]; then
+    launchctl setenv DEEPSEEK_MODEL_NAME "$OPENAI_MODEL" >/dev/null 2>&1 || true
+  elif [[ -z "${DEEPSEEK_MODEL_NAME:-}" ]]; then
+    launchctl unsetenv DEEPSEEK_MODEL_NAME >/dev/null 2>&1 || true
+  fi
+}
+
 start_ad() {
   ensure_demo_assets
 
@@ -172,6 +216,7 @@ start_ad() {
     return 1
   fi
 
+  propagate_ad_llm_env
   submit_job "$AD_LABEL" "$AD_LOG" "cd '$AD_DIR' && exec '$AD_PYTHON' -u web_app.py"
   echo "Started AD -> http://localhost:$AD_PORT"
   echo "AD log: $AD_LOG"

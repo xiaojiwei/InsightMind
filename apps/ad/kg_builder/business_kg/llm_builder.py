@@ -21,7 +21,7 @@ from http.client import RemoteDisconnected
 from pathlib import Path
 from typing import Callable, Optional
 
-from kg_builder.utils.llm_config import llm_config_from_env, load_env, validate_llm_config
+from kg_builder.utils.llm_config import chat_completions_url, llm_config_from_env, llm_request_headers, load_env, validate_llm_config
 
 
 # ── .env loader ──────────────────────────────────────────────────────────── #
@@ -1630,7 +1630,7 @@ class BusinessKGBuilder:
     ) -> Optional[str]:
         import threading
 
-        url = f"{self._base_url}/chat/completions"
+        url = chat_completions_url(self._base_url)
         body = json.dumps(payload).encode("utf-8")
 
         self._log(
@@ -1640,14 +1640,12 @@ class BusinessKGBuilder:
 
         transient_http = {408, 409, 425, 429, 500, 502, 503, 504}
         for attempt in range(1, max_retries + 1):
+            headers = llm_request_headers({"api_key": self._api_key, "base_url": self._base_url})
+            headers["Connection"] = "close"
             req = urllib.request.Request(
                 url,
                 data=body,
-                headers={
-                    "Content-Type":  "application/json",
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Connection": "close",
-                },
+                headers=headers,
                 method="POST",
             )
 

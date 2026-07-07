@@ -137,8 +137,8 @@ async def _scan_with_engine(rule: dict, now: datetime) -> None:
 
     try:
         result = await _execute_load(query)
-    except Exception:
-        logger.exception("Engine scan query failed for rule %s", rule["id"])
+    except Exception as exc:
+        logger.warning("Engine scan skipped for rule %s: %s; query=%s", rule["id"], exc, query)
         return
 
     alert_summary = result.get("alerts") or {}
@@ -202,8 +202,8 @@ async def _scan_threshold(rule: dict, now: datetime, operator: str) -> None:
 
     try:
         result = await _execute_load(query)
-    except Exception:
-        logger.exception("Threshold scan query failed for rule %s", rule["id"])
+    except Exception as exc:
+        logger.warning("Threshold scan skipped for rule %s: %s; query=%s", rule["id"], exc, query)
         return
 
     alert_summary = result.get("alerts") or {}

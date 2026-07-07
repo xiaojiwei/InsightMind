@@ -943,6 +943,13 @@ class InsightAnalyzer:
         cache = self._load_kg_cache()
         if not cache:
             return None
+        cell_ctx = self._cell_context()
+        cell_measure = cell_ctx.get("measure") if isinstance(cell_ctx.get("measure"), dict) else {}
+        bound_measure_code = str(
+            self._context.get("activeMeasureCode") or cell_measure.get("code") or ""
+        ).strip()
+        if not cell_ctx or bound_measure_code not in cache:
+            bound_measure_code = ""
 
         # 构建候选 token 列表：
         # 先从 keywords 中提取，再从原始问题中提取大写缩写
@@ -980,10 +987,11 @@ class InsightAnalyzer:
                 seen.add(tl)
                 clean_tokens.append(tl)
 
-        if not clean_tokens:
+        if not clean_tokens and not bound_measure_code:
             return None
 
-        self._log(f"  匹配候选 tokens: {clean_tokens}")
+        if clean_tokens:
+            self._log(f"  匹配候选 tokens: {clean_tokens}")
 
         preferred_tables = set(self._context.get("factTables") or [])
 
@@ -1015,13 +1023,23 @@ class InsightAnalyzer:
             results.sort(key=lambda x: x[1], reverse=True)
             return results
 
-        # 第一轮：用上轮对话的事实表范围约束匹配
-        scored = _score_all_indicators(restrict_tables=True)
-        # 第二轮：表约束下无匹配时放开到全图谱（避免上轮指标跨域污染本轮问题）
-        if not scored:
-            if preferred_tables:
-                self._log("  表约束下无匹配，全图谱放开搜索...")
-            scored = _score_all_indicators(restrict_tables=False)
+        if bound_measure_code:
+            info = cache[bound_measure_code]
+            tbl = (self._kg_meas_table_cache.get(bound_measure_code, []) or [""])[0]
+            self._log(f"  使用单元格上下文绑定指标: {info['cn_name']} ({bound_measure_code})")
+            scored = [(bound_measure_code, 10000, info["cn_name"], tbl)]
+            keyword_scored = _score_all_indicators(restrict_tables=True) if clean_tokens else []
+            if not keyword_scored and clean_tokens:
+                keyword_scored = _score_all_indicators(restrict_tables=False)
+            scored.extend(item for item in keyword_scored if item[0] != bound_measure_code)
+        else:
+            # 第一轮：用上轮对话的事实表范围约束匹配
+            scored = _score_all_indicators(restrict_tables=True)
+            # 第二轮：表约束下无匹配时放开到全图谱（避免上轮指标跨域污染本轮问题）
+            if not scored:
+                if preferred_tables:
+                    self._log("  表约束下无匹配，全图谱放开搜索...")
+                scored = _score_all_indicators(restrict_tables=False)
 
         if not scored:
             inherited_code = str(self._context.get("activeMeasureCode") or "").strip()
@@ -1454,12 +1472,49 @@ class InsightAnalyzer:
 
         self._log(f"  直答段 prompt 长度: {len(user)} 字符")
 
+        if not self._llm_config.get("api_key") or not self._llm_config.get("base_url"):
+            self._log("  ⚠ 直答段 LLM 未配置，使用综合报告生成本地回答")
+            yield self._fallback_direct_answer(question, cn_name, report_text, anomaly_profile)
+            return
+
         # 流式输出
         try:
             yield from self._llm_stream(system, user, max_tokens=1200)
         except Exception as e:
-            self._log(f"  ⚠ 直答段生成失败: {e}")
-            yield f"\n\n（直接回答生成失败：{e}）"
+            self._log(f"  ⚠ 直答段生成失败，使用综合报告生成本地回答: {e}")
+            yield self._fallback_direct_answer(question, cn_name, report_text, anomaly_profile, str(e))
+
+    @staticmethod
+    def _fallback_direct_answer(
+        question: str,
+        cn_name: str,
+        report_text: str,
+        anomaly_profile: dict,
+        reason: str = "",
+    ) -> str:
+        lines = [line.strip() for line in str(report_text or "").splitlines() if line.strip()]
+        bullets = [line for line in lines if line.startswith("- ")]
+        conclusion = bullets[0][2:] if bullets else f"已完成「{cn_name or '目标指标'}」分析，但当前返回数据不足，需要结合明细继续确认。"
+        evidence = bullets[1:5] if len(bullets) > 1 else bullets[:1]
+        suggestions = [line for line in bullets if any(token in line for token in ("下钻", "明细", "Trace", "扩大", "补充"))][-3:]
+        if not suggestions:
+            suggestions = ["- 沿关键维度继续下钻，查看变化是否集中在少数对象。", "- 补充明细样本，确认是否存在单据规则、数据质量或真实业务变化。"]
+        uncertainty = ""
+        if reason:
+            uncertainty = f"\n\n> AI 直答暂不可用，以下回答由已生成报告规则化整理。原因：{reason}"
+        elif anomaly_profile:
+            uncertainty = (
+                f"\n\n> 异常画像：{anomaly_profile.get('label') or '未指定'}；"
+                f"置信度：{anomaly_profile.get('confidence_label') or '-'}。"
+            )
+        return (
+            "## 结论\n"
+            f"{conclusion}{uncertainty}\n\n"
+            "## 关键证据\n"
+            + "\n".join(evidence or ["- 当前没有足够的可量化证据，建议扩大查询范围后复核。"])
+            + "\n\n## 建议排查方向\n"
+            + "\n".join(suggestions)
+        )
 
     def _cell_insight_prompt_context(self) -> str:
         """Build a compact evidence packet from the selected abnormal cell."""

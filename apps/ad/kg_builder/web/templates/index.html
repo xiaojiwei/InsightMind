@@ -699,6 +699,8 @@
     body.dashboard-standalone-view > .container-fluid { padding:12px !important; }
     body.dashboard-standalone-view #tab-dashboard { display:block !important; opacity:1 !important; }
     body.dashboard-standalone-view #dashboard-filter-card { margin-bottom:8px !important; }
+    body.dashboard-standalone-view #dashboard-filter-card .card-header { padding:6px 10px !important; min-height:34px; }
+    body.dashboard-standalone-view #dashboard-filter-summary { display:inline-flex !important; }
     .adhoc-svg-chart { width:100%; height:100%; min-height:240px; }
     .adhoc-svg-point { cursor:pointer; }
     .adhoc-svg-point:hover { opacity:.78; }
@@ -1085,6 +1087,128 @@
     #log-area .info,
     #bkg-log .info,
     #insight-log .info { color:#5f7f9f !important; }
+    .insight-flow-map {
+      position:relative;
+      min-width:1260px;
+      height:1700px;
+      overflow:visible;
+      background:
+        linear-gradient(90deg,rgba(203,210,218,.16) 1px,transparent 1px),
+        linear-gradient(180deg,rgba(203,210,218,.16) 1px,transparent 1px);
+      background-size:24px 24px;
+    }
+    .insight-flow-scroll {
+      overflow:auto;
+      max-height:760px;
+      padding:8px;
+    }
+    .insight-flow-svg {
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      pointer-events:none;
+      z-index:1;
+    }
+    .insight-flow-edge {
+      fill:none;
+      stroke:#b7c0ca;
+      stroke-width:1.2;
+    }
+    .insight-flow-edge.active {
+      stroke:#526d60;
+      stroke-width:1.8;
+    }
+    .insight-flow-edge.error {
+      stroke:#9b6666;
+      stroke-width:1.8;
+    }
+    .insight-flow-edge-label {
+      fill:#6f7a87;
+      font-size:11px;
+      paint-order:stroke;
+      stroke:#f8fafc;
+      stroke-width:4px;
+      stroke-linejoin:round;
+    }
+    .insight-flow-node {
+      position:absolute;
+      z-index:2;
+      width:172px;
+      min-height:72px;
+      padding:8px 9px;
+      border:1px solid #d6dce3;
+      background:#f1f3f5;
+      color:#7a8491;
+      border-radius:6px;
+      transition:background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease;
+    }
+    .insight-flow-node.decision {
+      border-style:dashed;
+      background:#f6f7f9;
+    }
+    .insight-flow-node.branch-focus {
+      box-shadow:0 0 0 2px rgba(95,127,159,.08);
+    }
+    .insight-flow-node .node-index {
+      display:inline-flex;
+      width:20px;
+      height:20px;
+      align-items:center;
+      justify-content:center;
+      border-radius:50%;
+      background:#d8dee5;
+      color:#6b7480;
+      font-size:11px;
+      font-weight:700;
+      margin-right:5px;
+    }
+    .insight-flow-node .node-title {
+      font-weight:700;
+      color:#5d6672;
+      font-size:12px;
+      line-height:1.25;
+    }
+    .insight-flow-node .node-desc {
+      margin-top:5px;
+      font-size:11px;
+      line-height:1.35;
+      color:#8a94a1;
+    }
+    .insight-flow-node.running {
+      background:#edf4fb;
+      border-color:#8aa7c2;
+      color:#4c6c88;
+      box-shadow:0 0 0 2px rgba(95,127,159,.12);
+    }
+    .insight-flow-node.running .node-index {
+      background:#5f7f9f;
+      color:#fff;
+    }
+    .insight-flow-node.running .node-title { color:#3f6587; }
+    .insight-flow-node.done {
+      background:#eef6f1;
+      border-color:#86ac94;
+      color:#526d60;
+    }
+    .insight-flow-node.done .node-index {
+      background:#526d60;
+      color:#fff;
+    }
+    .insight-flow-node.done .node-title { color:#3f6653; }
+    .insight-flow-node.error {
+      background:#f8eeee;
+      border-color:#b98d8d;
+      color:#7f5656;
+    }
+    .insight-flow-node.error .node-index {
+      background:#9b6666;
+      color:#fff;
+    }
+    .insight-flow-summary {
+      color:#64707d;
+      font-size:12px;
+    }
     #build-steps,
     #bkg-steps,
     #build-progress-wrap,
@@ -1322,7 +1446,7 @@
                   </div>
                   <div class="col-md-5" id="host-group">
                     <label class="form-label fw-semibold">主机</label>
-                    <input type="text" class="form-control form-control-sm" id="db-host" value="localhost" />
+                    <input type="text" class="form-control form-control-sm" id="db-host" value="127.0.0.1" />
                   </div>
                   <div class="col-md-3" id="port-group">
                     <label class="form-label fw-semibold">端口</label>
@@ -1332,19 +1456,19 @@
                 <div class="row g-2 mb-2">
                   <div class="col-md-6">
                     <label class="form-label fw-semibold" id="db-label">数据库名</label>
-                    <input type="text" class="form-control form-control-sm" id="db-name" value="" placeholder="留空则扫描所有库" />
+                    <input type="text" class="form-control form-control-sm" id="db-name" value="da_tms" placeholder="输入数据库名" />
                   </div>
                   <div class="col-md-6" id="schema-group">
                     <label class="form-label fw-semibold">Schema（可选）</label>
-                    <input type="text" class="form-control form-control-sm" id="db-schema" placeholder="留空则使用默认" />
+                    <input type="text" class="form-control form-control-sm" id="db-schema" value="da_tms" placeholder="留空则使用默认" />
                   </div>
                 </div>
                 <div class="row g-2 mb-2">
                   <div class="col-12">
                     <div class="form-check">
-                      <input class="form-check-input" type="checkbox" id="opt-all-dbs" checked onchange="onAllDbsChange()" />
+                      <input class="form-check-input" type="checkbox" id="opt-all-dbs" onchange="onAllDbsChange()" />
                       <label class="form-check-label" for="opt-all-dbs">
-                        <strong>扫描所有数据库</strong> — 连接中的每个非系统库都纳入图谱（推荐）
+                        <strong>扫描所有数据库</strong> — 连接中的每个非系统库都纳入图谱
                       </label>
                     </div>
                   </div>
@@ -1356,7 +1480,7 @@
                   </div>
                   <div class="col-md-6">
                     <label class="form-label fw-semibold">密码</label>
-                    <input type="password" class="form-control form-control-sm" id="db-pass" value="root" />
+                    <input type="password" class="form-control form-control-sm" id="db-pass" value="123456" />
                   </div>
                 </div>
                 <div id="oracle-extra" class="row g-2 mb-2" style="display:none!important">
@@ -1903,7 +2027,7 @@
               <div id="bkg-build-config">
                 <div class="mb-3">
                   <label class="form-label small fw-semibold">源业务库 / schema</label>
-                  <input id="bkg-source-schema" class="form-control form-control-sm" value="tpcds" placeholder="例如：tpcds">
+                  <input id="bkg-source-schema" class="form-control form-control-sm" value="da_tms" placeholder="例如：da_tms">
                   <div class="form-text">多库图谱中只使用该 schema 的表；留空则使用全部 schema</div>
                 </div>
 
@@ -2296,13 +2420,13 @@
                   </div>
                 </div>
               </div>
-              <!-- Part 6 — LLM 综合报告 (HTML ID: ana-part4) -->
+              <!-- Part 6 — 综合报告 (HTML ID: ana-part4) -->
               <div class="accordion-item">
                 <h2 class="accordion-header">
                   <button class="accordion-button collapsed py-2" type="button"
                           data-bs-toggle="collapse" data-bs-target="#ana-part4-body">
                     <i class="bi bi-file-text me-2 text-danger"></i>
-                    <span class="fw-semibold">Part 6 — LLM 综合报告</span>
+                    <span class="fw-semibold">Part 6 — 综合报告</span>
                     <span id="ana-part4-badge" class="badge bg-secondary ms-2" style="display:none">已生成</span>
                   </button>
                 </h2>
@@ -2442,6 +2566,9 @@
                 <button id="smart-nlq-run-btn" class="btn btn-primary px-3" onclick="runSmartInsight(this)" style="min-width:96px">
                   <i class="bi bi-send me-1"></i>分析
                 </button>
+                <button class="btn btn-outline-success px-3" onclick="demoInsightActionLoop(this)" title="演示单据解释、改进建议、任务追盯和反馈闭环">
+                  <i class="bi bi-play-circle me-1"></i>演示闭环
+                </button>
                 <div id="smart-nlq-context-status" class="small text-muted mt-1" style="display:none"></div>
               </div>
               <div>
@@ -2457,6 +2584,17 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+      <div class="card mb-3" id="insight-flow-card">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-diagram-3 me-1"></i>智能Insight流程进度</span>
+          <span id="insight-flow-summary" class="insight-flow-summary">等待开始</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="insight-flow-scroll">
+            <div id="insight-flow-map" class="insight-flow-map"></div>
           </div>
         </div>
       </div>
@@ -2485,6 +2623,18 @@
             </div>
             <div class="card-body p-2">
               <div id="insight-document-trace-content" class="small text-muted">等待异常单据证据...</div>
+            </div>
+          </div>
+
+          <!-- 单据解释 → 改进建议 → 任务追盯闭环 -->
+          <div id="insight-action-loop-card" class="card mb-3" style="display:none">
+            <div class="card-header py-2 d-flex align-items-center gap-2">
+              <i class="bi bi-clipboard2-check me-1 text-success"></i>
+              <span>单据解释与改进追盯</span>
+              <span class="badge bg-light text-dark border ms-auto">图谱证据驱动</span>
+            </div>
+            <div class="card-body p-2">
+              <div id="insight-action-loop-content" class="small text-muted">等待单据上下文...</div>
             </div>
           </div>
 
@@ -2616,7 +2766,7 @@
                   <h2 class="accordion-header">
                     <button class="accordion-button collapsed py-2" type="button"
                       data-bs-toggle="collapse" data-bs-target="#ins-part4-body">
-                      <span class="small fw-semibold">Part 6 — LLM 综合报告</span>
+                      <span class="small fw-semibold">Part 6 — 综合报告</span>
                       <span id="ins-part4-badge" class="badge bg-secondary ms-2" style="display:none"></span>
                     </button>
                   </h2>
@@ -2881,6 +3031,63 @@
                       </div>
                       <div class="small text-muted mt-1">按当前透视表数值深浅渲染单元格底色；监控预警和单据异常颜色优先显示。</div>
                     </div>
+                    <div class="border rounded p-2 mb-2 bg-light">
+                      <div class="small fw-semibold mb-2">透视计算</div>
+                      <div class="row g-2 mb-2">
+                        <div class="col-4">
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="adhoc-pivot-row-subtotal" onchange="adhocPivotAdvancedChanged()">
+                            <label class="form-check-label small" for="adhoc-pivot-row-subtotal">行小计</label>
+                          </div>
+                        </div>
+                        <div class="col-4">
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="adhoc-pivot-column-subtotal" onchange="adhocPivotAdvancedChanged()">
+                            <label class="form-check-label small" for="adhoc-pivot-column-subtotal">列小计</label>
+                          </div>
+                        </div>
+                        <div class="col-4">
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="adhoc-pivot-grand-total" onchange="adhocPivotAdvancedChanged()">
+                            <label class="form-check-label small" for="adhoc-pivot-grand-total">总计</label>
+                          </div>
+                        </div>
+                      </div>
+                      <label class="small text-muted mb-1" for="adhoc-pivot-calc-mode">表计算</label>
+                      <select id="adhoc-pivot-calc-mode" class="form-select form-select-sm mb-2" onchange="adhocPivotAdvancedChanged()">
+                        <option value="value">原始值</option>
+                        <option value="rowPercent">行占比</option>
+                        <option value="columnPercent">列占比</option>
+                        <option value="grandPercent">总占比</option>
+                        <option value="rankDesc">排名（降序）</option>
+                        <option value="previousDiff">环比差值</option>
+                        <option value="previousDiffPct">环比差异率</option>
+                        <option value="yoyDiff">同比差值</option>
+                        <option value="yoyDiffPct">同比差异率</option>
+                        <option value="movingAverage">移动平均</option>
+                        <option value="cumulative">累计值</option>
+                      </select>
+                      <div class="row g-2">
+                        <div class="col-5">
+                          <label class="small text-muted mb-1" for="adhoc-pivot-moving-window">移动窗口</label>
+                          <input id="adhoc-pivot-moving-window" class="form-control form-control-sm" type="number" min="2" max="12" value="3" onchange="adhocPivotAdvancedChanged()">
+                        </div>
+                        <div class="col-7">
+                          <label class="small text-muted mb-1" for="adhoc-pivot-topn">Top N</label>
+                          <div class="input-group input-group-sm">
+                            <span class="input-group-text">
+                              <input class="form-check-input mt-0" type="checkbox" id="adhoc-pivot-topn-enabled" onchange="adhocPivotAdvancedChanged()">
+                            </span>
+                            <input id="adhoc-pivot-topn" class="form-control" type="number" min="1" max="100" value="10" onchange="adhocPivotAdvancedChanged()">
+                          </div>
+                        </div>
+                      </div>
+                      <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="adhoc-pivot-topn-others" checked onchange="adhocPivotAdvancedChanged()">
+                        <label class="form-check-label small" for="adhoc-pivot-topn-others">Top N 之外合并为“其他”</label>
+                      </div>
+                      <div class="small text-muted mt-1">表计算基于当前透视结果集二次计算；预警和下钻仍保留原始单元格上下文。</div>
+                    </div>
                   </div>
                   <label class="small fw-semibold mb-1">过滤器</label>
                   <div id="adhoc-filters" class="adhoc-dropzone"></div>
@@ -2975,6 +3182,7 @@
           <div class="card mb-3" id="dashboard-filter-card">
             <div class="card-header py-2 d-flex align-items-center gap-2">
               <span><i class="bi bi-funnel me-1 text-primary"></i>公共筛选项</span>
+              <span id="dashboard-filter-summary" class="small text-muted text-truncate d-none"></span>
               <button id="dashboard-filter-toggle" class="btn btn-sm btn-outline-primary py-0 ms-auto d-none" onclick="dashboardToggleFilterPanel()"><i class="bi bi-chevron-down me-1"></i>展开</button>
             </div>
             <div class="card-body p-2" id="dashboard-filter-body">
@@ -3919,6 +4127,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   // 激活智能Insight时，加载演示提示词
   if (document.getElementById('tab-insight')?.classList.contains('active')) {
     loadNlqSuggestions();
+    initInsightFlow();
   }
   if (dashboardStandaloneViewPath()) {
     showTopLevelTab('#tab-dashboard');
@@ -4986,6 +5195,24 @@ function renderAdhocConfig() {
   }
   const heatmapColorWrap = document.getElementById('adhoc-pivot-heatmap-color-wrap');
   if (heatmapColorWrap) heatmapColorWrap.classList.toggle('opacity-50', !pivotHeatmapToggle?.checked);
+  const encoding = _adhocState.view?.encoding || {};
+  const pivotControlValues = {
+    'adhoc-pivot-row-subtotal': !!encoding.pivotRowSubtotal,
+    'adhoc-pivot-column-subtotal': !!encoding.pivotColumnSubtotal,
+    'adhoc-pivot-grand-total': !!encoding.pivotGrandTotal,
+    'adhoc-pivot-topn-enabled': !!encoding.pivotTopNEnabled,
+    'adhoc-pivot-topn-others': encoding.pivotTopNOthers !== false,
+  };
+  Object.entries(pivotControlValues).forEach(([id, checked]) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = checked;
+  });
+  const calcMode = document.getElementById('adhoc-pivot-calc-mode');
+  if (calcMode && document.activeElement !== calcMode) calcMode.value = encoding.pivotCalcMode || 'value';
+  const movingWindow = document.getElementById('adhoc-pivot-moving-window');
+  if (movingWindow && document.activeElement !== movingWindow) movingWindow.value = Math.max(2, Math.min(12, parseInt(encoding.pivotMovingWindow || 3, 10) || 3));
+  const topN = document.getElementById('adhoc-pivot-topn');
+  if (topN && document.activeElement !== topN) topN.value = Math.max(1, Math.min(100, parseInt(encoding.pivotTopN || 10, 10) || 10));
   const reportWrap = document.getElementById('adhoc-report-config-wrap');
   const isExecutiveReport = viewType === 'chart' && chartType === 'executive_report';
   if (reportWrap) reportWrap.classList.toggle('d-none', !isExecutiveReport);
@@ -5166,9 +5393,42 @@ function adhocFilterToPivot(filter, measureMembers) {
   };
 }
 
+function adhocSyncPivotEncodingFromControls() {
+  if ((_adhocState.view?.type || document.getElementById('adhoc-view-type')?.value) !== 'pivot') return;
+  _adhocState.view = _adhocState.view || {};
+  _adhocState.view.encoding = _adhocState.view.encoding || {};
+  const encoding = _adhocState.view.encoding;
+  const readBool = (id, fallback=false) => {
+    const el = document.getElementById(id);
+    return el ? !!el.checked : fallback;
+  };
+  const readInt = (id, fallback, min, max) => {
+    const value = parseInt(document.getElementById(id)?.value || fallback, 10) || fallback;
+    return Math.max(min, Math.min(max, value));
+  };
+  encoding.pivotHeatmapEnabled = readBool('adhoc-pivot-heatmap-enabled', !!encoding.pivotHeatmapEnabled);
+  encoding.pivotHeatmapLowColor = pivotHeatmapColor(document.getElementById('adhoc-pivot-heatmap-low-color')?.value || encoding.pivotHeatmapLowColor, '#f4f8f5');
+  encoding.pivotHeatmapHighColor = pivotHeatmapColor(document.getElementById('adhoc-pivot-heatmap-high-color')?.value || encoding.pivotHeatmapHighColor, '#14806f');
+  encoding.pivotRowSubtotal = readBool('adhoc-pivot-row-subtotal', !!encoding.pivotRowSubtotal);
+  encoding.pivotColumnSubtotal = readBool('adhoc-pivot-column-subtotal', !!encoding.pivotColumnSubtotal);
+  encoding.pivotGrandTotal = readBool('adhoc-pivot-grand-total', !!encoding.pivotGrandTotal);
+  encoding.pivotCalcMode = document.getElementById('adhoc-pivot-calc-mode')?.value || encoding.pivotCalcMode || 'value';
+  encoding.pivotMovingWindow = readInt('adhoc-pivot-moving-window', encoding.pivotMovingWindow || 3, 2, 12);
+  encoding.pivotTopNEnabled = readBool('adhoc-pivot-topn-enabled', !!encoding.pivotTopNEnabled);
+  encoding.pivotTopN = readInt('adhoc-pivot-topn', encoding.pivotTopN || 10, 1, 100);
+  encoding.pivotTopNOthers = readBool('adhoc-pivot-topn-others', encoding.pivotTopNOthers !== false);
+}
+
 function adhocBuildPivotConfig(extraFilters=[]) {
+  adhocSyncPivotEncodingFromControls();
   const measureMembers = _adhocState.query.measures || [];
-  const measures = measureMembers.map(member => {
+  const pivotSettings = _adhocState.settings || {};
+  const pivotTotalMember = pivotSettings.showTotalCallCountColumn
+    ? (pivotSettings.totalCallCountMember || 'ad.quality_record_count')
+    : '';
+  const effectiveMeasureMembers = [...measureMembers];
+  if (pivotTotalMember && !effectiveMeasureMembers.includes(pivotTotalMember)) effectiveMeasureMembers.push(pivotTotalMember);
+  const measures = effectiveMeasureMembers.map(member => {
     const meta = adhocFindMeasure(member);
     return meta ? {code:meta.code, name:meta.title || meta.name || meta.code} : null;
   }).filter(Boolean);
@@ -5198,6 +5458,14 @@ function adhocBuildPivotConfig(extraFilters=[]) {
       pivotHeatmapEnabled: !!_adhocState.view?.encoding?.pivotHeatmapEnabled,
       pivotHeatmapLowColor: pivotHeatmapColor(_adhocState.view?.encoding?.pivotHeatmapLowColor, '#f4f8f5'),
       pivotHeatmapHighColor: pivotHeatmapColor(_adhocState.view?.encoding?.pivotHeatmapHighColor, '#14806f'),
+      pivotRowSubtotal: !!_adhocState.view?.encoding?.pivotRowSubtotal,
+      pivotColumnSubtotal: !!_adhocState.view?.encoding?.pivotColumnSubtotal,
+      pivotGrandTotal: !!_adhocState.view?.encoding?.pivotGrandTotal,
+      pivotCalcMode: _adhocState.view?.encoding?.pivotCalcMode || 'value',
+      pivotMovingWindow: Math.max(2, Math.min(12, parseInt(_adhocState.view?.encoding?.pivotMovingWindow || 3, 10) || 3)),
+      pivotTopNEnabled: !!_adhocState.view?.encoding?.pivotTopNEnabled,
+      pivotTopN: Math.max(1, Math.min(100, parseInt(_adhocState.view?.encoding?.pivotTopN || 10, 10) || 10)),
+      pivotTopNOthers: _adhocState.view?.encoding?.pivotTopNOthers !== false,
     },
   };
 }
@@ -5356,6 +5624,22 @@ function adhocPivotHeatmapChanged() {
   if (_adhocState.view?.type === 'pivot' && _adhocState.query?.measures?.length) runAdhocQuery();
 }
 
+function adhocPivotAdvancedChanged() {
+  _adhocState.view = _adhocState.view || {};
+  _adhocState.view.encoding = _adhocState.view.encoding || {};
+  const encoding = _adhocState.view.encoding;
+  encoding.pivotRowSubtotal = !!document.getElementById('adhoc-pivot-row-subtotal')?.checked;
+  encoding.pivotColumnSubtotal = !!document.getElementById('adhoc-pivot-column-subtotal')?.checked;
+  encoding.pivotGrandTotal = !!document.getElementById('adhoc-pivot-grand-total')?.checked;
+  encoding.pivotCalcMode = document.getElementById('adhoc-pivot-calc-mode')?.value || 'value';
+  encoding.pivotMovingWindow = Math.max(2, Math.min(12, parseInt(document.getElementById('adhoc-pivot-moving-window')?.value || 3, 10) || 3));
+  encoding.pivotTopNEnabled = !!document.getElementById('adhoc-pivot-topn-enabled')?.checked;
+  encoding.pivotTopN = Math.max(1, Math.min(100, parseInt(document.getElementById('adhoc-pivot-topn')?.value || 10, 10) || 10));
+  encoding.pivotTopNOthers = document.getElementById('adhoc-pivot-topn-others')?.checked !== false;
+  renderAdhocConfig();
+  if (_adhocState.view?.type === 'pivot' && _adhocState.query?.measures?.length) runAdhocQuery();
+}
+
 function adhocReportConfigChanged() {
   _adhocState.view = _adhocState.view || {};
   _adhocState.view.encoding = _adhocState.view.encoding || {};
@@ -5503,6 +5787,73 @@ function ensureAdhocAlertStyles() {
     .exec-report-reco{background:#fbfaf6;border:1px solid #e8dfd2;border-top:4px solid var(--exec-accent,#14806f);padding:12px;min-height:120px}
     .exec-report-reco b{display:block;color:#173d36;margin-bottom:8px}
     .exec-report-tag{display:inline-flex;align-items:center;gap:4px;border:1px solid rgba(20,128,111,.3);background:#eef8f4;color:#126255;padding:1px 7px;margin:0 5px 5px 0;font-size:11px}
+    .call-report-shell .exec-report-hero{background:linear-gradient(135deg,#083f38,#0e5a50);padding:30px 36px 26px}
+    .call-report-shell .exec-report-body{max-width:1180px}
+    .call-report-summary-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;padding:12px}
+    .call-report-kpi{background:#fff;border:1px solid #e8dfd2;border-top:3px solid var(--exec-accent,#14806f);padding:12px;min-height:92px}
+    .call-report-kpi b{display:block;color:#776b5d;font-size:11px;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .call-report-kpi strong{display:block;color:var(--exec-accent,#14806f);font-size:24px;line-height:1.05}
+    .call-report-kpi span{display:block;color:#8a7d70;font-size:11px;margin-top:7px}
+    .call-report-flow{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px}
+    .call-report-funnel-row{display:grid;grid-template-columns:96px 1fr 76px;gap:8px;align-items:center;margin:10px 0}
+    .call-report-track{height:14px;background:#eee8dc;position:relative;overflow:hidden}
+    .call-report-fill{height:100%;background:var(--exec-accent,#14806f)}
+    .call-report-fill.warn{background:#d99042}.call-report-fill.bad{background:#c84b4b}
+    .call-report-script-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px}
+    .call-report-script{background:#fbfaf6;border:1px solid #e8dfd2;border-left:4px solid var(--exec-accent,#14806f);padding:12px;min-height:128px}
+    .call-report-script b{display:block;color:#173d36;margin-bottom:8px}
+    .call-report-script p{margin:0 0 7px;color:#5f584f}
+    .call-report-pill{display:inline-flex;padding:1px 7px;margin:0 5px 5px 0;background:#eef8f4;border:1px solid #c8e3da;color:#126255;font-size:11px}
+    .call-report-table td.good{background:#e9f7ef;color:#126255;font-weight:700}
+    .call-report-table td.mid{background:#fff4d8;color:#7d5a11;font-weight:700}
+    .call-report-table td.bad{background:#ffe2e0;color:#9b2f2f;font-weight:700}
+    .call-report-ranking{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:12px}
+    .call-report-action-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:12px}
+    .call-report-compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px}
+    .call-report-cohort{background:#fbfaf6;border:1px solid #e8dfd2;border-top:4px solid var(--exec-accent,#14806f);padding:12px;min-height:112px}
+    .call-report-cohort b{display:block;color:#173d36;margin-bottom:8px}
+    .call-report-cohort strong{display:block;font-size:24px;line-height:1.05;color:var(--exec-accent,#14806f)}
+    .call-report-cohort span{display:block;color:#74695d;font-size:11px;margin-top:7px}
+    .call-report-compare-wrap{padding:0 12px 12px;overflow:auto}
+    .call-report-compare-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;min-width:760px}
+    .call-report-compare-table th{background:#124a43;color:#fff;padding:8px 9px;border-right:1px solid rgba(255,255,255,.18);white-space:nowrap}
+    .call-report-compare-table td{padding:8px 9px;border-right:1px solid #e8dfd2;border-bottom:1px solid #e8dfd2;vertical-align:middle}
+    .call-report-compare-table td:nth-child(2),.call-report-compare-table td:nth-child(3){text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+    .call-report-compare-table td:first-child{background:#fbf8f1;color:#33534b;font-weight:700}
+    .call-report-diff-good{color:#126255;background:#e9f7ef}
+    .call-report-diff-bad{color:#9b2f2f;background:#ffe2e0}
+    .call-report-diff-mid{color:#7d5a11;background:#fff4d8}
+    .call-report-compare-bars{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:0 12px 12px}
+    .call-report-compare-bar-card{background:#fbfaf6;border:1px solid #e8dfd2;padding:10px}
+    .call-report-compare-bar-card b{display:block;color:#173d36;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .call-report-dual-track{height:9px;background:#eee8dc;margin:7px 0;position:relative;overflow:hidden}
+    .call-report-dual-fill{height:100%;background:#14806f}
+    .call-report-dual-fill.tail{background:#c84b4b}
+    .call-report-dual-label{display:flex;justify-content:space-between;color:#74695d;font-size:11px}
+    .celn-overview-shell .exec-report-hero{background:linear-gradient(135deg,#083f38,#174b43);padding:28px 34px 22px}
+    .celn-overview-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:12px;padding:12px}
+    .celn-funnel-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .celn-stage-card{background:#fff;border:1px solid #e8dfd2;border-top:4px solid var(--exec-accent,#14806f);padding:12px;min-height:220px}
+    .celn-stage-card h4{font-size:13px;margin:0 0 10px;color:#173d36;font-weight:800}
+    .celn-funnel-lane{display:grid;grid-template-columns:92px 1fr 58px;gap:8px;align-items:center;margin:8px 0}
+    .celn-funnel-stage{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#465c55;font-size:11px}
+    .celn-funnel-track{height:12px;background:#eee8dc;position:relative;overflow:hidden}
+    .celn-funnel-fill{height:100%;background:var(--exec-accent,#14806f)}
+    .celn-funnel-fill.warn{background:#d99042}.celn-funnel-fill.bad{background:#c84b4b}
+    .celn-funnel-value{text-align:right;font-variant-numeric:tabular-nums;color:#635b50}
+    .celn-alert-stack{display:grid;gap:10px}
+    .celn-alert-card{background:#fff7ef;border:1px solid #efd3b6;border-left:4px solid var(--exec-accent,#d99042);padding:10px}
+    .celn-alert-card.critical{background:#fff1f0;border-color:#efb8b4;--exec-accent:#c84b4b}
+    .celn-alert-card b{display:block;color:#173d36;margin-bottom:5px}
+    .celn-alert-card p{margin:0;color:#65584a}
+    .celn-bridge-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:0 12px 12px}
+    .celn-bridge-kpi{background:#fbfaf6;border:1px solid #e8dfd2;border-top:3px solid var(--exec-accent,#14806f);padding:10px;min-height:82px}
+    .celn-bridge-kpi b{display:block;color:#776b5d;font-size:11px;margin-bottom:7px}
+    .celn-bridge-kpi strong{display:block;color:var(--exec-accent,#14806f);font-size:20px;line-height:1.05}
+    .celn-bridge-kpi span{display:block;color:#8a7d70;font-size:11px;margin-top:6px}
+    .celn-action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:0 12px 12px}
+    @media (max-width: 1100px){.call-report-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.call-report-flow,.call-report-script-grid,.call-report-ranking,.call-report-action-grid,.call-report-compare-grid{grid-template-columns:1fr}}
+    @media (max-width: 1100px){.call-report-compare-bars,.celn-overview-grid,.celn-funnel-groups,.celn-bridge-grid,.celn-action-grid{grid-template-columns:1fr}}
     @media (max-width: 1100px){.exec-report-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exec-report-two-col,.exec-report-insight-list,.exec-report-reco-grid{grid-template-columns:1fr}.exec-report-mini-grid{grid-template-columns:1fr}}
     @media (max-width: 1100px){.kg-attribution-body{grid-template-columns:1fr}.kg-attribution-chain{overflow-x:auto}.kg-attribution-node{min-width:150px}}
     @keyframes ad-alert-loading-pulse{0%,100%{opacity:.42;box-shadow:none}45%{opacity:1;box-shadow:0 0 0 2px rgba(217,144,66,.16)}}
@@ -6165,10 +6516,551 @@ function execReportHeatmapHtml(rows, monthKey, itemKey, valueKey, productOrder=[
   return `<table class="exec-report-heatmap"><thead>${header}</thead><tbody>${body}</tbody></table>`;
 }
 
+function callReportFilters(spec) {
+  const filters = [...(spec.query?.filters || [])];
+  try {
+    dashboardApplicableGlobalFilters(spec).forEach(filter => {
+      const key = `${filter.member}|${filter.operator}|${(filter.values || []).join(',')}`;
+      if (!filters.some(item => `${item.member}|${item.operator}|${(item.values || []).join(',')}` === key)) {
+        filters.push(filter);
+      }
+    });
+  } catch(e) {}
+  return filters;
+}
+
+function callReportNum(value, digits=0) {
+  const n = Number(String(value ?? 0).replace(/,/g, ''));
+  if (!Number.isFinite(n)) return '-';
+  return n.toLocaleString('zh-CN', {maximumFractionDigits:digits});
+}
+
+function callReportRate(value, digits=1) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '-';
+  return `${n.toFixed(digits)}%`;
+}
+
+function callReportCoverage(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '-';
+  return `${(n * 100).toFixed(1)}%`;
+}
+
+function callReportMetricCell(value, type='count') {
+  const n = Number(value);
+  const cls = type === 'score'
+    ? (n <= 50 ? 'bad' : n < 60 ? 'mid' : 'good')
+    : type === 'percent'
+      ? (n < 60 ? 'bad' : n < 80 ? 'mid' : 'good')
+    : type === 'coverage'
+      ? (n < .55 ? 'bad' : n < .65 ? 'mid' : 'good')
+      : type === 'badCount'
+        ? (n >= 3 ? 'bad' : n > 0 ? 'mid' : 'good')
+        : '';
+  const text = type === 'coverage' ? callReportCoverage(n) : type === 'percent' ? callReportRate(n, 0) : callReportNum(n, type === 'score' ? 0 : 0);
+  return `<td class="${cls}">${escHtml(text)}</td>`;
+}
+
+function callReportAggregateRows(rows, groupKey) {
+  const grouped = new Map();
+  (rows || []).forEach(row => {
+    const key = row[groupKey] || '-';
+    const current = grouped.get(key) || {[groupKey]: key, __weight:0, __scoreTotal:0, __coverageTotal:0};
+    const weight = execReportValue(row, 'ad.quality_record_count');
+    current['ad.quality_record_count'] = execReportValue(current, 'ad.quality_record_count') + weight;
+    current['ad.low_quality_call_count'] = execReportValue(current, 'ad.low_quality_call_count') + execReportValue(row, 'ad.low_quality_call_count');
+    current['ad.low_coverage_call_count'] = execReportValue(current, 'ad.low_coverage_call_count') + execReportValue(row, 'ad.low_coverage_call_count');
+    current['ad.missing_slot_count'] = execReportValue(current, 'ad.missing_slot_count') + execReportValue(row, 'ad.missing_slot_count');
+    current.__weight += weight;
+    current.__scoreTotal += execReportValue(row, 'ad.avg_call_quality_score') * weight;
+    current.__coverageTotal += Number(row['ad.avg_slot_coverage_rate'] || 0) * weight;
+    grouped.set(key, current);
+  });
+  return Array.from(grouped.values()).map(row => ({
+    ...row,
+    'ad.avg_call_quality_score': row.__weight ? row.__scoreTotal / row.__weight : 0,
+    'ad.avg_slot_coverage_rate': row.__weight ? row.__coverageTotal / row.__weight : 0,
+  }));
+}
+
+function callReportBarList(rows, labelKey, valueKey, options={}) {
+  const visibleRows = (rows || [])
+    .filter(row => options.keepZero || execReportValue(row, valueKey) > 0)
+    .slice(0, options.limit || 12);
+  if (!visibleRows.length) return '<div class="text-muted">暂无非零异常项</div>';
+  const max = Math.max(1, ...visibleRows.map(row => execReportValue(row, valueKey)));
+  return visibleRows.map(row => {
+    const value = execReportValue(row, valueKey);
+    const pct = Math.max(3, Math.min(100, value / max * 100));
+    const cls = options.bad && value >= Number(options.bad) ? ' bad' : options.warn && value >= Number(options.warn) ? ' warn' : '';
+    const label = String(row[labelKey] ?? '-');
+    const valueText = options.coverage ? callReportCoverage(value) : options.score ? callReportNum(value) : callReportNum(value);
+    return `<div class="exec-report-bar-row">
+      <div class="exec-report-bar-label" title="${escHtml(label)}">${escHtml(label)}</div>
+      <div class="exec-report-track"><div class="exec-report-fill${cls}" style="width:${pct.toFixed(1)}%"></div></div>
+      <div class="exec-report-bar-value">${escHtml(valueText)}</div>
+    </div>`;
+  }).join('');
+}
+
+function callReportQualityLevelOrder(label) {
+  const text = String(label || '');
+  if (text.includes('优秀')) return 1;
+  if (text.includes('良好')) return 2;
+  if (text.includes('合格')) return 3;
+  if (text.includes('未通过')) return 4;
+  return 9;
+}
+
+function callReportExpertHeatmap(expertRows) {
+  const rows = [...(expertRows || [])].sort((a, b) =>
+    execReportValue(b, 'ad.low_quality_call_count') - execReportValue(a, 'ad.low_quality_call_count')
+    || execReportValue(b, 'ad.low_coverage_call_count') - execReportValue(a, 'ad.low_coverage_call_count')
+    || execReportValue(b, 'ad.quality_record_count') - execReportValue(a, 'ad.quality_record_count')
+  );
+  const body = rows.map((row, idx) => {
+    const total = execReportValue(row, 'ad.quality_record_count');
+    const pass = Math.max(0, total - execReportValue(row, 'ad.low_quality_call_count'));
+    const passRate = total ? pass / total * 100 : 0;
+    const risk = execReportValue(row, 'ad.low_quality_call_count') >= 3 || execReportValue(row, 'ad.avg_call_quality_score') <= 50
+      ? '重点复盘'
+      : execReportValue(row, 'ad.low_coverage_call_count') >= 3 ? '补齐槽位' : '保持跟进';
+    return `<tr>
+      <td>${idx + 1}</td>
+      <td>${escHtml(row['ad.sales_expert'] || '-')}</td>
+      ${callReportMetricCell(total)}
+      ${callReportMetricCell(passRate, 'percent')}
+      ${callReportMetricCell(row['ad.avg_call_quality_score'], 'score')}
+      ${callReportMetricCell(row['ad.avg_slot_coverage_rate'], 'coverage')}
+      ${callReportMetricCell(row['ad.low_quality_call_count'], 'badCount')}
+      ${callReportMetricCell(row['ad.low_coverage_call_count'], 'badCount')}
+      ${callReportMetricCell(row['ad.missing_slot_count'], 'badCount')}
+      <td>${escHtml(risk)}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="exec-report-heatmap call-report-table">
+    <thead><tr><th>#</th><th>销售专家</th><th>质检通话</th><th>通过率</th><th>平均质量分</th><th>槽位覆盖率</th><th>低质量</th><th>低覆盖</th><th>缺失槽位</th><th>建议动作</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table>`;
+}
+
+function callReportIssueCards(issueRows) {
+  const rows = [...(issueRows || [])].sort((a, b) => execReportValue(b, 'ad.quality_record_count') - execReportValue(a, 'ad.quality_record_count')).slice(0, 4);
+  return rows.map(row => {
+    const issue = row['ad.quality_issue_category'] || '待识别问题';
+    const level = row['ad.quality_score_level'] || '-';
+    const count = execReportValue(row, 'ad.quality_record_count');
+    const coverage = Number(row['ad.avg_slot_coverage_rate'] || 0);
+    const accent = String(level).includes('未通过') ? '#c84b4b' : coverage < .55 ? '#d99042' : '#14806f';
+    return `<div class="exec-report-insight" style="--exec-accent:${accent}">
+      <b>${escHtml(issue)}</b>
+      <p>${escHtml(level)} · ${escHtml(callReportNum(count))} 通；平均质量分 ${escHtml(callReportNum(row['ad.avg_call_quality_score']))}，槽位覆盖率 ${escHtml(callReportCoverage(coverage))}。</p>
+    </div>`;
+  }).join('');
+}
+
+function callReportExpertCohortSummary(rows) {
+  const total = rows.reduce((sum, row) => sum + execReportValue(row, 'ad.quality_record_count'), 0);
+  const lowQuality = rows.reduce((sum, row) => sum + execReportValue(row, 'ad.low_quality_call_count'), 0);
+  const lowCoverage = rows.reduce((sum, row) => sum + execReportValue(row, 'ad.low_coverage_call_count'), 0);
+  const missing = rows.reduce((sum, row) => sum + execReportValue(row, 'ad.missing_slot_count'), 0);
+  const scoreTotal = rows.reduce((sum, row) => sum + execReportValue(row, 'ad.avg_call_quality_score') * execReportValue(row, 'ad.quality_record_count'), 0);
+  const coverageTotal = rows.reduce((sum, row) => sum + Number(row['ad.avg_slot_coverage_rate'] || 0) * execReportValue(row, 'ad.quality_record_count'), 0);
+  return {
+    count: rows.length,
+    names: rows.map(row => row['ad.sales_expert']).filter(Boolean),
+    total,
+    avgScore: total ? scoreTotal / total : 0,
+    avgCoverage: total ? coverageTotal / total : 0,
+    lowQuality,
+    lowCoverage,
+    missing,
+    lowQualityRate: total ? lowQuality / total * 100 : 0,
+    lowCoverageRate: total ? lowCoverage / total * 100 : 0,
+    missingPerCall: total ? missing / total : 0,
+  };
+}
+
+function callReportHeadTailComparison(expertRows) {
+  const ranked = [...(expertRows || [])]
+    .filter(row => row['ad.sales_expert'])
+    .sort((a, b) =>
+      execReportValue(b, 'ad.avg_call_quality_score') - execReportValue(a, 'ad.avg_call_quality_score')
+      || execReportValue(b, 'ad.avg_slot_coverage_rate') - execReportValue(a, 'ad.avg_slot_coverage_rate')
+    );
+  if (!ranked.length) return '<div class="text-muted p-3">暂无销售专家数据，无法生成头尾对比。</div>';
+  const cohortSize = Math.min(ranked.length, Math.max(1, Math.ceil(ranked.length * 0.25)));
+  const headRows = ranked.slice(0, cohortSize);
+  const tailRows = ranked.slice(-cohortSize).reverse();
+  const head = callReportExpertCohortSummary(headRows);
+  const tail = callReportExpertCohortSummary(tailRows);
+  const scoreGap = head.avgScore - tail.avgScore;
+  const coverageGap = (head.avgCoverage - tail.avgCoverage) * 100;
+  const lowQualityGap = head.lowQualityRate - tail.lowQualityRate;
+  const lowCoverageGap = head.lowCoverageRate - tail.lowCoverageRate;
+  const missingGap = head.missingPerCall - tail.missingPerCall;
+  const diffCell = (value, lowerIsGood=false, unit='') => {
+    const good = lowerIsGood ? value < 0 : value > 0;
+    const cls = Math.abs(value) < 0.05 ? 'call-report-diff-mid' : good ? 'call-report-diff-good' : 'call-report-diff-bad';
+    const sign = value > 0 ? '+' : '';
+    return `<span class="${cls}" style="display:inline-block;padding:2px 8px">${sign}${escHtml(callReportNum(value, unit === '槽位/通' ? 2 : 1))}${escHtml(unit ? ` ${unit}` : '')}</span>`;
+  };
+  const rows = [
+    ['专家数量', `${head.count} 人`, `${tail.count} 人`, `按平均电话质量分排序，各取前/后约25%；当前样本各 ${Math.round(cohortSize / ranked.length * 100)}%`],
+    ['专家名单', head.names.join('、') || '-', tail.names.join('、') || '-', '用于店长复盘时快速定位样本对象'],
+    ['质检通话数', callReportNum(head.total), callReportNum(tail.total), diffCell(head.total - tail.total, false, '通')],
+    ['平均电话质量分', callReportNum(head.avgScore, 1), callReportNum(tail.avgScore, 1), diffCell(scoreGap, false, '分')],
+    ['关键信息覆盖率', callReportRate(head.avgCoverage * 100, 1), callReportRate(tail.avgCoverage * 100, 1), diffCell(coverageGap, false, '个百分点')],
+    ['低质量率', callReportRate(head.lowQualityRate, 1), callReportRate(tail.lowQualityRate, 1), diffCell(lowQualityGap, true, '个百分点')],
+    ['低覆盖率', callReportRate(head.lowCoverageRate, 1), callReportRate(tail.lowCoverageRate, 1), diffCell(lowCoverageGap, true, '个百分点')],
+    ['单通缺失槽位', callReportNum(head.missingPerCall, 2), callReportNum(tail.missingPerCall, 2), diffCell(missingGap, true, '槽位/通')],
+  ];
+  const body = rows.map(row => `<tr><td>${escHtml(row[0])}</td><td>${escHtml(row[1])}</td><td>${escHtml(row[2])}</td><td>${row[3]}</td></tr>`).join('');
+  const conclusion = scoreGap >= 15
+    ? `头部专家平均质量分高出 ${callReportNum(scoreGap, 1)} 分，建议把头部样本沉淀为标准话术，并用尾部专家逐通复盘补齐关键槽位。`
+    : `头尾专家质量差异为 ${callReportNum(scoreGap, 1)} 分，差距不大时应重点观察低覆盖率和单通缺失槽位。`;
+  const barRows = [
+    {label:'质量分', head:head.avgScore, tail:tail.avgScore, fmt:v=>callReportNum(v,1)},
+    {label:'覆盖率', head:head.avgCoverage * 100, tail:tail.avgCoverage * 100, fmt:v=>callReportRate(v,1)},
+    {label:'低质量率', head:head.lowQualityRate, tail:tail.lowQualityRate, fmt:v=>callReportRate(v,1), lowerGood:true},
+    {label:'低覆盖率', head:head.lowCoverageRate, tail:tail.lowCoverageRate, fmt:v=>callReportRate(v,1), lowerGood:true},
+    {label:'单通缺失槽位', head:head.missingPerCall, tail:tail.missingPerCall, fmt:v=>callReportNum(v,2), lowerGood:true},
+  ].map(item => {
+    const max = Math.max(1, Math.abs(item.head), Math.abs(item.tail));
+    return `<div class="call-report-compare-bar-card">
+      <b>${escHtml(item.label)}</b>
+      <div class="call-report-dual-label"><span>头部 ${escHtml(item.fmt(item.head))}</span><span>尾部 ${escHtml(item.fmt(item.tail))}</span></div>
+      <div class="call-report-dual-track"><div class="call-report-dual-fill" style="width:${Math.max(4, Math.abs(item.head) / max * 100).toFixed(1)}%"></div></div>
+      <div class="call-report-dual-track"><div class="call-report-dual-fill tail" style="width:${Math.max(4, Math.abs(item.tail) / max * 100).toFixed(1)}%"></div></div>
+    </div>`;
+  }).join('');
+  return `<div class="call-report-compare-grid">
+    <div class="call-report-cohort" style="--exec-accent:#14806f"><b>头部专家</b><strong>${escHtml(callReportNum(head.avgScore, 1))} 分</strong><span>${escHtml(head.names.join('、') || '-')} · 平均覆盖率 ${escHtml(callReportRate(head.avgCoverage * 100, 1))}</span></div>
+    <div class="call-report-cohort" style="--exec-accent:#c84b4b"><b>尾部专家</b><strong>${escHtml(callReportNum(tail.avgScore, 1))} 分</strong><span>${escHtml(tail.names.join('、') || '-')} · 平均覆盖率 ${escHtml(callReportRate(tail.avgCoverage * 100, 1))}</span></div>
+  </div>
+  <div class="call-report-compare-bars">${barRows}</div>
+  <div class="call-report-compare-wrap">
+    <table class="call-report-compare-table"><thead><tr><th>过程维度</th><th>头部专家</th><th>尾部专家</th><th>差异解读</th></tr></thead><tbody>${body}</tbody></table>
+  </div>
+  <div class="exec-report-hint">${escHtml(conclusion)}</div>`;
+}
+
+function celnOverviewFilters(spec) {
+  return callReportFilters(spec);
+}
+
+function celnStageOrder(group, stage) {
+  return adhocSankeyDimensionOrder('ad.celn_funnel_group', group) * 100 + adhocSankeyDimensionOrder('ad.celn_funnel_stage', stage);
+}
+
+function celnOverviewGroupedRows(rows) {
+  const groups = new Map();
+  (rows || []).forEach(row => {
+    const group = row['ad.celn_funnel_group'] || '-';
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(row);
+  });
+  groups.forEach((items, group) => items.sort((a, b) => celnStageOrder(group, a['ad.celn_funnel_stage']) - celnStageOrder(group, b['ad.celn_funnel_stage'])));
+  return Array.from(groups.entries()).sort((a, b) => adhocSankeyDimensionOrder('ad.celn_funnel_group', a[0]) - adhocSankeyDimensionOrder('ad.celn_funnel_group', b[0]));
+}
+
+function celnOverviewAlertRows(rows) {
+  const explicit = (rows || []).filter(row => (row.__alerts || []).length);
+  const derived = [];
+  celnOverviewGroupedRows(rows).forEach(([group, items]) => {
+    items.forEach((row, idx) => {
+      if (idx <= 0) return;
+      const prev = execReportValue(items[idx - 1], 'ad.celn_funnel_count');
+      const cur = execReportValue(row, 'ad.celn_funnel_count');
+      const ratio = prev ? cur / prev : 1;
+      if (prev >= 20 && ratio < 0.25 && !(row.__alerts || []).length) {
+        derived.push({
+          ...row,
+          __derivedReason: `${group} 从 ${items[idx - 1]['ad.celn_funnel_stage']} 到 ${row['ad.celn_funnel_stage']} 承接率仅 ${callReportRate(ratio * 100, 1)}，建议排查跟进动作和销售话术。`,
+        });
+      }
+    });
+  });
+  const key = row => `${row['ad.celn_funnel_group']}|${row['ad.celn_funnel_stage']}`;
+  const seen = new Set();
+  return [...explicit, ...derived].filter(row => {
+    const k = key(row);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).sort((a, b) => {
+    const aLevel = Math.max(0, ...(a.__alerts || []).map(x => Number(x.level || 0)));
+    const bLevel = Math.max(0, ...(b.__alerts || []).map(x => Number(x.level || 0)));
+    return bLevel - aLevel || execReportValue(a, 'ad.celn_funnel_count') - execReportValue(b, 'ad.celn_funnel_count');
+  }).slice(0, 5);
+}
+
+function celnOverviewFunnelHtml(rows) {
+  const groups = celnOverviewGroupedRows(rows);
+  if (!groups.length) return '<div class="text-muted p-3">暂无 CELN 漏斗数据。</div>';
+  const accents = ['#14806f', '#5f7f9f', '#d99042'];
+  return `<div class="celn-funnel-groups">${groups.map(([group, items], idx) => {
+    const max = Math.max(1, ...items.map(row => execReportValue(row, 'ad.celn_funnel_count')));
+    return `<div class="celn-stage-card" style="--exec-accent:${accents[idx % accents.length]}">
+      <h4>${escHtml(group)}</h4>
+      ${items.map(row => {
+        const value = execReportValue(row, 'ad.celn_funnel_count');
+        const alerts = row.__alerts || [];
+        const cls = alerts.some(a => Number(a.level || 0) >= 3) ? ' bad' : alerts.length ? ' warn' : '';
+        return `<div class="celn-funnel-lane">
+          <div class="celn-funnel-stage" title="${escHtml(row['ad.celn_funnel_stage'] || '-')}">${escHtml(row['ad.celn_funnel_stage'] || '-')}</div>
+          <div class="celn-funnel-track"><div class="celn-funnel-fill${cls}" style="width:${Math.max(4, value / max * 100).toFixed(1)}%"></div></div>
+          <div class="celn-funnel-value">${escHtml(callReportNum(value))}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function celnOverviewAlertCards(rows) {
+  const alerts = celnOverviewAlertRows(rows);
+  if (!alerts.length) return '<div class="text-muted">当前筛选下暂无 CELN 异常节点。</div>';
+  return `<div class="celn-alert-stack">${alerts.map(row => {
+    const topAlert = adhocAlertTop(row.__alerts || []);
+    const severe = topAlert && Number(topAlert.level || 0) >= 3;
+    const reason = topAlert?.reason || row.__derivedReason || '该节点出现承接偏弱，需要结合销售跟进记录复盘。';
+    return `<div class="celn-alert-card ${severe ? 'critical' : ''}">
+      <b>${escHtml(row['ad.celn_funnel_group'] || '-')} · ${escHtml(row['ad.celn_funnel_stage'] || '-')}</b>
+      <p>${escHtml(callReportNum(execReportValue(row, 'ad.celn_funnel_count')))} 个用户节点。${escHtml(reason)}</p>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function renderCelnFunnelOverviewWidget(targetId, spec={}, widget={}) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  target.innerHTML = `<div class="exec-report-shell d-flex align-items-center justify-content-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>正在生成 CELN 门店经营总览...</div>`;
+  const filters = celnOverviewFilters(spec);
+  const store = (filters.find(item => item.member === 'ad.store')?.valueLabels && Object.values(filters.find(item => item.member === 'ad.store').valueLabels)[0])
+    || (filters.find(item => item.member === 'ad.store')?.values || [])[0]
+    || '当前门店';
+  const day = (filters.find(item => item.member === 'ad.date_day')?.values || [])[0] || '当前日期';
+  try {
+    const [celnRows, callRows] = await Promise.all([
+      execReportLoad({measures:['ad.celn_funnel_count'], dimensions:['ad.celn_funnel_group','ad.celn_funnel_stage'], filters, order:{'ad.celn_funnel_group':'asc'}, limit:1000}),
+      execReportLoad({measures:['ad.quality_record_count','ad.pass_call_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:[], filters, limit:1000})
+    ]);
+    const call = callRows[0] || {};
+    const totalUsers = celnRows.find(row => row['ad.celn_funnel_stage'] === '用户池总量') || {};
+    const nNow = celnRows.find(row => row['ad.celn_funnel_stage'] === 'N Why Now') || {};
+    const fc = celnRows.find(row => row['ad.celn_funnel_stage'] === '当日FC识别') || {};
+    const confirm = celnRows.find(row => row['ad.celn_funnel_stage'] === 'FC确认/转化') || {};
+    const delivery = celnRows.find(row => row['ad.celn_funnel_stage'] === '交付') || {};
+    const callTotal = execReportValue(call, 'ad.quality_record_count');
+    const pass = execReportValue(call, 'ad.pass_call_count');
+    const passRate = callTotal ? pass / callTotal * 100 : 0;
+    target.innerHTML = `<div class="exec-report-shell celn-overview-shell">
+      <div class="exec-report-hero">
+        <div class="exec-report-hero-kicker"><i class="bi bi-diagram-3"></i> CELN · 门店用户经营漏斗</div>
+        <h2>${escHtml(spec.view?.encoding?.reportTitle || 'CELN门店用户经营总览')}</h2>
+        <p>${escHtml(day)} · ${escHtml(store)}。从用户盘点、CELN阶段推进、跟进闭环、FC承接到成交结果，定位需要店长介入的经营断点。</p>
+      </div>
+      <div class="exec-report-body">
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>一、门店漏斗核心指标</span><span class="exec-report-section-note">统一默认日期与门店</span></div>
+          <div class="celn-bridge-grid">
+            <div class="celn-bridge-kpi" style="--exec-accent:#14806f"><b>用户池总量</b><strong>${escHtml(callReportNum(execReportValue(totalUsers, 'ad.celn_funnel_count')))}</strong><span>经营闭环入口</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#5f7f9f"><b>N Why Now</b><strong>${escHtml(callReportNum(execReportValue(nNow, 'ad.celn_funnel_count')))}</strong><span>高时效购车理由</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#d99042"><b>当日FC识别</b><strong>${escHtml(callReportNum(execReportValue(fc, 'ad.celn_funnel_count')))}</strong><span>候选到FC断点</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#c84b4b"><b>FC确认/转化</b><strong>${escHtml(callReportNum(execReportValue(confirm, 'ad.celn_funnel_count')))}</strong><span>经营承接结果</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#7d6a4a"><b>交付</b><strong>${escHtml(callReportNum(execReportValue(delivery, 'ad.celn_funnel_count')))}</strong><span>成交闭环末端</span></div>
+          </div>
+        </section>
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>二、CELN漏斗与异常节点</span><span class="exec-report-section-note">红色/橙色为需要店长复盘的节点</span></div>
+          <div class="celn-overview-grid">
+            <div>${celnOverviewFunnelHtml(celnRows)}</div>
+            <div><div class="exec-report-card-title">异常节点卡片</div>${celnOverviewAlertCards(celnRows)}</div>
+          </div>
+        </section>
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>三、电话质检联动</span><span class="exec-report-section-note">电话质量解释经营承接是否有效</span></div>
+          <div class="celn-bridge-grid">
+            <div class="celn-bridge-kpi" style="--exec-accent:#14806f"><b>质检通话</b><strong>${escHtml(callReportNum(callTotal))}</strong><span>来自 call_record_judgement_results</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#5f7f9f"><b>通过率</b><strong>${escHtml(callReportRate(passRate))}</strong><span>质量分 > 50</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#d99042"><b>平均质量分</b><strong>${escHtml(callReportNum(execReportValue(call, 'ad.avg_call_quality_score')))}</strong><span>低分影响承接效率</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#d99042"><b>低覆盖通话</b><strong>${escHtml(callReportNum(execReportValue(call, 'ad.low_coverage_call_count')))}</strong><span>关键槽位未覆盖</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#7d6a4a"><b>缺失槽位</b><strong>${escHtml(callReportNum(execReportValue(call, 'ad.missing_slot_count')))}</strong><span>话术训练入口</span></div>
+          </div>
+          <div class="celn-action-grid">
+            <div class="exec-report-reco" style="--exec-accent:#c84b4b"><b>店长优先动作</b><div>先处理红色异常节点，把对应客户意图和销售专家拉到电话质检工作台复盘。</div></div>
+            <div class="exec-report-reco" style="--exec-accent:#d99042"><b>话术补齐</b><div>围绕 N Why Now、FC识别和FC确认节点，补齐预算、车型、购车时点、下一步动作。</div></div>
+            <div class="exec-report-reco" style="--exec-accent:#14806f"><b>次日追踪</b><div>观察异常节点数量和低覆盖通话是否下降，形成每日经营闭环。</div></div>
+          </div>
+        </section>
+      </div>
+    </div>`;
+    _dashboardWidgetResults[widget?.id || targetId] = {
+      rows:celnRows,
+      query:{measures:['ad.celn_funnel_count'], dimensions:['ad.celn_funnel_group','ad.celn_funnel_stage'], filters},
+      name:widget.name || spec.name || 'CELN门店用户经营总览'
+    };
+  } catch(e) {
+    target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
+  }
+}
+
+async function renderCallQualityReportWidget(targetId, spec={}, widget={}) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  target.innerHTML = `<div class="exec-report-shell d-flex align-items-center justify-content-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>正在生成电话质检分析报告...</div>`;
+  const filters = callReportFilters(spec);
+  const store = (filters.find(item => item.member === 'ad.store')?.valueLabels && Object.values(filters.find(item => item.member === 'ad.store').valueLabels)[0])
+    || (filters.find(item => item.member === 'ad.store')?.values || [])[0]
+    || '当前门店';
+  const day = (filters.find(item => item.member === 'ad.date_day')?.values || [])[0] || '当前日期';
+  const baseMeasures = [
+    'ad.quality_record_count',
+    'ad.phone_call_count',
+    'ad.pass_call_count',
+    'ad.avg_call_quality_score',
+    'ad.avg_slot_coverage_rate',
+    'ad.low_quality_call_count',
+    'ad.low_coverage_call_count',
+    'ad.missing_slot_count'
+  ];
+  try {
+    const [summaryRows, expertRows, issueRows, levelRows, intentRows, ruleRows] = await Promise.all([
+      execReportLoad({measures:baseMeasures, dimensions:[], filters, limit:1000}),
+      execReportLoad({measures:['ad.quality_record_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_quality_call_count','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:['ad.sales_expert'], filters, order:{'ad.low_quality_call_count':'desc'}, limit:30}),
+      execReportLoad({measures:['ad.quality_record_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_quality_call_count','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:['ad.quality_score_level','ad.quality_issue_category'], filters, order:{'ad.quality_record_count':'desc'}, limit:50}),
+      execReportLoad({measures:['ad.quality_record_count'], dimensions:['ad.quality_score_level'], filters, order:{'ad.quality_record_count':'desc'}, limit:20}),
+      execReportLoad({measures:['ad.quality_record_count','ad.avg_slot_coverage_rate','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:['ad.intent'], filters, order:{'ad.low_coverage_call_count':'desc'}, limit:12}),
+      execReportLoad({measures:['ad.quality_record_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:['ad.quality_rule'], filters, order:{'ad.low_coverage_call_count':'desc'}, limit:10})
+    ]);
+    const summary = summaryRows[0] || {};
+    const total = execReportValue(summary, 'ad.quality_record_count');
+    const pass = execReportValue(summary, 'ad.pass_call_count');
+    const lowQuality = execReportValue(summary, 'ad.low_quality_call_count');
+    const lowCoverage = execReportValue(summary, 'ad.low_coverage_call_count');
+    const missing = execReportValue(summary, 'ad.missing_slot_count');
+    const avgScore = execReportValue(summary, 'ad.avg_call_quality_score');
+    const coverage = Number(summary['ad.avg_slot_coverage_rate'] || 0);
+    const passRate = total ? pass / total * 100 : 0;
+    const failRate = total ? lowQuality / total * 100 : 0;
+    const lowCoverageRate = total ? lowCoverage / total * 100 : 0;
+    const issueSummaryRows = callReportAggregateRows(issueRows, 'ad.quality_issue_category');
+    const sortedLevels = [...levelRows].sort((a, b) => callReportQualityLevelOrder(a['ad.quality_score_level']) - callReportQualityLevelOrder(b['ad.quality_score_level']));
+    const maxLevel = Math.max(1, ...sortedLevels.map(row => execReportValue(row, 'ad.quality_record_count')));
+    const levelHtml = sortedLevels.map(row => {
+      const label = row['ad.quality_score_level'] || '-';
+      const value = execReportValue(row, 'ad.quality_record_count');
+      const cls = String(label).includes('未通过') ? ' bad' : String(label).includes('合格') ? ' warn' : '';
+      return `<div class="call-report-funnel-row">
+        <div class="exec-report-bar-label">${escHtml(label)}</div>
+        <div class="call-report-track"><div class="call-report-fill${cls}" style="width:${Math.max(5, value / maxLevel * 100).toFixed(1)}%"></div></div>
+        <div class="exec-report-bar-value">${escHtml(callReportNum(value))} 通</div>
+      </div>`;
+    }).join('');
+    const topIssue = [...issueSummaryRows].sort((a, b) => execReportValue(b, 'ad.quality_record_count') - execReportValue(a, 'ad.quality_record_count'))[0] || {};
+    const worstExpert = [...expertRows].sort((a, b) => execReportValue(a, 'ad.avg_call_quality_score') - execReportValue(b, 'ad.avg_call_quality_score'))[0] || {};
+    const worstIntent = [...intentRows].sort((a, b) => execReportValue(b, 'ad.low_coverage_call_count') - execReportValue(a, 'ad.low_coverage_call_count'))[0] || {};
+    const reportTitle = spec.view?.encoding?.reportTitle || `${store}电话质检分析报告`;
+    const reportSubtitle = spec.view?.encoding?.reportSubtitle || `基于 call_record_judgement_results 生成，筛选日期 ${day}，聚焦店长对销售专家通话质量、槽位覆盖和问题归因的日常管理。`;
+    target.innerHTML = `<div class="exec-report-shell call-report-shell">
+      <div class="exec-report-hero">
+        <div class="exec-report-hero-kicker"><i class="bi bi-telephone-outbound"></i> 门店店长 · 电话质检报告</div>
+        <h2>${escHtml(reportTitle)}</h2>
+        <p>${escHtml(reportSubtitle)}</p>
+      </div>
+      <div class="exec-report-body">
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>一、全局指标摘要</span><span class="exec-report-section-note">${escHtml(day)} · ${escHtml(store)}</span></div>
+          <div class="call-report-summary-grid">
+            <div class="call-report-kpi" style="--exec-accent:#14806f"><b>质检通话总数</b><strong>${escHtml(callReportNum(total))}</strong><span>全部来自 call_record_judgement_results</span></div>
+            <div class="call-report-kpi" style="--exec-accent:#14806f"><b>质检通过通话</b><strong>${escHtml(callReportNum(pass))}</strong><span>质量分 > 50</span></div>
+            <div class="call-report-kpi" style="--exec-accent:#5f7f9f"><b>通过率</b><strong>${escHtml(callReportRate(passRate))}</strong><span>通过 / 质检通话</span></div>
+            <div class="call-report-kpi" style="--exec-accent:#d99042"><b>平均电话质量分</b><strong>${escHtml(callReportNum(avgScore))}</strong><span>低于 60 触发复盘</span></div>
+            <div class="call-report-kpi" style="--exec-accent:#14806f"><b>关键信息覆盖率</b><strong>${escHtml(callReportCoverage(coverage))}</strong><span>必答槽位平均覆盖</span></div>
+            <div class="call-report-kpi" style="--exec-accent:#c84b4b"><b>低质量通话</b><strong>${escHtml(callReportNum(lowQuality))}</strong><span>${escHtml(callReportRate(failRate))} 未通过</span></div>
+            <div class="call-report-kpi" style="--exec-accent:#d99042"><b>低覆盖通话</b><strong>${escHtml(callReportNum(lowCoverage))}</strong><span>${escHtml(callReportRate(lowCoverageRate))} 低覆盖</span></div>
+            <div class="call-report-kpi" style="--exec-accent:#7d6a4a"><b>缺失关键槽位</b><strong>${escHtml(callReportNum(missing))}</strong><span>复盘话术素材入口</span></div>
+          </div>
+          <div class="exec-report-hint">口径说明：电话沟通、质检通话、通过/未通过、质量分、槽位覆盖和缺失槽位均以 call_record_judgement_results 为准；质量分 &gt; 50 计为通过，质量分 &lt;= 50 计为未通过，低覆盖用于提示关键槽位覆盖不足。</div>
+        </section>
+
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>二、通话质量分层与问题拆解</span><span class="exec-report-section-note">从全部电话沟通拆到质量分值和问题分类</span></div>
+          <div class="call-report-flow">
+            <div class="exec-report-card"><div class="exec-report-card-title">质量分层漏斗</div>${levelHtml || '<div class="text-muted">暂无分层数据</div>'}</div>
+            <div class="exec-report-card"><div class="exec-report-card-title">主要问题分类</div>${callReportBarList(issueSummaryRows, 'ad.quality_issue_category', 'ad.quality_record_count', {warn:6, bad:12}) || '<div class="text-muted">暂无问题分类</div>'}</div>
+          </div>
+          <div class="exec-report-hint">当前最大问题为 ${escHtml(topIssue['ad.quality_issue_category'] || '-')}，涉及 ${escHtml(callReportNum(topIssue['ad.quality_record_count'] || 0))} 通；店长可优先按问题分类下钻到销售专家和客户意图。</div>
+        </section>
+
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>三、销售专家质量热力明细</span><span class="exec-report-section-note">颜色直接标出低分、低覆盖和高缺失</span></div>
+          <div class="exec-report-heatmap-wrap">${callReportExpertHeatmap(expertRows)}</div>
+        </section>
+
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>四、头部 vs 尾部专家 - 过程维度对比</span><span class="exec-report-section-note">按平均质量分排序，各取前/后约 25%</span></div>
+          <div class="exec-report-hint">用销售专家平均质量分切分头部/尾部样本，对比通话数、质量分、槽位覆盖、低质量率、低覆盖率和单通缺失槽位，验证过程行为与业务结果的关联性。</div>
+          ${callReportHeadTailComparison(expertRows)}
+        </section>
+
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>五、关键问题定位</span><span class="exec-report-section-note">质量分层、问题分类、客户意图三条线索</span></div>
+          <div class="exec-report-insight-list">
+            ${callReportIssueCards(issueRows)}
+          </div>
+          <div class="call-report-ranking">
+            <div class="exec-report-card"><div class="exec-report-card-title">低覆盖客户意图 Top</div>${callReportBarList(intentRows, 'ad.intent', 'ad.low_coverage_call_count', {warn:2, bad:4})}</div>
+            <div class="exec-report-card"><div class="exec-report-card-title">质检规则缺失槽位 Top</div>${callReportBarList(ruleRows, 'ad.quality_rule', 'ad.missing_slot_count', {warn:8, bad:16})}</div>
+            <div class="exec-report-card"><div class="exec-report-card-title">低分销售专家 Top</div>${callReportBarList([...expertRows].sort((a, b) => execReportValue(a, 'ad.avg_call_quality_score') - execReportValue(b, 'ad.avg_call_quality_score')).slice(0, 7), 'ad.sales_expert', 'ad.avg_call_quality_score', {score:true})}</div>
+          </div>
+        </section>
+
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>六、话术诊断与改进建议</span><span class="exec-report-section-note">按店长复盘动作组织</span></div>
+          <div class="call-report-script-grid">
+            <div class="call-report-script" style="--exec-accent:#c84b4b"><b>优先复盘对象</b><p>${escHtml(worstExpert['ad.sales_expert'] || '-')} 平均质量分 ${escHtml(callReportNum(worstExpert['ad.avg_call_quality_score'] || 0))}，低质量通话 ${escHtml(callReportNum(worstExpert['ad.low_quality_call_count'] || 0))} 通。</p><span class="call-report-pill">逐通回听</span><span class="call-report-pill">明确问题分类</span></div>
+            <div class="call-report-script" style="--exec-accent:#d99042"><b>槽位覆盖短板</b><p>${escHtml(worstIntent['ad.intent'] || '-')} 低覆盖通话 ${escHtml(callReportNum(worstIntent['ad.low_coverage_call_count'] || 0))} 通，缺失槽位 ${escHtml(callReportNum(worstIntent['ad.missing_slot_count'] || 0))} 个。</p><span class="call-report-pill">补齐必答项</span><span class="call-report-pill">标准话术卡</span></div>
+            <div class="call-report-script" style="--exec-accent:#14806f"><b>通过话术复用</b><p>从优秀和良好通话中抽取确认需求、预算、车型、下一步动作等表达，沉淀为门店训练素材。</p><span class="call-report-pill">优秀样本</span><span class="call-report-pill">跟进闭环</span></div>
+            <div class="call-report-script" style="--exec-accent:#5f7f9f"><b>店长日会节奏</b><p>晨会看昨日低质量与低覆盖；午间抽查新增异常；晚间用问题清单逐人安排明日改进动作。</p><span class="call-report-pill">日清日结</span><span class="call-report-pill">责任到人</span></div>
+          </div>
+        </section>
+
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>七、下一步行动清单</span><span class="exec-report-section-note">可直接用于演示说明</span></div>
+          <div class="call-report-action-grid">
+            <div class="exec-report-reco" style="--exec-accent:#c84b4b"><b>1. 低分通话复盘</b><div>先处理质量分 <= 50 的 ${escHtml(callReportNum(lowQuality))} 通，逐通确认失败原因。</div></div>
+            <div class="exec-report-reco" style="--exec-accent:#d99042"><b>2. 槽位训练</b><div>围绕 ${escHtml(worstIntent['ad.intent'] || '低覆盖意图')} 建立必答信息清单。</div></div>
+            <div class="exec-report-reco" style="--exec-accent:#14806f"><b>3. 优秀样本沉淀</b><div>从优秀、良好通话抽取可复制话术，形成门店脚本。</div></div>
+            <div class="exec-report-reco" style="--exec-accent:#5f7f9f"><b>4. 次日追踪</b><div>次日继续用同一看板追踪销售专家低覆盖和未通过是否下降。</div></div>
+          </div>
+        </section>
+      </div>
+    </div>`;
+    _dashboardWidgetResults[widget?.id || targetId] = {
+      rows:[summary, ...expertRows, ...issueRows],
+      query:{measures:baseMeasures, dimensions:['ad.sales_expert','ad.intent','ad.quality_score_level','ad.quality_issue_category'], filters},
+      name:widget.name || spec.name || reportTitle
+    };
+  } catch(e) {
+    target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
+  }
+}
+
 async function renderExecutiveReportWidget(targetId, spec={}, widget={}) {
   const target = document.getElementById(targetId);
   if (!target) return;
   ensureAdhocAlertStyles();
+  const reportTemplate = (spec.view?.encoding || {}).reportTemplate;
+  if (reportTemplate === 'call_quality_report') {
+    await renderCallQualityReportWidget(targetId, spec, widget);
+    return;
+  }
+  if (reportTemplate === 'celn_funnel_overview') {
+    await renderCelnFunnelOverviewWidget(targetId, spec, widget);
+    return;
+  }
   target.innerHTML = `<div class="exec-report-shell d-flex align-items-center justify-content-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>正在生成报告式经营看板...</div>`;
   const specMeasures = spec.query?.measures || [];
   const specDimensions = spec.query?.dimensions || [];
@@ -6918,21 +7810,24 @@ async function scanDocumentAlertsForPivotCell(targetId, cellIndex, cell, rules=n
     _documentAlertPivotCellResults[cacheKey] = [];
     return [];
   }
-  const cellResults = await Promise.all(scopedRules.map(async rule => {
+  const cellResults = await Promise.all(scopedRules.slice(0, 6).map(async rule => {
     const cfg = documentAlertConfig(rule);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
     try {
       const r = await fetch('/api/alerts/document-scan', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
+        signal: controller.signal,
           body:JSON.stringify({
             measureCode: rule.measure_code,
             conditions: Array.isArray(cfg.conditions) ? cfg.conditions : undefined,
             columnCode: cfg.columnCode || '',
             operator: cfg.operator || 'eq',
             value: cfg.value ?? rule.threshold ?? 0,
-          maxRows: cfg.maxRows || 5000,
+          maxRows: Math.min(cfg.maxRows || 1500, 1500),
           maxMatches: 50,
-          pageSize: 500,
+          pageSize: 250,
           pivotPaths: pivotActionPathItems(cell),
         }),
       });
@@ -6940,7 +7835,10 @@ async function scanDocumentAlertsForPivotCell(targetId, cellIndex, cell, rules=n
       if (!r.ok) throw new Error(scan.error || scan.detail || '单据追踪失败');
       return {rule, result: scan};
     } catch(e) {
-      return {rule, result:{summary:{matchedRows:0}, error:String(e.message || e)}};
+      const msg = e?.name === 'AbortError' ? '单据扫描超时，已跳过该规则' : String(e.message || e);
+      return {rule, result:{summary:{matchedRows:0}, error:msg}};
+    } finally {
+      clearTimeout(timer);
     }
   }));
   _documentAlertPivotCellResults[cacheKey] = cellResults;
@@ -6956,6 +7854,7 @@ async function runAdhocQuery(extraFilters=[]) {
     _adhocState.view.chartType = document.getElementById('adhoc-chart-type')?.value || 'auto';
     _adhocState.query.limit = parseInt(document.getElementById('adhoc-limit')?.value || 1000, 10);
     if (!_adhocState.query.measures.length) throw new Error('请至少选择一个指标');
+    if (_adhocState.view.type === 'pivot') adhocSyncPivotEncodingFromControls();
     renderAdhocConfig();
     if (status) status.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>查询中...';
     if (_adhocState.view.type === 'chart' && _adhocState.view.chartType === 'kg_attribution') {
@@ -7266,10 +8165,10 @@ function renderAdhocFunnel(target, rows, query, clickHandler, targetId='adhoc-pr
       top:16,
       bottom:42,
       left:'8%',
-      width:'84%',
+      width:'64%',
       minSize:'18%',
       sort:'descending',
-      label:{formatter:'{b}\\n{c}'},
+      label:{formatter:p => `${p.name}\n${p.value}`, width:130, overflow:'break'},
       data:grouped.map(row => ({
         name:String(row.label),
         value:row.value,
@@ -7294,7 +8193,8 @@ function adhocBuildSankeyData(rows, query) {
   const linkMap = new Map();
   const nodeId = (level, value) => `${level}::${String(value ?? '-')}`;
   const nodeLabel = (level, value) => `${adhocMemberLabel(dims[level])} · ${String(value ?? '-')}`;
-  rows.forEach(row => {
+  const orderedRows = adhocOrderSankeyRows(rows, query);
+  orderedRows.forEach(row => {
     for (let i = 0; i < dims.length; i += 1) {
       const value = row[dims[i]] ?? '-';
       const id = nodeId(i, value);
@@ -7303,6 +8203,7 @@ function adhocBuildSankeyData(rows, query) {
         const topAlert = adhocAlertTop(nodeAlerts);
         nodeMap.set(id, {
           name:id,
+          depth:i,
           label:{formatter:nodeLabel(i, value)},
           __member:dims[i],
           __value:value,
@@ -7332,7 +8233,61 @@ function adhocBuildSankeyData(rows, query) {
       linkMap.set(key, hit);
     }
   });
-  return {nodes:Array.from(nodeMap.values()), links:Array.from(linkMap.values()).filter(x => x.value > 0)};
+  return {
+    nodes:Array.from(nodeMap.values()),
+    links:Array.from(linkMap.values()).filter(x => x.value > 0),
+    preserveOrder: adhocSankeyHasExplicitOrder(query),
+  };
+}
+
+function adhocSankeyHasExplicitOrder(query) {
+  const dims = query.dimensions || [];
+  return dims.includes('ad.quality_score_level')
+    || dims.includes('ad.celn_funnel_group')
+    || dims.includes('ad.celn_funnel_stage');
+}
+
+function adhocSankeyDimensionOrder(member, value) {
+  const text = String(value ?? '');
+  if (member === 'ad.quality_score_level') {
+    if (text.includes('优秀')) return 0;
+    if (text.includes('良好')) return 1;
+    if (text.includes('合格')) return 2;
+    if (text.includes('未通过')) return 3;
+  }
+  if (member === 'ad.celn_funnel_group') {
+    if (text.includes('CELN阶段推进')) return 0;
+    if (text.includes('经营闭环承接')) return 1;
+    if (text.includes('成交结果承接')) return 2;
+  }
+  if (member === 'ad.celn_funnel_stage') {
+    if (text === 'C Why Car') return 0;
+    if (text === 'E Why Energy') return 1;
+    if (text === 'L Why Li Auto') return 2;
+    if (text === 'N Why Now') return 3;
+    if (text === '用户池总量') return 10;
+    if (text === '当日跟进闭环') return 11;
+    if (text === 'FC候选用户') return 12;
+    if (text === '当日FC识别') return 13;
+    if (text === 'FC确认/转化') return 14;
+    if (text === '当日转化承接') return 15;
+    if (text === '锁单') return 20;
+    if (text === '大定') return 21;
+    if (text === '交付') return 22;
+  }
+  return 1000;
+}
+
+function adhocOrderSankeyRows(rows, query) {
+  const dims = query.dimensions || [];
+  if (!adhocSankeyHasExplicitOrder(query)) return rows || [];
+  return (rows || []).map((row, idx) => ({row, idx})).sort((a, b) => {
+    for (const dim of dims) {
+      const diff = adhocSankeyDimensionOrder(dim, a.row?.[dim]) - adhocSankeyDimensionOrder(dim, b.row?.[dim]);
+      if (diff !== 0) return diff;
+    }
+    return a.idx - b.idx;
+  }).map(item => item.row);
 }
 
 function renderAdhocSankey(target, rows, query, clickHandler, targetId='adhoc-preview', alertSummary=null) {
@@ -7347,6 +8302,7 @@ function renderAdhocSankey(target, rows, query, clickHandler, targetId='adhoc-pr
     target.innerHTML = '<div class="text-muted text-center py-5">当前数据无法形成有效流向</div>';
     return;
   }
+  const isCelnSankey = dims.includes('ad.celn_funnel_stage');
   const chartTarget = prepareAdhocChartCanvas(target, alertSummary);
   if (!window.echarts || typeof window.echarts.init !== 'function') {
     return renderAdhocTable(chartTarget, sankey.links.map(x => ({source:x.source, target:x.target, value:x.value})));
@@ -7375,12 +8331,12 @@ function renderAdhocSankey(target, rows, query, clickHandler, targetId='adhoc-pr
       top:16,
       bottom:16,
       left:16,
-      right:24,
-      nodeGap:10,
+      right:isCelnSankey ? 260 : 180,
+      nodeGap:isCelnSankey ? 14 : 10,
       nodeWidth:14,
-      layoutIterations:32,
+      layoutIterations:sankey.preserveOrder ? 0 : 32,
       emphasis:{focus:'adjacency'},
-      label:{fontSize:11},
+      label:{fontSize:11, width:isCelnSankey ? 240 : 170, overflow:'break'},
       data:sankey.nodes,
       links:sankey.links,
       lineStyle:{color:'gradient', curveness:.5, opacity:.36},
@@ -7579,37 +8535,32 @@ function renderAdhocTable(target, rows, alertSummary=null, query=null, clickHand
       const member = dimMember || query?.dimensions?.[0] || '';
       const rawValue = member ? row[member] : cell.textContent;
       const filterValue = member ? (row.__filterValues?.[member] ?? rawValue) : rawValue;
+      const rowFilters = adhocRowDimensionFilters(row, query);
+      const rowPathItems = adhocRowPivotPathItems(row, query);
+      const pivotFilters = adhocPivotFiltersFromQuery(query);
       const rawMeasureCode = cell.dataset.member || '';
       const measureMeta = dashboardFindMeasure(rawMeasureCode) || adhocFindMeasure(rawMeasureCode);
       const measureCode = measureMeta?.code || rawMeasureCode;
       const measureName = measureMeta?.title || measureMeta?.name || adhocMemberLabel(rawMeasureCode);
-      const memberMeta = member ? (dashboardFindDimension(member) || adhocFindDimension(member)) : null;
-      const memberCode = memberMeta?.code || member;
-      const memberName = memberMeta?.title || memberMeta?.name || adhocMemberLabel(member);
       const alerts = adhocAlertsFor(row, rawMeasureCode);
       _adhocSelectedPoint = {
         member,
         value: rawValue,
         filterValues: filterValue !== undefined && filterValue !== null ? [String(filterValue)] : [],
+        filters: rowFilters,
         docTargetId: targetId,
         docMeasureCode: cell.dataset.docMeasureCode || documentAlertMemberCode(rawMeasureCode),
       };
       const cellIndex = `table-${cell.dataset.rowIndex || 0}-${documentAlertMemberCode(rawMeasureCode)}`;
-      const pathItem = member ? [{
-        code: memberCode,
-        name: memberName,
-        value: rawValue,
-        filterValue,
-      }] : [];
       const actionCell = {
         measureCode,
         measureName,
         value: row[measureCode] ?? cell.textContent,
-        rowPath: pathItem,
+        rowPath: rowPathItems,
         columnPath: [],
         alerts,
       };
-      _pivotResult = {cells: {[cellIndex]: actionCell}, filters: []};
+      _pivotResult = {cells: {[cellIndex]: actionCell}, filters: pivotFilters};
       _pivotActionContext = {
         cellIndex,
         targetId,
@@ -7617,15 +8568,15 @@ function renderAdhocTable(target, rows, alertSummary=null, query=null, clickHand
         result: _pivotResult,
         config: {
           measures: (query?.measures || []).map(code => {
-            const meta = dashboardFindMeasure(code) || adhocFindMeasure(code);
-            return {code: meta?.code || code, name: meta?.title || meta?.name || adhocMemberLabel(code)};
-          }),
+              const meta = dashboardFindMeasure(code) || adhocFindMeasure(code);
+              return {code: meta?.code || code, name: meta?.title || meta?.name || adhocMemberLabel(code)};
+            }),
           rows: (query?.dimensions || []).map(code => {
             const meta = dashboardFindDimension(code) || adhocFindDimension(code);
             return {code: meta?.code || code, name: meta?.title || meta?.name || adhocMemberLabel(code)};
           }),
           columns: [],
-          filters: [],
+          filters: pivotFilters,
         },
       };
       document.getElementById('pivot-action-context').textContent =
@@ -7636,6 +8587,50 @@ function renderAdhocTable(target, rows, alertSummary=null, query=null, clickHand
     });
   });
   applyDocumentAlertMarkers(targetId, _documentAlertResultsByTarget[targetId] || []);
+}
+
+function adhocRowDimensionFilters(row, query=null) {
+  return (query?.dimensions || [])
+    .map(member => {
+      const value = row?.[member];
+      const filterValue = row?.__filterValues?.[member] ?? value;
+      if (filterValue === undefined || filterValue === null || String(filterValue) === '') return null;
+      return {
+        kind:'dimension',
+        member,
+        operator:'equals',
+        values:[String(filterValue)],
+        valueLabels:{[String(filterValue)]: String(value ?? filterValue)},
+      };
+    })
+    .filter(Boolean);
+}
+
+function adhocRowPivotPathItems(row, query=null) {
+  const measureMembers = query?.measures || [];
+  return (query?.dimensions || [])
+    .map(member => {
+      const value = row?.[member];
+      const filterValue = row?.__filterValues?.[member] ?? value;
+      if (filterValue === undefined || filterValue === null || String(filterValue) === '') return null;
+      const meta = dashboardFindDimension(member) || adhocFindDimension(member);
+      const code = meta?.code || adhocDimensionCodeForMeasures(member, measureMembers) || member;
+      return {
+        code,
+        name: meta?.title || meta?.name || adhocMemberLabel(member),
+        value,
+        filterValue,
+        viewType: meta?.viewType || 0,
+      };
+    })
+    .filter(Boolean);
+}
+
+function adhocPivotFiltersFromQuery(query=null) {
+  const measureMembers = query?.measures || [];
+  return (query?.filters || [])
+    .map(filter => adhocFilterToPivot(filter, measureMembers))
+    .filter(Boolean);
 }
 
 function adhocChartClicked(params, query) {
@@ -7672,7 +8667,11 @@ function adhocResetDrill() {
 async function adhocOpenSelectedDetail() {
   if (!_adhocState.query.measures.length) return showToast('请先选择指标', 'warning');
   const filters = [...(_adhocState.query.filters || []), ...adhocDrillFilters(_adhocState)];
-  if (_adhocSelectedPoint?.member) filters.push({member:_adhocSelectedPoint.member, operator:'equals', values:_adhocSelectedPoint.filterValues || [String(_adhocSelectedPoint.value)]});
+  if (_adhocSelectedPoint?.filters?.length) {
+    filters.push(..._adhocSelectedPoint.filters);
+  } else if (_adhocSelectedPoint?.member) {
+    filters.push({member:_adhocSelectedPoint.member, operator:'equals', values:_adhocSelectedPoint.filterValues || [String(_adhocSelectedPoint.value)]});
+  }
   await openAdhocDetail(_adhocSelectedPoint?.docMeasureCode || _adhocState.query.measures[0], filters, _adhocSelectedPoint);
 }
 
@@ -7897,6 +8896,7 @@ function adhocCurrentSpec() {
   _adhocState.view.type = document.getElementById('adhoc-view-type')?.value || _adhocState.view.type || 'chart';
   _adhocState.view.chartType = document.getElementById('adhoc-chart-type')?.value || _adhocState.view.chartType || 'auto';
   _adhocState.view.encoding = _adhocState.view.encoding || {};
+  adhocSyncPivotEncodingFromControls();
   if (_adhocState.view.chartType === 'kg_attribution') {
     _adhocState.view.encoding.attributionScope = document.querySelector('input[name="adhoc-kg-scope"]:checked')?.value || _adhocState.view.encoding.attributionScope || 'component';
   }
@@ -7908,6 +8908,14 @@ function adhocCurrentSpec() {
     _adhocState.view.encoding.pivotHeatmapEnabled = !!document.getElementById('adhoc-pivot-heatmap-enabled')?.checked;
     _adhocState.view.encoding.pivotHeatmapLowColor = pivotHeatmapColor(document.getElementById('adhoc-pivot-heatmap-low-color')?.value, '#f4f8f5');
     _adhocState.view.encoding.pivotHeatmapHighColor = pivotHeatmapColor(document.getElementById('adhoc-pivot-heatmap-high-color')?.value, '#14806f');
+    _adhocState.view.encoding.pivotRowSubtotal = !!document.getElementById('adhoc-pivot-row-subtotal')?.checked;
+    _adhocState.view.encoding.pivotColumnSubtotal = !!document.getElementById('adhoc-pivot-column-subtotal')?.checked;
+    _adhocState.view.encoding.pivotGrandTotal = !!document.getElementById('adhoc-pivot-grand-total')?.checked;
+    _adhocState.view.encoding.pivotCalcMode = document.getElementById('adhoc-pivot-calc-mode')?.value || 'value';
+    _adhocState.view.encoding.pivotMovingWindow = Math.max(2, Math.min(12, parseInt(document.getElementById('adhoc-pivot-moving-window')?.value || 3, 10) || 3));
+    _adhocState.view.encoding.pivotTopNEnabled = !!document.getElementById('adhoc-pivot-topn-enabled')?.checked;
+    _adhocState.view.encoding.pivotTopN = Math.max(1, Math.min(100, parseInt(document.getElementById('adhoc-pivot-topn')?.value || 10, 10) || 10));
+    _adhocState.view.encoding.pivotTopNOthers = document.getElementById('adhoc-pivot-topn-others')?.checked !== false;
   }
   _adhocState.settings = _adhocState.settings || {};
   _adhocState.settings.monitoringAlertRenderEnabled = !!document.getElementById('adhoc-alert-render-enabled')?.checked;
@@ -8874,7 +9882,13 @@ function dashboardAddRecommendedDimension(widgetId, member) {
 
 function renderDashboardFilters() {
   const out = document.getElementById('dashboard-global-filters');
+  const summary = document.getElementById('dashboard-filter-summary');
   if (!out) return;
+  if (summary) {
+    const labels = (_dashboardState.globalFilters || []).map(f => `${adhocMemberLabel(f.member)} ${dashboardFilterDescription(f)}`);
+    summary.textContent = labels.length ? labels.join(' ｜ ') : '未设置公共筛选';
+    summary.title = summary.textContent;
+  }
   out.innerHTML = _dashboardState.globalFilters.length ? _dashboardState.globalFilters.map((f, idx) => `
     <div class="d-flex align-items-center gap-1 mb-1">
       <span class="badge bg-light text-dark border text-truncate">${dashboardFilterKind(f)==='measure'?'指标':'维度'} · ${escHtml(adhocMemberLabel(f.member))} ${escHtml(dashboardFilterDescription(f))}</span>
@@ -10067,7 +11081,7 @@ function pivotHeatmapTextColor(rgb) {
 }
 
 function pivotCellNumber(value) {
-  const text = String(value ?? '').replace(/,/g, '').trim();
+  const text = String(value ?? '').replace(/,/g, '').replace(/%$/, '').replace(/^#/, '').trim();
   if (!text || text === '-') return null;
   const n = Number(text);
   return Number.isFinite(n) ? n : null;
@@ -10076,7 +11090,7 @@ function pivotCellNumber(value) {
 function pivotHeatmapStats(cells=[]) {
   const byMeasure = new Map();
   (cells || []).forEach(cell => {
-    const n = pivotCellNumber(cell?.value);
+    const n = pivotCellNumber(cell?.displayValue ?? cell?.value);
     if (n === null) return;
     const key = cell.measureCode || '';
     const stat = byMeasure.get(key) || {min:n, max:n};
@@ -10088,7 +11102,7 @@ function pivotHeatmapStats(cells=[]) {
 }
 
 function pivotHeatmapStyle(cell, stats, config={}) {
-  const n = pivotCellNumber(cell?.value);
+  const n = pivotCellNumber(cell?.displayValue ?? cell?.value);
   if (n === null) return '';
   const stat = stats.get(cell.measureCode || '');
   if (!stat) return '';
@@ -10102,9 +11116,374 @@ function pivotHeatmapStyle(cell, stats, config={}) {
   return `background:rgba(${bg[0]},${bg[1]},${bg[2]},${alpha.toFixed(2)});color:${color};`;
 }
 
+function pivotAdvancedSettings(config={}) {
+  const settings = config?.settings || {};
+  return {
+    rowSubtotal: !!settings.pivotRowSubtotal,
+    columnSubtotal: !!settings.pivotColumnSubtotal,
+    grandTotal: !!settings.pivotGrandTotal,
+    calcMode: settings.pivotCalcMode || 'value',
+    movingWindow: Math.max(2, Math.min(12, parseInt(settings.pivotMovingWindow || 3, 10) || 3)),
+    topNEnabled: !!settings.pivotTopNEnabled,
+    topN: Math.max(1, Math.min(100, parseInt(settings.pivotTopN || 10, 10) || 10)),
+    topNOthers: settings.pivotTopNOthers !== false,
+  };
+}
+
+function pivotCloneResult(result) {
+  return {
+    ...(result || {}),
+    rows: (result?.rows || []).map((row, idx) => ({...row, path:[...(row.path || [])], sortOrder: row.sortOrder ?? idx})),
+    columns: (result?.columns || []).map((col, idx) => ({...col, path:[...(col.path || [])], sortOrder: col.sortOrder ?? idx})),
+    measures: (result?.measures || []).map(measure => ({...measure})),
+    cells: (result?.cells || []).map(cell => ({...cell, rowPath:[...(cell.rowPath || [])], columnPath:[...(cell.columnPath || [])], originalValue: cell.originalValue ?? cell.value})),
+  };
+}
+
+function pivotHeaderSort(left, right) {
+  const leftValues = (left.path || []).map(x=>String(x.value ?? ''));
+  const rightValues = (right.path || []).map(x=>String(x.value ?? ''));
+  const qualityPassRank = value => ({'未通过':0, '0':0, 'false':0, 'False':0, '通过':1, '1':1, 'true':1, 'True':1}[String(value ?? '')]);
+  for (let idx = 0; idx < Math.max(leftValues.length, rightValues.length); idx++) {
+    const leftRank = qualityPassRank(leftValues[idx]);
+    const rightRank = qualityPassRank(rightValues[idx]);
+    if (leftRank !== undefined || rightRank !== undefined) return (leftRank ?? 99) - (rightRank ?? 99);
+  }
+  if ((left.sortOrder ?? 0) !== (right.sortOrder ?? 0)) return (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
+  for (let idx = 0; idx < Math.max(leftValues.length, rightValues.length); idx++) {
+    const compared = (leftValues[idx] || '').localeCompare(rightValues[idx] || '', undefined, {numeric:true});
+    if (compared) return compared;
+  }
+  return 0;
+}
+
+function pivotRawNumber(cell) {
+  return pivotCellNumber(cell?.value);
+}
+
+function pivotNumericSum(cells) {
+  return (cells || []).reduce((sum, cell) => {
+    const n = pivotRawNumber(cell);
+    return n === null ? sum : sum + n;
+  }, 0);
+}
+
+function pivotFormatNumber(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '-';
+  const n = Number(value);
+  const fixed = Math.abs(n) >= 100 || Number.isInteger(n) ? 0 : 2;
+  return n.toLocaleString(undefined, {maximumFractionDigits:fixed, minimumFractionDigits:0});
+}
+
+function pivotFormatPercent(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '-';
+  return `${(Number(value) * 100).toFixed(1)}%`;
+}
+
+function pivotCellDisplay(cell) {
+  return cell?.displayValue ?? cell?.value ?? '-';
+}
+
+function pivotCollectAlerts(cells) {
+  const alerts = [];
+  (cells || []).forEach(cell => (cell.alerts || []).forEach(alert => {
+    if (!alerts.some(item => item.id === alert.id && item.ruleId === alert.ruleId && item.label === alert.label)) alerts.push(alert);
+  }));
+  return alerts;
+}
+
+function pivotApplyTopN(result, adv) {
+  if (!adv.topNEnabled || !result.columns?.length || result.columns.length <= adv.topN) return result;
+  const colTotals = new Map();
+  result.cells.forEach(cell => {
+    if (cell.syntheticTotal) return;
+    const n = pivotRawNumber(cell);
+    if (n === null) return;
+    colTotals.set(cell.columnKey, (colTotals.get(cell.columnKey) || 0) + n);
+  });
+  const ranked = [...result.columns].sort((a, b) => (colTotals.get(b.key) || 0) - (colTotals.get(a.key) || 0));
+  const keptKeys = new Set(ranked.slice(0, adv.topN).map(col => col.key));
+  const otherKeys = new Set(ranked.slice(adv.topN).map(col => col.key));
+  result.columns = result.columns.filter(col => keptKeys.has(col.key));
+  const keptCells = result.cells.filter(cell => keptKeys.has(cell.columnKey));
+  if (!adv.topNOthers || !otherKeys.size) {
+    result.cells = keptCells;
+    return result;
+  }
+  const otherColumn = {
+    key: '__pivot_other__',
+    path: [{code:'__pivot_other__', name:'Top N 之外', value:'其他', filterValue:'__pivot_other__', synthetic:true}],
+    sortOrder: 900000,
+    synthetic:true,
+  };
+  const grouped = new Map();
+  result.cells.filter(cell => otherKeys.has(cell.columnKey)).forEach(cell => {
+    const key = `${cell.rowKey}|${cell.measureCode}`;
+    const bucket = grouped.get(key) || {cells:[], rowKey:cell.rowKey, rowPath:cell.rowPath, measureCode:cell.measureCode, measureName:cell.measureName};
+    bucket.cells.push(cell);
+    grouped.set(key, bucket);
+  });
+  grouped.forEach(bucket => {
+    const value = pivotNumericSum(bucket.cells);
+    keptCells.push({
+      rowKey: bucket.rowKey,
+      columnKey: otherColumn.key,
+      measureCode: bucket.measureCode,
+      measureName: bucket.measureName,
+      value,
+      originalValue: value,
+      rowPath: bucket.rowPath || [],
+      columnPath: otherColumn.path,
+      alerts: pivotCollectAlerts(bucket.cells),
+      synthetic:true,
+      syntheticOther:true,
+    });
+  });
+  result.columns.push(otherColumn);
+  result.cells = keptCells;
+  return result;
+}
+
+function pivotAddTotals(result, adv) {
+  const needRowTotalColumn = adv.rowSubtotal || adv.grandTotal;
+  const needColumnTotalRow = adv.columnSubtotal || adv.grandTotal;
+  if (!needRowTotalColumn && !needColumnTotalRow) return result;
+  const baseCells = result.cells.filter(cell => !cell.syntheticTotal);
+  const originalRows = [...result.rows];
+  const originalColumns = [...result.columns];
+  const totalColumn = needRowTotalColumn ? {
+    key: '__pivot_row_total__',
+    path: [{code:'__pivot_row_total__', name:'行小计', value:adv.rowSubtotal ? '行小计' : '总计', filterValue:'__pivot_row_total__', synthetic:true}],
+    sortOrder: 999000,
+    synthetic:true,
+    syntheticTotal:true,
+  } : null;
+  const totalRow = needColumnTotalRow ? {
+    key: '__pivot_column_total__',
+    path: [{code:'__pivot_column_total__', name:'列小计', value:adv.columnSubtotal ? '列小计' : '总计', filterValue:'__pivot_column_total__', synthetic:true}],
+    sortOrder: 999000,
+    synthetic:true,
+    syntheticTotal:true,
+  } : null;
+  const totalCells = [];
+  if (totalColumn) {
+    result.columns.push(totalColumn);
+    originalRows.forEach(row => {
+      result.measures.forEach(measure => {
+        const cells = baseCells.filter(cell => cell.rowKey === row.key && cell.measureCode === measure.code);
+        const value = pivotNumericSum(cells);
+        totalCells.push({
+          rowKey: row.key,
+          columnKey: totalColumn.key,
+          measureCode: measure.code,
+          measureName: measure.name,
+          value,
+          originalValue: value,
+          rowPath: row.path || [],
+          columnPath: totalColumn.path,
+          alerts: pivotCollectAlerts(cells),
+          synthetic:true,
+          syntheticTotal:true,
+        });
+      });
+    });
+  }
+  if (totalRow) {
+    result.rows.push(totalRow);
+    originalColumns.forEach(col => {
+      result.measures.forEach(measure => {
+        const cells = baseCells.filter(cell => cell.columnKey === col.key && cell.measureCode === measure.code);
+        const value = pivotNumericSum(cells);
+        totalCells.push({
+          rowKey: totalRow.key,
+          columnKey: col.key,
+          measureCode: measure.code,
+          measureName: measure.name,
+          value,
+          originalValue: value,
+          rowPath: totalRow.path,
+          columnPath: col.path || [],
+          alerts: pivotCollectAlerts(cells),
+          synthetic:true,
+          syntheticTotal:true,
+        });
+      });
+    });
+  }
+  if (totalColumn && totalRow) {
+    result.measures.forEach(measure => {
+      const cells = baseCells.filter(cell => cell.measureCode === measure.code);
+      const value = pivotNumericSum(cells);
+      totalCells.push({
+        rowKey: totalRow.key,
+        columnKey: totalColumn.key,
+        measureCode: measure.code,
+        measureName: measure.name,
+        value,
+        originalValue: value,
+        rowPath: totalRow.path,
+        columnPath: totalColumn.path,
+        alerts: pivotCollectAlerts(cells),
+        synthetic:true,
+        syntheticTotal:true,
+        syntheticGrandTotal:true,
+      });
+    });
+  }
+  result.cells = [...result.cells, ...totalCells];
+  return result;
+}
+
+function pivotPreviousYearValue(value) {
+  const text = String(value ?? '');
+  const month = text.match(/^(\d{4})-(\d{2})$/);
+  if (month) return `${Number(month[1]) - 1}-${month[2]}`;
+  const quarter = text.match(/^(\d{4})-?Q([1-4])$/i);
+  if (quarter) return `${Number(quarter[1]) - 1}-Q${quarter[2]}`;
+  const compactWeek = text.match(/^(\d{4})(\d{2})$/);
+  if (compactWeek) return `${Number(compactWeek[1]) - 1}${compactWeek[2]}`;
+  const year = text.match(/^(\d{4})$/);
+  if (year) return String(Number(year[1]) - 1);
+  return '';
+}
+
+function pivotPathKeyFromPath(path) {
+  return JSON.stringify((path || []).map(x => x.value ?? ''));
+}
+
+function pivotPathWithLastValue(path, value) {
+  const next = (path || []).map(item => ({...item}));
+  if (!next.length) return next;
+  next[next.length - 1] = {...next[next.length - 1], value, filterValue:value};
+  return next;
+}
+
+function pivotApplyDisplayCalculation(result, adv) {
+  const mode = adv.calcMode || 'value';
+  if (mode === 'value') {
+    result.cells.forEach(cell => { delete cell.displayValue; });
+    return result;
+  }
+  const cells = result.cells;
+  const baseCells = cells.filter(cell => !cell.syntheticTotal);
+  const rowSums = new Map();
+  const colSums = new Map();
+  const grandSums = new Map();
+  baseCells.forEach(cell => {
+    const n = pivotRawNumber(cell);
+    if (n === null) return;
+    rowSums.set(`${cell.rowKey}|${cell.measureCode}`, (rowSums.get(`${cell.rowKey}|${cell.measureCode}`) || 0) + n);
+    colSums.set(`${cell.columnKey}|${cell.measureCode}`, (colSums.get(`${cell.columnKey}|${cell.measureCode}`) || 0) + n);
+    grandSums.set(cell.measureCode, (grandSums.get(cell.measureCode) || 0) + n);
+  });
+  const rows = [...result.rows].sort(pivotHeaderSort).filter(row => !row.syntheticTotal);
+  const rowIndex = new Map(rows.map((row, idx) => [row.key, idx]));
+  const rowKeyByPath = new Map(rows.map(row => [pivotPathKeyFromPath(row.path), row.key]));
+  const cellByTriple = new Map(cells.map(cell => [`${cell.rowKey}|${cell.columnKey}|${cell.measureCode}`, cell]));
+  const rankByCell = new Map();
+  if (mode === 'rankDesc') {
+    result.measures.forEach(measure => {
+      const ranked = baseCells
+        .filter(cell => cell.measureCode === measure.code && pivotRawNumber(cell) !== null)
+        .sort((a, b) => pivotRawNumber(b) - pivotRawNumber(a));
+      ranked.forEach((cell, idx) => rankByCell.set(cell, idx + 1));
+    });
+  }
+  cells.forEach(cell => {
+    const n = pivotRawNumber(cell);
+    if (n === null) {
+      cell.displayValue = '-';
+      return;
+    }
+    if (mode === 'rowPercent') {
+      const denom = rowSums.get(`${cell.rowKey}|${cell.measureCode}`) || n;
+      cell.displayValue = denom ? pivotFormatPercent(n / denom) : '-';
+      return;
+    }
+    if (mode === 'columnPercent') {
+      const denom = colSums.get(`${cell.columnKey}|${cell.measureCode}`) || n;
+      cell.displayValue = denom ? pivotFormatPercent(n / denom) : '-';
+      return;
+    }
+    if (mode === 'grandPercent') {
+      const denom = grandSums.get(cell.measureCode) || n;
+      cell.displayValue = denom ? pivotFormatPercent(n / denom) : '-';
+      return;
+    }
+    if (mode === 'rankDesc') {
+      cell.displayValue = cell.syntheticTotal ? pivotFormatNumber(n) : `#${rankByCell.get(cell) || '-'}`;
+      return;
+    }
+    if (mode === 'previousDiff' || mode === 'previousDiffPct' || mode === 'movingAverage' || mode === 'cumulative') {
+      if (cell.syntheticTotal) {
+        cell.displayValue = pivotFormatNumber(n);
+        return;
+      }
+      const currentIdx = rowIndex.get(cell.rowKey);
+      if (currentIdx === undefined) {
+        cell.displayValue = '-';
+        return;
+      }
+      const series = rows.map(row => cellByTriple.get(`${row.key}|${cell.columnKey}|${cell.measureCode}`));
+      if (mode === 'previousDiff' || mode === 'previousDiffPct') {
+        const previous = currentIdx > 0 ? pivotRawNumber(series[currentIdx - 1]) : null;
+        if (previous === null) {
+          cell.displayValue = '-';
+        } else if (mode === 'previousDiff') {
+          cell.displayValue = pivotFormatNumber(n - previous);
+        } else {
+          cell.displayValue = Math.abs(previous) > 1e-12 ? pivotFormatPercent((n - previous) / Math.abs(previous)) : '-';
+        }
+        return;
+      }
+      if (mode === 'movingAverage') {
+        const windowCells = series.slice(Math.max(0, currentIdx - adv.movingWindow + 1), currentIdx + 1);
+        const nums = windowCells.map(pivotRawNumber).filter(value => value !== null);
+        cell.displayValue = nums.length ? pivotFormatNumber(nums.reduce((a, b) => a + b, 0) / nums.length) : '-';
+        return;
+      }
+      const nums = series.slice(0, currentIdx + 1).map(pivotRawNumber).filter(value => value !== null);
+      cell.displayValue = nums.length ? pivotFormatNumber(nums.reduce((a, b) => a + b, 0)) : '-';
+      return;
+    }
+    if (mode === 'yoyDiff' || mode === 'yoyDiffPct') {
+      if (cell.syntheticTotal) {
+        cell.displayValue = pivotFormatNumber(n);
+        return;
+      }
+      const row = result.rows.find(item => item.key === cell.rowKey);
+      const lastValue = (row?.path || []).slice(-1)[0]?.value;
+      const previousValue = pivotPreviousYearValue(lastValue);
+      const previousPath = pivotPathWithLastValue(row?.path || [], previousValue);
+      const previousRowKey = rowKeyByPath.get(pivotPathKeyFromPath(previousPath));
+      const previousCell = previousRowKey ? cellByTriple.get(`${previousRowKey}|${cell.columnKey}|${cell.measureCode}`) : null;
+      const previous = pivotRawNumber(previousCell);
+      if (previous === null) {
+        cell.displayValue = '-';
+      } else if (mode === 'yoyDiff') {
+        cell.displayValue = pivotFormatNumber(n - previous);
+      } else {
+        cell.displayValue = Math.abs(previous) > 1e-12 ? pivotFormatPercent((n - previous) / Math.abs(previous)) : '-';
+      }
+      return;
+    }
+    cell.displayValue = pivotFormatNumber(n);
+  });
+  return result;
+}
+
+function pivotApplyAdvanced(result, config={}) {
+  const adv = pivotAdvancedSettings(config);
+  let next = pivotCloneResult(result);
+  next = pivotApplyTopN(next, adv);
+  next = pivotAddTotals(next, adv);
+  next = pivotApplyDisplayCalculation(next, adv);
+  return next;
+}
+
 function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=_pivotConfig) {
   const out = document.getElementById(targetId);
-  const d = result;
+  const d = pivotApplyAdvanced(result, config);
   ensureAdhocAlertStyles();
   if (!d || !d.cells.length) {
     out.innerHTML = '<div class="text-muted text-center py-5">查询成功，但当前条件下没有数据</div>';
@@ -10118,6 +11497,7 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
   const heatmapEnabled = pivotHeatmapEnabled(config);
   const heatmapStats = heatmapEnabled ? pivotHeatmapStats(d.cells) : new Map();
   const displayRows = [...d.rows].sort((left, right) => {
+    if ((left.sortOrder ?? 0) !== (right.sortOrder ?? 0)) return (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
     const leftValues = (left.path || []).map(x=>String(x.value ?? ''));
     const rightValues = (right.path || []).map(x=>String(x.value ?? ''));
     for (let idx = 0; idx < Math.max(leftValues.length, rightValues.length); idx++) {
@@ -10128,6 +11508,24 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
   });
   const columnLevels = config.columns.length;
   const rowHeaders = config.rows.length ? config.rows : [{name:'数值'}];
+  const displayColumns = [...d.columns].sort(pivotHeaderSort);
+  const fixedTotalSettings = config?.settings || {};
+  const fixedTotalMeasureCode = fixedTotalSettings.totalCallCountMeasureCode || 'MEAS_quality_record_count';
+  const showFixedTotalColumn = !!fixedTotalSettings.showTotalCallCountColumn
+    && d.measures.some(measure => measure.code === fixedTotalMeasureCode);
+  const fixedTotalColumnTitle = fixedTotalSettings.totalCallCountColumnTitle || '通话总数';
+  const visibleMeasureCodes = (fixedTotalSettings.visibleMeasureCodes || [])
+    .map(code => String(code || '').trim())
+    .filter(Boolean);
+  const visibleMeasures = visibleMeasureCodes.length
+    ? d.measures.filter(measure => visibleMeasureCodes.includes(measure.code))
+    : d.measures.filter(measure => !(showFixedTotalColumn && measure.code === fixedTotalMeasureCode));
+  const measuresForDisplay = visibleMeasures.length ? visibleMeasures : d.measures;
+  const measureDisplayNames = fixedTotalSettings.measureDisplayNames || {};
+  const pivotMeasureName = measure => measureDisplayNames[measure.code] || measure.name;
+  const fixedTotalValueForRow = row => pivotNumericSum(
+    d.cells.filter(cell => !cell.syntheticTotal && cell.rowKey === row.key && cell.measureCode === fixedTotalMeasureCode)
+  );
   let html = adhocAlertSummaryHtml(d.alerts)
     + `<div class="ad-doc-alert-summary-slot w-100">${documentAlertSummaryBadgesHtml(targetId, _documentAlertResultsByTarget[targetId] || [])}</div>`
     + '<table class="table table-sm table-bordered mb-0 pivot-table"><thead>';
@@ -10135,16 +11533,18 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
     for (let level = 0; level < columnLevels; level++) {
       html += '<tr>';
       if (level === 0) rowHeaders.forEach(row => { html += `<th rowspan="${columnLevels + 1}">${escHtml(row.name)}</th>`; });
-      pivotColumnGroups(d.columns, level).forEach(group => {
-        html += `<th colspan="${group.count * d.measures.length}">${escHtml(group.value)}</th>`;
+      if (level === 0 && showFixedTotalColumn) html += `<th rowspan="${columnLevels + 1}" class="text-end">${escHtml(fixedTotalColumnTitle)}</th>`;
+      pivotColumnGroups(displayColumns, level).forEach(group => {
+        html += `<th colspan="${group.count * measuresForDisplay.length}">${escHtml(group.value)}</th>`;
       });
       html += '</tr>';
     }
   }
   html += '<tr>';
   if (!columnLevels) rowHeaders.forEach(row => { html += `<th>${escHtml(row.name)}</th>`; });
-  d.columns.forEach(() => d.measures.forEach(measure => {
-    html += `<th>${escHtml(measure.name)}</th>`;
+  if (!columnLevels && showFixedTotalColumn) html += `<th class="text-end">${escHtml(fixedTotalColumnTitle)}</th>`;
+  displayColumns.forEach(() => measuresForDisplay.forEach(measure => {
+    html += `<th>${escHtml(pivotMeasureName(measure))}</th>`;
   }));
   html += '</tr></thead><tbody>';
   displayRows.forEach((row, rowIndex) => {
@@ -10157,14 +11557,21 @@ function renderPivotResult(targetId='pivot-result', result=_pivotResult, config=
     } else {
       html += '<td class="fw-semibold bg-light">全部</td>';
     }
-    d.columns.forEach(col => d.measures.forEach(measure => {
+    if (showFixedTotalColumn) {
+      const totalValue = fixedTotalValueForRow(row);
+      html += `<td class="text-end fw-semibold bg-light">${escHtml(pivotFormatNumber(totalValue))}</td>`;
+    }
+    displayColumns.forEach(col => measuresForDisplay.forEach(measure => {
       const hit = cellMap.get(`${row.key}|${col.key}|${measure.code}`);
       const docMeasureCode = documentAlertMemberCode(measure.code);
-      const title = hit ? pivotAlertTitle(hit.cell.alerts || []) : '';
+      const title = hit ? [hit.cell.displayValue != null ? `原始值：${hit.cell.originalValue ?? hit.cell.value}` : '', pivotAlertTitle(hit.cell.alerts || [])].filter(Boolean).join('\n') : '';
       const heatmapStyle = hit && !hit.cell.alerts?.length ? pivotHeatmapStyle(hit.cell, heatmapStats, config) : '';
       const cellStyle = `${heatmapStyle}${hit ? adhocAlertStyle(hit.cell.alerts || []) : ''}`;
+      const valueHtml = hit ? (hit.cell.synthetic
+        ? `<span class="pivot-value" title="${escHtml(title || '二次计算单元格')}">${escHtml(pivotCellDisplay(hit.cell))}</span>`
+        : `<span class="pivot-value" title="${escHtml(title)}" onclick="${targetId === 'pivot-result' ? `openPivotCellAction(${hit.idx}, 'pivot-result')` : `openAdhocPivotActionFromRendered('${_escJs(targetId)}', ${hit.idx})`}">${escHtml(pivotCellDisplay(hit.cell))}</span>`) : '';
       html += hit
-        ? `<td class="text-end ${heatmapEnabled ? 'pivot-heatmap-cell' : ''} ${adhocAlertClasses(hit.cell.alerts || [])}" data-doc-marker-scope="pivot-cell" data-pivot-cell-index="${hit.idx}" data-doc-measure-code="${escHtml(docMeasureCode)}" style="${cellStyle}" title="${escHtml(title)}"><span class="pivot-value" title="${escHtml(title)}" onclick="${targetId === 'pivot-result' ? `openPivotCellAction(${hit.idx}, 'pivot-result')` : `openAdhocPivotActionFromRendered('${_escJs(targetId)}', ${hit.idx})`}">${escHtml(hit.cell.value ?? '-')}</span></td>`
+        ? `<td class="text-end ${heatmapEnabled ? 'pivot-heatmap-cell' : ''} ${adhocAlertClasses(hit.cell.alerts || [])}" data-doc-marker-scope="pivot-cell" data-pivot-cell-index="${hit.idx}" data-doc-measure-code="${escHtml(docMeasureCode)}" style="${cellStyle}" title="${escHtml(title)}">${valueHtml}</td>`
         : '<td class="text-end text-muted">-</td>';
     }));
     html += '</tr>';
@@ -10400,7 +11807,18 @@ async function openPivotCellInsight() {
   }
   try {
     let docResults = _documentAlertPivotCellResults[key] || [];
-    if (!docResults.length) docResults = await scanDocumentAlertsForPivotCell(ctx.targetId || 'pivot-result', ctx.cellIndex, ctx.cell);
+    if (!docResults.length) {
+      const scanPromise = scanDocumentAlertsForPivotCell(ctx.targetId || 'pivot-result', ctx.cellIndex, ctx.cell).catch(() => []);
+      docResults = await Promise.race([
+        scanPromise,
+        new Promise(resolve => setTimeout(() => resolve([]), 3500)),
+      ]);
+      if (!docResults.length) {
+        scanPromise.then(lateResults => {
+          if (lateResults?.length) _documentAlertPivotCellResults[key] = lateResults;
+        }).catch(() => {});
+      }
+    }
     const r = await fetch('/api/insight/explain-cell', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -10477,7 +11895,7 @@ function sendCellInsightToSmartInsight() {
     selectedDocument: firstDoc || null,
   };
   if (hasDocs) nextContext.analysisMode = 'document_trace';
-  else delete nextContext.analysisMode;
+  else nextContext.analysisMode = 'cell_context';
   state.context = nextContext;
   state.hasTurns = true;
   const drawerEl = document.getElementById('cell-insight-drawer');
@@ -10851,6 +12269,7 @@ let _nlqConversationState = {
   nlq: {conversationId: '', context: {}, hasTurns: false},
   smart: {conversationId: '', context: {}, hasTurns: false}
 };
+let _nlqRenderedResults = {};
 
 function _newNlqConversationId() {
   return window.crypto?.randomUUID?.() || `nlq-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -10892,10 +12311,106 @@ function setNlqExample(text, target='nlq') {
 function runNlqSuggestion(text, target='nlq') {
   setNlqExample(text, target);
   if (target === 'smart') {
+    resetSmartInsightConversation();
     runSmartInsight(document.getElementById('smart-nlq-run-btn'));
   } else {
     runUnifiedNlq(document.getElementById('nlq-run-btn'));
   }
+}
+
+function demoInsightActionLoop(btn) {
+  const question = '请分析网络销售金额在网络销售商品=3581 / 周=200030 下的单据异常原因，并生成改进追盯方案。';
+  const state = _getNlqConversation('smart');
+  const selectedDocument = {
+    ruleName: '演示看板｜单据追踪｜高销售单价明细',
+    severity: 'warning',
+    documentNo: '8276705',
+    fieldName: 'ws_sales_price',
+    field: 'ws_sales_price',
+    value: 367.48,
+    record: {
+      '订单编号': '8276705',
+      '网络销售商品': '3581',
+      '周': '200030',
+      'ws_sales_price': 367.48,
+      'ws_quantity': 7,
+      'ws_net_paid': 2572,
+      'ws_ext_discount_amt': 0,
+      'ws_net_profit': 312.6,
+    },
+  };
+  state.context = {
+    analysisMode: 'document_trace',
+    anomalyType: 'document_trace',
+    activeMeasureCode: 'MEAS_web_sales_amount',
+    selectedDocument,
+    cellInsight: {
+      measure: {code: 'MEAS_web_sales_amount', name: '网络销售金额'},
+      cellValue: 2572,
+      cellContext: {
+        label: '网络销售商品=3581 / 周=200030',
+        filters: [
+          {code: 'DIM_web_sales_item', name: '网络销售商品', value: '3581'},
+          {code: 'DIM_week', name: '周', value: '200030'},
+        ],
+      },
+      anomaly: {
+        level: 'warning',
+        title: '发现单据级异常',
+        reason: '当前单元格命中 1 条单据追踪异常，高销售单价字段明显偏高。',
+        type: 'document_trace',
+        source: 'document_rule',
+        shape: 'document',
+        confidence: 0.98,
+        confidenceLabel: '高',
+        evidenceStrength: 80,
+        evidenceStrengthLabel: '强',
+      },
+      diagnosis: {
+        source: 'document_rule',
+        shape: 'document',
+        confidence: 0.98,
+        confidenceLabel: '高',
+        evidenceStrength: 80,
+        evidenceStrengthLabel: '强',
+        evidence: [
+          {label: '单据规则命中', detail: '规则「演示看板｜单据追踪｜高销售单价明细」命中 ws_sales_price=367.48。'},
+          {label: '透视表单元格切片', detail: '网络销售商品=3581 / 周=200030，当前网络销售金额=2572。'},
+          {label: '推荐下钻维度', detail: '图谱推荐按网络销售订单、季度、年继续下钻。'},
+        ],
+        hypotheses: [
+          {title: '高单价订单集中', reason: '异常字段来自单据明细，优先核对该商品在该周是否存在价格录入、促销缺失或特殊订单。'},
+          {title: '规则阈值需复核', reason: '如果大量正常订单也被命中，需要调整单据追踪阈值或增加业务过滤条件。'},
+        ],
+      },
+      documents: [selectedDocument],
+      contributions: [
+        {dimensionName: '网络销售订单', dimensionCode: 'DIM_web_sales_order_number', value: '8276705', score: 78, reason: '可直接定位命中单据和关联明细。'},
+        {dimensionName: '季度', dimensionCode: 'DIM_quarter', score: 52, reason: '用于观察异常是否集中在特定周期。'},
+        {dimensionName: '年', dimensionCode: 'DIM_year', score: 52, reason: '用于和历史周期对比。'},
+      ],
+      summary: '网络销售金额在网络销售商品=3581 / 周=200030 下出现单据级异常，当前值为 2572，命中 1 条异常单据。',
+      recommendations: [
+        {type: 'detail', label: '查看命中异常单据'},
+        {type: 'dimension_drill', dimensionCode: 'DIM_web_sales_order_number', label: '按网络销售订单下钻'},
+        {type: 'smart_insight', label: '发送到智能Insight继续追问'},
+      ],
+    },
+  };
+  state.hasTurns = true;
+  setNlqExample(question, 'smart');
+  _renderSmartNlqContextStatus();
+  const deepSection = document.getElementById('smart-insight-deep-section');
+  if (deepSection) deepSection.style.display = '';
+  const res = document.getElementById('smart-nlq-result');
+  if (res) {
+    res.innerHTML = `<div class="alert alert-success mb-0">
+      <div class="fw-semibold"><i class="bi bi-play-circle me-1"></i>已载入单据解释闭环演示上下文</div>
+      <div class="small mt-1">可直接点击下方“生成改进闭环方案”，再提交追盯任务并追加反馈。</div>
+    </div>`;
+  }
+  _prepareInsightAnalysisPanels(state);
+  document.getElementById('insight-action-loop-card')?.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 async function loadNlqSuggestions(file='') {
@@ -10930,7 +12445,7 @@ function renderNlqSuggestionGroups(categories, questions, target='nlq') {
     ? categories
     : [{name: '推荐问题', questions: questions.slice(0, 12)}];
   return groups.map(cat => {
-    const qs = (cat.questions || []).slice(0, 2);
+    const qs = (cat.questions || []).slice(0, 4);
     if (!qs.length) return '';
     return `<div class="d-flex align-items-start gap-2 flex-wrap">
       <span class="badge bg-light text-secondary border" style="min-width:68px">${_escHtml(cat.name || '演示')}</span>
@@ -10951,6 +12466,22 @@ async function runUnifiedNlq(btn) {
 
 function _smartInsightDecision(question) {
   const q = String(question || '').trim();
+  if (_isSpecificDocumentLookupQuestion(q)) {
+    return {
+      mode: 'query',
+      reason: '识别为订单/单据编号精确检索，走单据追踪链路',
+      forceClearContext: true,
+      flowNode: 'E',
+    };
+  }
+  if (_isExactAttributeLookupQuestion(q)) {
+    return {
+      mode: 'query',
+      reason: '识别为表字段精确属性检索，走 NLQ/entity_lookup 明细查询',
+      forceClearContext: true,
+      flowNode: 'D',
+    };
+  }
   // 实体指代检测：针对具体实例（该订单/此仓库/某个促销）的问题走 NLQ → entity_lookup，
   // 而不是指标归因。优先级最高，避免"该订单是否异常"被"异常"关键词误路由到 Insight。
   const asksSpecificEntity = /该[订单笔个项条只次件张批种座家名位辆台部本套组类科属种块片根颗粒层段行列册份处所期届场届次回趟度]|这个|此[订单笔个次项]|某个|哪一个|哪[一个笔条次件张]|什么订单|什么促销|同类|同组|同批|同种|类似|相似/.test(q);
@@ -10963,8 +12494,13 @@ function _smartInsightDecision(question) {
   const asksGraphOnly = /图谱|血缘|关系|来源|口径|定义|有哪些维度|可用维度|能按哪些/.test(q);
   const simpleQuery = /^(查|查询|查看|展示|列出|给我|看一下|统计|汇总|计算|多少|总额|平均|数量|明细)/.test(q);
   const explicitLight = /只查|只要|不用分析|无需分析|不做分析|仅查询|仅明细|返回明细/.test(q);
+  const asksProblemOrders = /(有问题|问题|异常|风险|预警|告警).*(订单|单据)|(订单|单据).*(有问题|问题|异常|风险|预警|告警)|单据追踪|问题订单|异常订单/.test(q);
+  const lightDimensionQuery = /^(按|从).+(查看|查询|统计|汇总|分析|对比)/.test(q)
+    && !/(为什么|为何|原因|归因|根因|影响最大|贡献|贡献度|异常|波动|变化|变动|下滑|下降|上涨|上升|环比|同比|趋势|走势|显著|是否)/.test(q);
 
   if (explicitLight) return {mode: 'query', reason: '按问题要求仅执行查询'};
+  if (asksProblemOrders) return {mode: 'query', reason: '识别为监控预警单据追踪的问题订单查询'};
+  if (lightDimensionQuery) return {mode: 'query', reason: '识别为指标按维度聚合查询'};
   // 实体指代问题不走指标归因，交给 NLQ → entity_lookup 做同类对比+图谱扩展
   if (asksSpecificEntity && !asksContribution && !asksCompareTrend && !asksMetricDimAnalysis) {
     return {mode: 'query', reason: '识别为实体检索与同类对比分析，不适用指标归因'};
@@ -10991,8 +12527,18 @@ async function runSmartInsight(btn) {
     return;
   }
   const state = _getNlqConversation('smart');
-  const analysisMode = state.context?.analysisMode || '';
   const decision = _smartInsightDecision(question);
+  if (decision.forceClearContext) {
+    state.context = {};
+    state.hasTurns = false;
+    state.conversationId = _newNlqConversationId();
+    _renderSmartNlqContextStatus();
+  }
+  const hasCellInsightContext = Boolean(state.context?.cellInsight);
+  if (decision.mode === 'query' && state.context?.analysisMode && !hasCellInsightContext) {
+    delete state.context.analysisMode;
+  }
+  const analysisMode = state.context?.analysisMode || '';
   if (analysisMode || decision.mode === 'insight') {
     const modeLabel = analysisMode === 'document_trace' ? '单据追踪异常分析' : '指标归因与维度洞察';
     if (res) {
@@ -11010,6 +12556,12 @@ async function runSmartInsight(btn) {
   const deepSection = document.getElementById('smart-insight-deep-section');
   if (deepSection) deepSection.style.display = 'none';
   if (_insightSSE) stopInsight();
+  initInsightFlow();
+  completeInsightFlowStep('A');
+  completeInsightFlowStep('B');
+  completeInsightFlowStep('B2');
+  completeInsightFlowStep('C');
+  completeInsightFlowStep(decision.flowNode || _inferInsightBranch(question, state));
   return runNlqWithElements(btn, {
     questionId: 'smart-nlq-question',
     pageSizeId: 'smart-nlq-page-size',
@@ -11089,6 +12641,10 @@ async function runNlqWithElements(btn, ids) {
     conversation.hasTurns = Boolean(d.resolvedContext) || conversation.hasTurns;
     if ((ids.contextTarget || 'nlq') === 'smart') _renderSmartNlqContextStatus();
     if (!r.ok || !d.ok) {
+      if ((ids.contextTarget || 'nlq') === 'smart') {
+        if (d.clarification) completeInsightFlowStep('clarify');
+        else setInsightFlowStep('reject', 'error');
+      }
       const target = (ids.contextTarget || 'nlq') === 'smart' ? 'smart' : 'nlq';
       const sugHtml = _renderSuggestedQuestions(d.suggestedNextQuestions, target);
       res.innerHTML = `<div class="alert alert-warning mb-0">
@@ -11097,12 +12653,32 @@ async function runNlqWithElements(btn, ids) {
       </div>`;
       return;
     }
+    if ((ids.contextTarget || 'nlq') === 'smart') updateSmartFlowFromNlqResult(d);
     renderUnifiedNlqResult(d, ids.resultId);
   } catch(e) {
     res.innerHTML = `<div class="alert alert-danger mb-0">请求失败：${_escHtml(e.message || e)}</div>`;
   } finally {
     btnRestore(btn);
   }
+}
+
+function updateSmartFlowFromNlqResult(d={}) {
+  const mode = d.queryMode || 'aggregate';
+  if (mode === 'problem_orders') {
+    ['E','P','Q','T','Y','Z','AA'].forEach(id => completeInsightFlowStep(id));
+    return;
+  }
+  if (mode === 'explain') {
+    ['G','X','Y','Z','AA'].forEach(id => completeInsightFlowStep(id));
+    return;
+  }
+  ['D','H','I','J','K','L','O','Y','Z','AA'].forEach(id => completeInsightFlowStep(id));
+  const returnedRows = mode === 'entity_lookup'
+    ? ((d.detailData || {}).rowCount ?? (((d.detailData || {}).records || []).length) ?? (d.summary || {}).returnedRows ?? ((d.entity || {}).returnedRows ?? 0))
+    : mode === 'detail'
+      ? (((d.detailData || {}).records || []).length)
+      : ((((d.result || {}).data || {}).cellList) || []).length;
+  if (returnedRows === 0) completeInsightFlowStep('no_data');
 }
 
 function renderUnifiedNlqResult(d, resultId='nlq-result') {
@@ -11114,34 +12690,41 @@ function renderUnifiedNlqResult(d, resultId='nlq-result') {
   }
   const matched = d.matched || {};
   const dims = (matched.dimensions || []).map(x => x.name || x.code).filter(Boolean);
-  const modeName = {
+  const modeName = d.problemOrderMode === 'specific_document' ? '指定单据追踪' : ({
     aggregate: '指标/维度聚合查询',
     detail: '明细查询',
     analyze_detail: '明细图谱增强分析',
     relationship_analysis: '相关关系分析',
     landing_advice: '快速落地建议',
+    problem_orders: '问题订单检索',
     explain: '图谱解释'
-  }[mode] || mode;
+  }[mode] || mode);
   const payload = d.daPayload || {};
-  const requestedPageSize = payload.pageSize || ((d.intent || {}).limit) || '—';
-  const requestedPageNum = payload.pageNum || 1;
+  const requestedPageSize = payload.pageSize || ((d.summary || {}).pageSize) || ((d.intent || {}).limit) || '—';
+  const requestedPageNum = payload.pageNum || ((d.summary || {}).pageNum) || 1;
   const returnedRows = mode === 'analyze_detail'
     ? (((d.secondaryAnalysis || {}).integratedDetailData || {}).coverage || {}).baseRowCount || ((d.detailData || {}).records || []).length
     : mode === 'relationship_analysis'
-      ? (((d.relationshipAnalysis || {}).sample || {}).validRowCount || 0)
+    ? (((d.relationshipAnalysis || {}).sample || {}).validRowCount || 0)
+    : mode === 'problem_orders'
+      ? ((d.summary || {}).returnedRows || ((d.problemOrders || []).length))
     : mode === 'detail'
       ? ((d.detailData || {}).records || []).length
       : ((((d.result || {}).data || {}).cellList) || []).length;
-  const isSample = mode === 'detail' || mode === 'analyze_detail' || mode === 'relationship_analysis';
-  const queryScope = mode === 'detail' || mode === 'analyze_detail' || mode === 'relationship_analysis'
-    ? `本次查询第 ${requestedPageNum} 页 / 每页 ${requestedPageSize} 行 / ${isSample ? '样本：是' : '样本：否'} / 返回 ${returnedRows} 行`
-    : `本次查询第 ${requestedPageNum} 页 / 每页 ${requestedPageSize} 行 / 样本：否`;
+  const isSample = mode === 'detail' || mode === 'analyze_detail' || mode === 'relationship_analysis' || mode === 'problem_orders';
+  const queryScope = d.problemOrderMode === 'specific_document'
+    ? `本次查询第 ${requestedPageNum} 页 / 单据明细 ${((d.summary || {}).documentRows || 0)} 行 / 命中样本 ${returnedRows} 条`
+    : mode === 'detail' || mode === 'analyze_detail' || mode === 'relationship_analysis' || mode === 'problem_orders'
+      ? `本次查询第 ${requestedPageNum} 页 / 每页 ${requestedPageSize} 行 / ${isSample ? '样本：是' : '样本：否'} / 返回 ${returnedRows} 行`
+      : `本次查询第 ${requestedPageNum} 页 / 每页 ${requestedPageSize} 行 / 样本：否`;
   const detailData = d.detailData || {};
   const detailRecords = detailData.records || [];
   _lastDetailRecords = detailRecords;
   _lastDetailColumns = detailData.columns || [];
   const dlBtn = (mode === 'detail' || mode === 'analyze_detail') && detailRecords.length
     ? `<button class="btn btn-sm btn-outline-success ms-1" onclick="downloadDetailCSV('${resultId}')"><i class="bi bi-download me-1"></i>下载 CSV</button>` : '';
+  _nlqRenderedResults[resultId] = _buildNlqInterpretPayload(d);
+  const interpretBtn = `<button class="btn btn-sm btn-outline-primary ms-1" onclick="runNlqInterpret('${_escJs(resultId)}', this)"><i class="bi bi-chat-square-text me-1"></i>数据解读</button>`;
   let html = `
     <div class="card mb-2">
       <div class="card-body py-2">
@@ -11150,7 +12733,9 @@ function renderUnifiedNlqResult(d, resultId='nlq-result') {
           <span class="small">指标：<strong>${_escHtml(matched.measureName || matched.measureCode || '—')}</strong></span>
           ${dims.length ? `<span class="small">维度：${dims.map(x => `<span class="badge bg-success me-1">${_escHtml(x)}</span>`).join('')}</span>` : ''}
           <span class="badge bg-light text-dark border">${_escHtml(queryScope)}</span>
+          ${d.traceId ? `<span class="badge bg-light text-secondary border" title="审计链 Trace ID">Trace ${_escHtml(String(d.traceId).slice(0, 8))}</span>` : ''}
           ${dlBtn}
+          ${interpretBtn}
           <span class="small text-muted ms-auto">${_escHtml(d.explain || '')}</span>
         </div>
       </div>
@@ -11162,6 +12747,8 @@ function renderUnifiedNlqResult(d, resultId='nlq-result') {
     html += renderNlqRelationshipAnalysis(d, resultId);
   } else if (mode === 'landing_advice') {
     html += renderNlqLandingAdvice(d);
+  } else if (mode === 'problem_orders') {
+    html += renderNlqProblemOrders(d);
   } else if (mode === 'detail') {
     if (detailRecords.length) html += renderNlqDetailRows(detailData);
   } else if (mode === 'explain') {
@@ -11169,7 +12756,279 @@ function renderUnifiedNlqResult(d, resultId='nlq-result') {
   } else {
     html += renderNlqAggregate(d);
   }
+  html += renderNlqValidation(d.validation || {});
+  html += renderNlqCrossValidation(d.crossValidation || {});
+  html += _renderNlqInterpretContainer(resultId);
   res.innerHTML = html;
+}
+
+function _renderNlqInterpretContainer(resultId) {
+  return `<div id="nlq-interpret-${_escHtml(resultId)}" class="mt-2"></div>`;
+}
+
+function renderNlqValidation(validation={}) {
+  if (!validation || !validation.status) return '';
+  const warnings = validation.warnings || [];
+  const blockers = validation.blockingErrors || [];
+  const allChecks = [
+    ...(validation.checks || []),
+    ...(validation.statisticalChecks || []),
+    ...(validation.historyChecks || []),
+  ];
+  const hasProblem = blockers.length || warnings.length || validation.status === 'failed' || validation.status === 'warning';
+  const cls = hasProblem ? 'danger' : 'success';
+  const icon = cls === 'danger' ? 'bi-exclamation-triangle-fill' : 'bi-check-circle';
+  const title = cls === 'danger'
+    ? '结果校验发现明显异常'
+    : '结果校验通过';
+  const visibleChecks = [
+    ...allChecks.filter(x => x.status === 'failed'),
+    ...allChecks.filter(x => x.status === 'warning'),
+    ...allChecks.filter(x => x.status === 'passed'),
+  ].filter((item, idx, arr) => arr.findIndex(x => x.id === item.id) === idx)
+    .filter(x => x.status !== 'passed' || validation.status !== 'passed')
+    .slice(0, 6);
+  const list = visibleChecks.length ? `<ul class="mb-0 mt-1 ps-3 small">
+    ${visibleChecks.map(x => `<li>
+      <span class="fw-semibold">${_escHtml(x.name || x.id || '校验项')}</span>：
+      ${_escHtml(x.message || '')}
+    </li>`).join('')}
+  </ul>` : '';
+  return `<div class="alert alert-${cls} py-2 mb-2">
+    <div class="d-flex align-items-start gap-2">
+      <i class="bi ${icon} mt-1"></i>
+      <div>
+        <div class="fw-semibold">${title}
+          <span class="badge bg-light text-dark border ms-1">${_escHtml(validation.confidence || '')}</span>
+        </div>
+        <div class="small">${_escHtml(validation.summary || '')}</div>
+        ${list}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderNlqCrossValidation(cross={}) {
+  if (!cross || !cross.status || cross.status === 'skipped') return '';
+  const topRows = (cross.topContributors || []).slice(0, 5).map(x => `<tr><td>${_escHtml(x.label || '')}</td><td class="text-end">${_escHtml(_fmt(x.value))}</td><td class="text-end">${_escHtml(_fmt(x.sharePct))}%</td></tr>`).join('');
+  const anomalyRows = (cross.anomalyRows || []).slice(0, 5).map(x => `<li>${_escHtml(x.label || '')}：${_escHtml(_fmt(x.value))}（${_escHtml(x.source || '')}）</li>`).join('');
+  const doc = cross.documentTrace || {};
+  const docText = doc.status === 'ok'
+    ? `扫描 ${_escHtml(doc.scannedRules || 0)} 条单据规则，命中 ${_escHtml(doc.hitRules || 0)} 条规则。`
+    : _escHtml(doc.reason || doc.error || '未执行单据追踪校验。');
+  const detail = cross.detailSample || {};
+  const detailText = detail.status === 'ok'
+    ? `已抽取 ${_escHtml(detail.rowCount || 0)} 条明细样本。`
+    : _escHtml(detail.reason || detail.error || '未抽取明细样本。');
+  return `<div class="card mt-2 border-danger">
+    <div class="card-header py-2 text-danger"><i class="bi bi-shield-exclamation me-1"></i>自动交叉验证</div>
+    <div class="card-body py-2">
+      <div class="small text-muted mb-2">${_escHtml(cross.reason || '')}</div>
+      <div class="row g-2">
+        <div class="col-lg-6">
+          <div class="fw-semibold small mb-1">Top 贡献分组</div>
+          <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>分组</th><th class="text-end">值</th><th class="text-end">占比</th></tr></thead><tbody>${topRows || '<tr><td colspan="3" class="text-muted">暂无</td></tr>'}</tbody></table></div>
+        </div>
+        <div class="col-lg-6">
+          <div class="fw-semibold small mb-1">异常行与补充验证</div>
+          <ul class="small mb-2">${anomalyRows || '<li class="text-muted">暂无定位到具体异常行</li>'}</ul>
+          <div class="small">${detailText}</div>
+          <div class="small">${docText}</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _buildNlqInterpretPayload(d) {
+  const mode = d.queryMode || 'aggregate';
+  const payload = {
+    question: d.question || '',
+    queryMode: mode,
+    matched: d.matched || {},
+    graphContext: d.graphContext || {},
+    validation: d.validation || {},
+    evidence: d.evidence || [],
+    crossValidation: d.crossValidation || {},
+    resultSummary: {}
+  };
+  if (mode === 'entity_lookup') {
+    const detail = d.detailData || {};
+    payload.resultSummary = {
+      entity: d.entity || {},
+      rowCount: detail.rowCount || ((detail.records || []).length),
+      records: (detail.records || []).slice(0, 20),
+      joinedDimensions: (d.joinedDimensions || []).slice(0, 20),
+      peerAnalysis: d.peerAnalysis || {},
+    };
+    return payload;
+  }
+  if (mode === 'detail' || mode === 'analyze_detail') {
+    const detail = d.detailData || {};
+    payload.resultSummary = {
+      rowCount: detail.rowCount || ((detail.records || []).length),
+      columns: (detail.columns || []).slice(0, 30),
+      records: (detail.records || []).slice(0, 30),
+      secondaryAnalysis: d.secondaryAnalysis || {},
+    };
+    return payload;
+  }
+  if (mode === 'relationship_analysis') {
+    payload.resultSummary = d.relationshipAnalysis || {};
+    return payload;
+  }
+  if (mode === 'problem_orders') {
+    payload.resultSummary = {
+      periodLabel: d.periodLabel || '',
+      summary: d.summary || {},
+      ruleResults: (d.ruleResults || []).slice(0, 20),
+      problemOrders: (d.problemOrders || []).slice(0, 30),
+    };
+    return payload;
+  }
+  if (mode === 'explain') {
+    payload.resultSummary = d.graphAnswer || {};
+    return payload;
+  }
+  const cellList = (((d.result || {}).data || {}).cellList) || [];
+  const headers = (cellList[0] || []).map(c => c.name || c.code || c.type || '');
+  const rows = cellList.slice(1, 80).map(row => row.map(c => c.data));
+  payload.resultSummary = {
+    headers,
+    rows,
+    rowCount: Math.max(0, cellList.length - 1),
+  };
+  return payload;
+}
+
+function renderNlqProblemOrders(d) {
+  const summary = d.summary || {};
+  const rules = d.ruleResults || [];
+  const orders = d.problemOrders || [];
+  const severityLabel = {critical:'严重', warning:'预警', notice:'关注', info:'提示'};
+  const severityClass = {critical:'danger', warning:'warning text-dark', notice:'info text-dark', info:'secondary'};
+  const cardItems = d.problemOrderMode === 'specific_document'
+    ? [
+        ['单据明细', summary.documentRows || 0],
+        ['扫描规则', summary.scannedRules || 0],
+        ['命中规则', summary.hitRules || 0],
+        ['命中样本', summary.returnedRows || orders.length],
+      ]
+    : [
+        ['扫描规则', summary.scannedRules || 0],
+        ['命中规则', summary.hitRules || 0],
+        ['命中明细', summary.matchedRows || 0],
+        ['返回订单', summary.returnedRows || orders.length],
+      ];
+  const cards = cardItems.map(([k,v]) => `<div class="col-sm-3"><div class="border rounded bg-white p-2 h-100"><div class="text-muted small">${_escHtml(k)}</div><div class="fw-semibold">${_escHtml(_fmt(v))}</div></div></div>`).join('');
+  const specificDetail = d.problemOrderMode === 'specific_document' ? renderSpecificDocumentTraceDetail(d) : '';
+  const ruleRows = rules.map(rule => {
+    const sev = String(rule.severity || '').toLowerCase();
+    const hitText = rule.globalMatchedRows !== undefined
+      ? `${_fmt(rule.matchedRows || 0)} / 全局 ${_fmt(rule.globalMatchedRows || 0)}`
+      : _fmt(rule.matchedRows || 0);
+    return `<tr>
+      <td>${_escHtml(rule.ruleName || '单据追踪')}</td>
+      <td><span class="badge bg-${severityClass[sev] || 'secondary'}">${_escHtml(severityLabel[sev] || rule.severity || '—')}</span></td>
+      <td>${_escHtml(rule.measureName || rule.measureCode || '')}</td>
+      <td>${_escHtml(rule.condition || '')}</td>
+      <td class="text-end">${_escHtml(hitText)}</td>
+      <td class="text-end">${_escHtml(_fmt(rule.scannedRows || 0))}</td>
+    </tr>`;
+  }).join('');
+  const orderRows = orders.map(order => {
+    const sev = String(order.severity || '').toLowerCase();
+    const rec = order.record || {};
+    const extras = ['ws_item_sk', 'ws_quantity', 'ws_net_paid', 'ws_net_profit', 'ws_ext_discount_amt']
+      .filter(k => rec[k] !== undefined && rec[k] !== null && rec[k] !== '')
+      .map(k => `${k}=${rec[k]}`).join('，');
+    return `<tr>
+      <td class="fw-semibold">${_escHtml(order.orderNumber || '—')}</td>
+      <td>${_escHtml(order.ruleName || '单据追踪')}</td>
+      <td><span class="badge bg-${severityClass[sev] || 'secondary'}">${_escHtml(severityLabel[sev] || order.severity || '—')}</span></td>
+      <td>${_escHtml(order.targetColumnName || order.targetColumn || '')}</td>
+      <td class="text-end">${_escHtml(_fmt(order.targetValue))}</td>
+      <td>${_escHtml(order.condition || '')}</td>
+      <td class="small text-muted">${_escHtml(extras)}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="row g-2 mb-2">${cards}</div>
+    <div class="card mb-2"><div class="card-body py-2">
+      <div class="fw-semibold mb-1">获取口径</div>
+      <div class="small text-muted">${_escHtml(d.periodLabel || '最近三个月单据追踪规则')}；${_escHtml(d.explain || '')}</div>
+    </div></div>
+    ${specificDetail}
+    <div class="card mb-2">
+      <div class="card-header py-2"><i class="bi bi-bell me-1"></i>命中规则</div>
+      <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+        <thead class="table-light"><tr><th>规则</th><th>级别</th><th>指标</th><th>判定条件</th><th class="text-end">命中</th><th class="text-end">扫描</th></tr></thead>
+        <tbody>${ruleRows || '<tr><td colspan="6" class="text-muted">没有启用的单据追踪规则命中。</td></tr>'}</tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-header py-2"><i class="bi bi-receipt-cutoff me-1"></i>问题订单样本</div>
+      <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+        <thead class="table-light"><tr><th>订单编号</th><th>命中规则</th><th>级别</th><th>字段</th><th class="text-end">命中值</th><th>判定条件</th><th>关键字段</th></tr></thead>
+        <tbody>${orderRows || '<tr><td colspan="7" class="text-muted">暂无返回的问题订单样本。</td></tr>'}</tbody>
+      </table></div>
+    </div>`;
+}
+
+function renderSpecificDocumentTraceDetail(d) {
+  const detail = d.documentDetail || {};
+  const columns = (detail.columns || []).slice(0, 12);
+  const records = (detail.records || []).slice(0, 5);
+  const header = columns.map(c => `<th>${_escHtml(c.name || c.code || '')}</th>`).join('');
+  const rows = records.map(row => `<tr>${columns.map(c => `<td>${_escHtml(_fmt(row[c.code] ?? row[c.name] ?? ''))}</td>`).join('')}</tr>`).join('');
+  const docNo = d.documentNo || (d.entity || {}).value || '';
+  return `<div class="card mb-2 border-warning">
+    <div class="card-header py-2">
+      <i class="bi bi-receipt me-1"></i>指定单据明细
+      ${docNo ? `<span class="badge bg-light text-dark border ms-1">${_escHtml(docNo)}</span>` : ''}
+      <span class="small text-muted ms-2">返回 ${_escHtml(_fmt(detail.rowCount || records.length || 0))} 行</span>
+    </div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead class="table-light"><tr>${header || '<th>明细</th>'}</tr></thead>
+      <tbody>${rows || '<tr><td class="text-muted">未找到指定单据明细。</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+
+async function runNlqInterpret(resultId, btn) {
+  const payload = _nlqRenderedResults[resultId];
+  const out = document.getElementById(`nlq-interpret-${resultId}`);
+  if (!payload || !out) return showToast('没有可解读的数据结果', 'warning');
+  btnLoading(btn, '解读中…');
+  out.innerHTML = `<div class="card"><div class="card-body py-3 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>行业数据分析专家正在解读当前结果…</div></div>`;
+  try {
+    const r = await fetch('/api/nlq/interpret', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+      out.innerHTML = `<div class="alert alert-warning mb-0">${_escHtml(d.error || '数据解读失败')}</div>`;
+      return;
+    }
+    const html = window.marked ? marked.parse(d.interpretation || '') : _escHtml(d.interpretation || '').replace(/\n/g, '<br>');
+    const outputValidation = d.outputValidation || {};
+    const outputWarn = outputValidation.status === 'warning'
+      ? `<div class="alert alert-warning py-2 mb-2"><i class="bi bi-exclamation-circle me-1"></i>解读输出校验存在边界：${_escHtml((outputValidation.checks || []).filter(x => x.status === 'warning').map(x => x.message).join('；'))}</div>`
+      : '';
+    const providerWarn = d.provider === 'local_fallback'
+      ? `<div class="alert alert-warning py-2 mb-2"><i class="bi bi-cpu me-1"></i>DeepSeek 未完成调用，已使用本地证据解读兜底。${d.configWarning ? `原因：${_escHtml(d.configWarning)}` : ''}</div>`
+      : '';
+    out.innerHTML = `<div class="card border-primary">
+      <div class="card-header py-2"><i class="bi bi-chat-square-text me-1"></i>数据解读${d.provider === 'deepseek' ? '<span class="badge bg-light text-dark border ms-2">DeepSeek</span>' : ''}</div>
+      <div class="card-body markdown-body" style="font-size:13px;line-height:1.75">${providerWarn}${outputWarn}${html}</div>
+    </div>`;
+  } catch(e) {
+    out.innerHTML = `<div class="alert alert-danger mb-0">数据解读请求失败：${_escHtml(e.message || e)}</div>`;
+  } finally {
+    btnRestore(btn);
+  }
 }
 
 function renderNlqDetailAnalysis(d) {
@@ -11317,6 +13176,8 @@ function renderEntityLookupResult(d, resultId='smart-nlq-result') {
   const peer = d.peerAnalysis || {};
   const rowCount = detail.rowCount || ((detail.records || []).length);
   const pageSize = d.pageSize || rowCount || 0;
+  _nlqRenderedResults[resultId] = _buildNlqInterpretPayload(d);
+  const interpretBtn = `<button class="btn btn-sm btn-outline-primary ms-1" onclick="runNlqInterpret('${_escJs(resultId)}', this)"><i class="bi bi-chat-square-text me-1"></i>数据解读</button>`;
   let html = `
     <div class="card mb-2">
       <div class="card-body py-2">
@@ -11325,6 +13186,8 @@ function renderEntityLookupResult(d, resultId='smart-nlq-result') {
           <span class="small">检索字段：<strong>${_escHtml(entity.fieldName || '字段')}</strong></span>
           <span class="small">检索值：<strong>${_escHtml(entity.value || '')}</strong></span>
           <span class="badge bg-light text-dark border">本次查询第 ${_escHtml(d.pageNum || 1)} 页 / 每页 ${_escHtml(pageSize)} 行 / 样本：是 / 返回 ${_escHtml(rowCount)} 行</span>
+          ${d.traceId ? `<span class="badge bg-light text-secondary border" title="审计链 Trace ID">Trace ${_escHtml(String(d.traceId).slice(0, 8))}</span>` : ''}
+          ${interpretBtn}
           <span class="small text-muted ms-auto">${_escHtml(d.explain || '')}</span>
         </div>
       </div>
@@ -11401,12 +13264,16 @@ function renderEntityLookupResult(d, resultId='smart-nlq-result') {
     html += `</div>`;
   }
   html += `</div></div>`;
+  html += renderNlqValidation(d.validation || {});
+  html += renderNlqCrossValidation(d.crossValidation || {});
+  html += _renderNlqInterpretContainer(resultId);
   res.innerHTML = html;
 }
 
 function renderNlqAggregate(d) {
   const cellList = (((d.result || {}).data || {}).cellList) || [];
   if (!cellList.length) return '<div class="alert alert-light border">DA 查询成功，但没有返回数据。</div>';
+  const anomalyMap = nlqAggregateAnomalyMap(d.validation || {});
   // 构建 DA code → KG 中文名的映射
   const dimNameMap = {};
   (d.matched?.dimensions || []).forEach(dim => {
@@ -11420,8 +13287,151 @@ function renderNlqAggregate(d) {
     const code = c.code || '';
     return dimNameMap[code] || measNameMap[code] || c.name || code || c.type || '';
   });
-  const rows = cellList.slice(0, 50).map(row => row.map(c => c.data));
-  return renderNlqTable(header, rows, '查询结果');
+  const head = header.map(h => `<th>${_escHtml(h)}</th>`).join('');
+  const body = cellList.slice(0, 50).map((row, rowIdx) => {
+    const label = nlqAggregateRowLabel(row);
+    const rowWarnings = anomalyMap.get(label) || [];
+    const rowClass = rowWarnings.length ? 'table-danger' : '';
+    const rowTitle = rowWarnings.map(x => x.message || x.name || '').filter(Boolean).join('；');
+    const detailId = `nlq-anomaly-${rowIdx}-${String(label || 'row').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40)}`;
+    const cells = row.map(cell => {
+      const typ = String(cell?.type || '').toUpperCase();
+      const code = String(cell?.code || '');
+      const isMeasure = typ === 'MEASURE' || code.startsWith('MEAS_');
+      const mark = rowWarnings.length && isMeasure;
+      const title = mark ? ` title="${_escHtml(rowTitle)}"` : '';
+      const badge = mark ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 ms-1" style="font-size:11px" onclick="toggleNlqAnomalyDetail('${_escJs(detailId)}')" title="点击查看异常判定原因">异常</button>` : '';
+      const cls = mark ? ' class="fw-semibold text-danger"' : '';
+      return `<td${cls}${title}>${_escHtml(_fmt(cell?.data))}${badge}</td>`;
+    }).join('');
+    const detail = rowWarnings.length
+      ? `<tr id="${_escHtml(detailId)}" class="nlq-anomaly-detail-row d-none"><td colspan="${header.length}">
+          ${renderNlqAnomalyReason(label, rowWarnings)}
+        </td></tr>`
+      : '';
+    return `<tr class="${rowClass}" title="${_escHtml(rowTitle)}">${cells}</tr>${detail}`;
+  }).join('');
+  const hint = anomalyMap.size
+    ? `<div class="small text-danger px-3 py-2 border-top"><i class="bi bi-exclamation-triangle-fill me-1"></i>红色行表示统计校验识别到的异常分组，点击“异常”查看具体判定原因。</div>`
+    : '';
+  return `<div class="card mt-2"><div class="card-header py-2">查询结果</div>
+    <div class="table-responsive" style="max-height:360px"><table class="table table-sm table-hover mb-0"><thead style="position:sticky;top:0;background:#f8f9fa"><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${hint}</div>`;
+}
+
+function nlqAggregateRowLabel(row) {
+  const labels = (row || []).filter(cell => {
+    const typ = String(cell?.type || '').toUpperCase();
+    const code = String(cell?.code || '');
+    return typ === 'DIMENSION' || code.startsWith('DIM_');
+  }).map(cell => String(cell?.data ?? cell?.id ?? '').trim()).filter(Boolean);
+  return labels.join(' / ') || '';
+}
+
+function nlqAggregateAnomalyMap(validation={}) {
+  const map = new Map();
+  const checks = [
+    ...(validation.statisticalChecks || []),
+    ...(validation.historyChecks || []),
+  ];
+  checks.filter(ch => ch.status === 'warning').forEach(ch => {
+    const evidence = ch.evidence || {};
+    const candidates = [];
+    if (Array.isArray(evidence.topOutliers)) candidates.push(...evidence.topOutliers);
+    if (evidence.topItem) candidates.push(evidence.topItem);
+    candidates.forEach(item => {
+      const label = String(item?.label ?? '').trim();
+      if (!label) return;
+      const list = map.get(label) || [];
+      list.push({
+        name: ch.name || ch.id,
+        message: ch.message || '',
+        severity: ch.severity || '',
+        evidence: ch.evidence || {},
+        item,
+      });
+      map.set(label, list);
+    });
+  });
+  return map;
+}
+
+function toggleNlqAnomalyDetail(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('d-none');
+}
+
+function renderNlqAnomalyReason(label, warnings=[]) {
+  const plainText = nlqAnomalyPlainText(label, warnings);
+  const rows = warnings.map(w => {
+    const evidence = w.evidence || {};
+    const item = w.item || {};
+    const rawName = String(w.name || '异常校验');
+    const nameKey = rawName.toUpperCase();
+    let displayName = rawName;
+    if (nameKey.includes('IQR')) displayName = 'IQR 四分位距异常';
+    else if (nameKey.includes('MAD')) displayName = 'MAD robust z-score 异常';
+    else if (nameKey.includes('TOP') || nameKey.includes('SHARE') || nameKey.includes('CONCENTRATION')) displayName = 'Top share concentration 集中度异常';
+    else if (nameKey.includes('CV') || nameKey.includes('VARIATION')) displayName = 'Coefficient of Variation 变异系数异常';
+    else if (nameKey.includes('ENTROPY')) displayName = 'Entropy 分布熵异常';
+    else if (nameKey.includes('HISTORY')) displayName = '最近 50 次相关查询历史偏差';
+    const severity = String(w.severity || 'warning');
+    const severityClass = ['critical', 'high', 'warning'].includes(severity.toLowerCase()) ? 'danger' : 'secondary';
+    const parts = [];
+    if (item.value !== undefined) parts.push(`命中值：${_fmt(item.value)}`);
+    if (item.share !== undefined) parts.push(`占比：${_fmt(item.share)}`);
+    if (item.robustZ !== undefined && Number.isFinite(Number(item.robustZ))) parts.push(`robustZ：${_fmt(Number(item.robustZ).toFixed(2))}`);
+    if (evidence.q1 !== undefined) parts.push(`Q1：${_fmt(evidence.q1)}`);
+    if (evidence.q3 !== undefined) parts.push(`Q3：${_fmt(evidence.q3)}`);
+    if (evidence.iqr !== undefined) parts.push(`IQR：${_fmt(evidence.iqr)}`);
+    if (evidence.lower !== undefined) parts.push(`下界：${_fmt(evidence.lower)}`);
+    if (evidence.upper !== undefined) parts.push(`上界：${_fmt(evidence.upper)}`);
+    if (evidence.median !== undefined) parts.push(`中位数：${_fmt(evidence.median)}`);
+    if (evidence.mad !== undefined) parts.push(`MAD：${_fmt(evidence.mad)}`);
+    if (evidence.maxRobustZ !== undefined) parts.push(`最大 robustZ：${_fmt(evidence.maxRobustZ)}`);
+    if (evidence.outlierCount !== undefined) parts.push(`异常点数：${_fmt(evidence.outlierCount)}`);
+    return `<li class="mb-1">
+      <div><span class="fw-semibold">${_escHtml(displayName)}</span> <span class="badge bg-${severityClass}">${_escHtml(severity)}</span></div>
+      <div>${_escHtml(w.message || '')}</div>
+      ${parts.length ? `<div class="text-muted">${parts.map(x => _escHtml(x)).join('；')}</div>` : ''}
+    </li>`;
+  }).join('');
+  return `<div class="border border-danger rounded bg-white p-2 my-1">
+    <div class="fw-semibold text-danger mb-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>异常判定原因：${_escHtml(label || '该行')}</div>
+    ${plainText ? `<div class="alert alert-danger py-2 px-3 mb-2 small">${_escHtml(plainText)}</div>` : ''}
+    <ul class="small mb-0 ps-3">${rows}</ul>
+  </div>`;
+}
+
+function nlqAnomalyPlainText(label, warnings=[]) {
+  const first = warnings.find(w => w?.item?.value !== undefined) || warnings[0] || {};
+  const item = first.item || {};
+  const evidenceList = warnings.map(w => w.evidence || {});
+  const value = item.value;
+  if (value === undefined) return '';
+  const median = evidenceList.find(e => e.median !== undefined)?.median;
+  const q1 = evidenceList.find(e => e.q1 !== undefined)?.q1;
+  const q3 = evidenceList.find(e => e.q3 !== undefined)?.q3;
+  const upper = evidenceList.find(e => e.upper !== undefined)?.upper;
+  const lower = evidenceList.find(e => e.lower !== undefined)?.lower;
+  const robustZ = warnings.find(w => w?.item?.robustZ !== undefined)?.item?.robustZ;
+  const bits = [`原因判定：${label || '这一行'} 的值是 ${_fmt(value)}`];
+  if (q1 !== undefined && q3 !== undefined) {
+    bits.push(`大多数同类分组集中在 ${_fmt(q1)} 到 ${_fmt(q3)} 附近`);
+  } else if (median !== undefined) {
+    bits.push(`同类分组的中间水平大约是 ${_fmt(median)}`);
+  }
+  if (upper !== undefined && Number(value) > Number(upper)) {
+    bits.push(`它已经超过统计上界 ${_fmt(upper)}，明显偏高`);
+  } else if (lower !== undefined && Number(value) < Number(lower)) {
+    bits.push(`它已经低于统计下界 ${_fmt(lower)}，明显偏低`);
+  } else if (robustZ !== undefined) {
+    bits.push(`它和大多数分组的距离比较远`);
+  }
+  if (robustZ !== undefined && Number.isFinite(Number(robustZ))) {
+    bits.push(`稳健 z-score 为 ${_fmt(Number(robustZ).toFixed(2))}，超过常用预警线 3.5`);
+  }
+  bits.push('这不代表数据一定错误，而是提示这个分组和其它分组差异较大，建议继续看明细订单、促销活动、商品属性或业务规则');
+  return bits.join('；') + '。';
 }
 
 function renderNlqDetailRows(detail) {
@@ -12186,6 +14196,9 @@ document.addEventListener('shown.bs.tab', function(ev) {
     initDashboardTab();
   } else if (target === '#tab-my-dashboards') {
     initMyDashboardsTab();
+  } else if (target === '#tab-insight') {
+    loadNlqSuggestions();
+    initInsightFlow();
   }
 });
 
@@ -14307,9 +16320,239 @@ function _renderDetailTable(rows, cols, colMap, anomalyCols, highlightAnom) {
 
 let _insightSSE = null;
 let _insightAnswerBuf = '';
+let _insightActionPlanDraft = null;
+let _insightActionPlanSubmitted = null;
+let _insightFlowMode = 'standard';
+let _insightFlowState = {};
+
+const _INSIGHT_FLOW_TOTAL_NODES = [
+  {id:'A', title:'用户输入问题', desc:'接收自然语言问题'},
+  {id:'B', title:'前端意图路由', desc:'SmartInsightDecision'},
+  {id:'B2', title:'前置校验', desc:'输入、上下文、权限、边界'},
+  {id:'C', title:'问题类型判断', desc:'查询 / 单据 / 归因 / 图谱', decision:true},
+  {id:'D', title:'NLQ 问数链路', desc:'简单指标、维度、明细查询'},
+  {id:'E', title:'单据追踪链路', desc:'问题订单 / 异常单据'},
+  {id:'F', title:'深度 Insight 链路', desc:'归因、趋势、贡献、复杂分析'},
+  {id:'G', title:'图谱解释链路', desc:'口径、维度、血缘、关系解释'},
+  {id:'H', title:'业务 KG 加载', desc:'加载指标和维度图谱'},
+  {id:'I', title:'候选召回', desc:'指标、维度、实体候选'},
+  {id:'J', title:'规则打分排序', desc:'Top 候选排序'},
+  {id:'K', title:'置信度判断', desc:'高 / 中 / 低置信', decision:true},
+  {id:'L', title:'KG code 生成查询', desc:'只使用已有 code 生成 DA 查询'},
+  {id:'M', title:'LLM 候选选择', desc:'只能从候选中选择'},
+  {id:'N', title:'LLM 输出校验', desc:'code / reason / matchedTerms', decision:true},
+  {id:'S', title:'澄清确认', desc:'候选冲突或中置信'},
+  {id:'R', title:'拒答或补充', desc:'低置信、越权或输出不合法'},
+  {id:'O', title:'DA 执行查询', desc:'指标聚合、明细或下钻'},
+  {id:'P', title:'读取追踪规则', desc:'启用的单据追踪规则'},
+  {id:'Q', title:'扫描明细订单', desc:'按规则扫描订单明细'},
+  {id:'T', title:'单据命中证据', desc:'规则、订单号、字段和值'},
+  {id:'U', title:'复杂需求拆解', desc:'识别归因与分析任务'},
+  {id:'V', title:'拆成子任务', desc:'查询、下钻、趋势、单据、图谱'},
+  {id:'W', title:'逐步执行收证', desc:'执行子任务并收集 Evidence'},
+  {id:'X', title:'KG 关系查询', desc:'SPARQL / 图谱关系'},
+  {id:'Y', title:'结果校验', desc:'异常、口径、可信度校验'},
+  {id:'Z', title:'结果是否可信', desc:'通过 / 无数据 / 冲突异常', decision:true},
+  {id:'AA', title:'结构化展示结果', desc:'表格、卡片、图谱或分段报告'},
+  {id:'AB', title:'无数据说明', desc:'无数据原因和追问方向'},
+  {id:'AC', title:'数据解读', desc:'可选 LLM 解读'},
+  {id:'AD', title:'Evidence 绑定解释', desc:'只基于返回数据解释'},
+];
+
+const _INSIGHT_FLOW_LAYOUT = {
+  A:{x:545,y:18}, B:{x:545,y:110}, B2:{x:545,y:202}, C:{x:545,y:302},
+  D:{x:65,y:440}, H:{x:65,y:548}, I:{x:65,y:656}, J:{x:65,y:764}, K:{x:65,y:884},
+  L:{x:300,y:1000}, M:{x:65,y:1000}, N:{x:65,y:1115}, S:{x:300,y:1235}, R:{x:65,y:1350},
+  E:{x:380,y:440}, P:{x:380,y:600}, Q:{x:380,y:755}, T:{x:380,y:910},
+  F:{x:650,y:440}, U:{x:650,y:600}, V:{x:650,y:755}, W:{x:650,y:910},
+  G:{x:940,y:440}, X:{x:940,y:755},
+  O:{x:650,y:1035}, Y:{x:650,y:1160}, Z:{x:650,y:1290},
+  AA:{x:650,y:1420}, AB:{x:900,y:1420}, AC:{x:650,y:1530}, AD:{x:650,y:1628},
+};
+
+const _INSIGHT_FLOW_EDGES = [
+  ['A','B',''], ['B','B2',''], ['B2','C',''],
+  ['C','D','简单指标/维度/明细'], ['C','E','问题订单/异常单据'], ['C','F','归因/趋势/贡献/复杂'], ['C','G','口径/维度/血缘/解释'],
+  ['D','H',''], ['H','I',''], ['I','J',''], ['J','K',''],
+  ['K','L','高置信'], ['K','M','中置信'], ['K','R','低置信'],
+  ['M','N',''], ['N','R','code 不在候选/缺少 reason'], ['N','S','候选冲突/中置信'], ['N','O','合法后执行'],
+  ['L','O',''], ['O','Y',''],
+  ['E','P',''], ['P','Q',''], ['Q','T',''], ['T','Y',''],
+  ['F','U',''], ['U','V',''], ['V','W',''], ['W','Y',''],
+  ['G','X',''], ['X','Y',''],
+  ['Y','Z',''], ['Z','AA','通过'], ['Z','AB','无数据'], ['Z','R','口径冲突/异常'],
+  ['AA','AC','可选'], ['AC','AD','Evidence 绑定'],
+];
 
 function _insightAnalysisMode(conversation) {
   return String(conversation?.context?.analysisMode || '').trim();
+}
+
+function _insightFlowSteps() {
+  return _INSIGHT_FLOW_TOTAL_NODES;
+}
+
+function _insightFlowNodeById(id) {
+  return _INSIGHT_FLOW_TOTAL_NODES.find(step => step.id === id);
+}
+
+function _inferInsightBranch(question='', conversation={}) {
+  const mode = _insightAnalysisMode(conversation);
+  const q = String(question || '').trim();
+  if (_isSpecificDocumentLookupQuestion(q)) return 'E';
+  if (_isExactAttributeLookupQuestion(q)) return 'D';
+  if (mode === 'document_trace' || /(有问题|问题|异常|风险|预警|告警).*(订单|单据)|(订单|单据).*(有问题|问题|异常|风险|预警|告警)|单据追踪|问题订单|异常订单/.test(q)) return 'E';
+  if (/图谱|血缘|关系|来源|口径|定义|有哪些维度|可用维度|能按哪些/.test(q) && !/为什么|原因|归因|趋势|贡献|异常|波动/.test(q)) return 'G';
+  if (mode || /为什么|为何|原因|归因|根因|趋势|走势|贡献|贡献度|下钻|波动|变化|同比|环比|分析|洞察|Insight/i.test(q)) return 'F';
+  return 'D';
+}
+
+function _isSpecificDocumentLookupQuestion(question='') {
+  const q = String(question || '').trim();
+  if (!q) return false;
+  const value = '[A-Za-z0-9_.\\-]{2,}';
+  const field = '[\\u4e00-\\u9fa5A-Za-z_][\\u4e00-\\u9fa5A-Za-z0-9_\\-]{0,40}';
+  const docField = /(订单编号|订单号|订单ID|单据编号|单据号|退货单号|销售单号|order\s*(?:number|no|id)?|bill|document)/i;
+  const tableField = new RegExp(`${field}\\s*[-－—]\\s*${field}\\s*(?:[:：=]|为|是)\\s*["'“”]?${value}["'“”]?`);
+  const fieldValue = new RegExp(`^(?:查|查询|查看|检索|搜索)?\\s*${field}\\s*(?:[:：=]|为|是)?\\s*["'“”]?${value}["'“”]?$`);
+  const label = (q.split(/[:：=]|为|是/)[0] || q).trim();
+  return docField.test(label) && (tableField.test(q) || fieldValue.test(q));
+}
+
+function _isExactAttributeLookupQuestion(question='') {
+  const q = String(question || '').trim();
+  if (!q) return false;
+  const value = '[A-Za-z0-9_.\\-]{2,}';
+  const field = '[\\u4e00-\\u9fa5A-Za-z_][\\u4e00-\\u9fa5A-Za-z0-9_\\-]{0,40}';
+  const tableField = new RegExp(`${field}\\s*[-－—]\\s*${field}\\s*(?:[:：=]|为|是)\\s*[\"'“”]?${value}[\"'“”]?`);
+  const fieldValue = new RegExp(`^(?:查|查询|查看|检索|搜索)?\\s*${field}\\s*(?:[:：=]|为|是)\\s*[\"'“”]?${value}[\"'“”]?$`);
+  return tableField.test(q) || fieldValue.test(q);
+}
+
+function initInsightFlow(mode='standard') {
+  _insightFlowMode = mode === 'document_trace' ? 'document_trace' : 'standard';
+  _insightFlowState = {};
+  _insightFlowSteps().forEach(step => { _insightFlowState[step.id] = 'idle'; });
+  renderInsightFlow();
+}
+
+function renderInsightFlow() {
+  const map = document.getElementById('insight-flow-map');
+  const summary = document.getElementById('insight-flow-summary');
+  if (!map) return;
+  const steps = _insightFlowSteps();
+  const nodeW = 172;
+  const nodeH = 72;
+  const nodeStatus = id => _insightFlowState[id] || 'idle';
+  const point = (id, side='center') => {
+    const p = _INSIGHT_FLOW_LAYOUT[id] || {x:0,y:0};
+    if (side === 'top') return {x:p.x + nodeW / 2, y:p.y};
+    if (side === 'bottom') return {x:p.x + nodeW / 2, y:p.y + nodeH};
+    if (side === 'left') return {x:p.x, y:p.y + nodeH / 2};
+    if (side === 'right') return {x:p.x + nodeW, y:p.y + nodeH / 2};
+    return {x:p.x + nodeW / 2, y:p.y + nodeH / 2};
+  };
+  const edgePath = (from, to) => {
+    const a = point(from, 'bottom');
+    const b = point(to, 'top');
+    const dy = Math.max(36, Math.abs(b.y - a.y) * 0.45);
+    return `M ${a.x} ${a.y} C ${a.x} ${a.y + dy}, ${b.x} ${b.y - dy}, ${b.x} ${b.y}`;
+  };
+  const edgeLabelPoint = (from, to) => {
+    const a = point(from, 'bottom');
+    const b = point(to, 'top');
+    return {x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 - 6};
+  };
+  const edgeSvg = _INSIGHT_FLOW_EDGES.map(([from, to, label]) => {
+    const fs = nodeStatus(from);
+    const ts = nodeStatus(to);
+    const active = fs !== 'idle' && ts !== 'idle';
+    const err = ts === 'error';
+    const lp = edgeLabelPoint(from, to);
+    return `<path class="insight-flow-edge ${active ? 'active' : ''} ${err ? 'error' : ''}" d="${edgePath(from, to)}" marker-end="url(#insight-flow-arrowhead)"></path>
+      ${label ? `<text class="insight-flow-edge-label" x="${lp.x}" y="${lp.y}" text-anchor="middle">${_escHtml(label)}</text>` : ''}`;
+  }).join('');
+  const nodesHtml = steps.map(step => {
+    const p = _INSIGHT_FLOW_LAYOUT[step.id] || {x:0,y:0};
+    const status = nodeStatus(step.id);
+    return `<div class="insight-flow-node ${_escHtml(status)}${step.decision ? ' decision' : ''}" data-flow-step="${_escHtml(step.id)}" style="left:${p.x}px;top:${p.y}px">
+      <div><span class="node-index">${_escHtml(step.id)}</span><span class="node-title">${_escHtml(step.title)}</span></div>
+      <div class="node-desc">${_escHtml(step.desc)}</div>
+    </div>`;
+  }).join('');
+  map.innerHTML = `<svg class="insight-flow-svg" viewBox="0 0 1260 1700" preserveAspectRatio="none">
+      <defs>
+        <marker id="insight-flow-arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+          <path d="M 0 0 L 8 4 L 0 8 z" fill="#9aa5b1"></path>
+        </marker>
+      </defs>
+      ${edgeSvg}
+    </svg>${nodesHtml}`;
+  if (summary) {
+    const done = steps.filter(step => _insightFlowState[step.id] === 'done').length;
+    const running = steps.find(step => _insightFlowState[step.id] === 'running');
+    const failed = steps.find(step => _insightFlowState[step.id] === 'error');
+    const pathDone = _insightFlowState.AD === 'done' || _insightFlowState.AA === 'done' || _insightFlowState.R === 'error' || _insightFlowState.S === 'done' || _insightFlowState.AB === 'done';
+    summary.textContent = failed
+      ? `失败：${failed.title}`
+      : running
+        ? `进行中：${running.title} · ${done}/${steps.length}`
+        : pathDone
+          ? `当前路径完成 · 已点亮 ${done}/${steps.length}`
+          : done === steps.length
+          ? `已完成 · ${done}/${steps.length}`
+          : done > 0
+            ? `已完成 ${done}/${steps.length}，等待下一步`
+            : `等待开始 · ${done}/${steps.length}`;
+  }
+}
+
+function _insightFlowTargetIds(id) {
+  if (_insightFlowState && Object.prototype.hasOwnProperty.call(_insightFlowState, id)) return [id];
+  const mode = _insightFlowMode;
+  const dynamic = {
+    classify: ['A','B','C'],
+    precheck: ['B2'],
+    kg_candidates: ['H','I','J'],
+    confidence: ['K'],
+    plan: mode === 'document_trace' ? ['P'] : ['U','V','L'],
+    execute: mode === 'document_trace' ? ['Q','T'] : ['O','W'],
+    validation: ['Y','Z'],
+    evidence_answer: ['AA','AC','AD'],
+    done: ['AD'],
+    cell_context: ['E'],
+    doc_evidence: ['P','Q','T'],
+    kg: ['H','I','J'],
+    answer: ['Y','Z','AA','AC','AD'],
+    reject: ['R'],
+    clarify: ['S'],
+    no_data: ['AB'],
+  };
+  return (dynamic[id] || []).filter(nodeId => _insightFlowState && Object.prototype.hasOwnProperty.call(_insightFlowState, nodeId));
+}
+
+function setInsightFlowStep(id, status='done') {
+  if (!_insightFlowState) return;
+  _insightFlowTargetIds(id).forEach(nodeId => { _insightFlowState[nodeId] = status; });
+  renderInsightFlow();
+}
+
+function completeInsightFlowStep(id) {
+  setInsightFlowStep(id, 'done');
+}
+
+function runInsightFlowStep(id) {
+  if (!_insightFlowState) return;
+  Object.keys(_insightFlowState).forEach(key => {
+    if (_insightFlowState[key] === 'running') _insightFlowState[key] = 'done';
+  });
+  _insightFlowTargetIds(id).forEach(nodeId => { _insightFlowState[nodeId] = 'running'; });
+  renderInsightFlow();
+}
+
+function completeInsightFlowAll() {
+  Object.keys(_insightFlowState || {}).forEach(key => { _insightFlowState[key] = 'done'; });
+  renderInsightFlow();
 }
 
 function _insightFormatDocValue(value) {
@@ -14366,18 +16609,337 @@ function _renderDocumentTraceInsightDetails(context={}) {
   `;
 }
 
+function _renderInsightActionWorkflow(context={}) {
+  const card = document.getElementById('insight-action-loop-card');
+  const content = document.getElementById('insight-action-loop-content');
+  if (!card || !content) return;
+  card.style.display = '';
+  const cellInsight = context.cellInsight || {};
+  const measure = cellInsight.measure || {};
+  const docs = Array.isArray(cellInsight.documents) ? cellInsight.documents : [];
+  const subject = `${measure.name || measure.code || '当前指标'} · ${cellInsight.cellContext?.label || '当前切片'}`;
+  content.innerHTML = `
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      ${['1 现状分析','2 改进建议','3 生成追盯任务','4 反馈改进效果'].map(x => `<span class="badge bg-light text-dark border">${_escHtml(x)}</span>`).join('')}
+    </div>
+    <div class="border rounded p-2 mb-2 bg-light">
+      <div class="fw-semibold mb-1">${_escHtml(subject)}</div>
+      <div>基于图谱指标、当前单元格切片、单据追踪规则和明细样本生成方案。当前上下文命中 <strong>${_escHtml(docs.length || 0)}</strong> 条异常单据。</div>
+    </div>
+    <button class="btn btn-sm btn-success" onclick="generateInsightActionPlan(this)">
+      <i class="bi bi-magic me-1"></i>生成改进闭环方案
+    </button>
+  `;
+}
+
+function _insightEvidenceBadge(plan, ids=[]) {
+  const evidence = Array.isArray(plan?.evidence) ? plan.evidence : [];
+  const selected = evidence.filter(item => !ids.length || ids.includes(item.id));
+  if (!selected.length) return '<span class="text-muted">暂无证据</span>';
+  return selected.map(item => `<span class="badge bg-light text-dark border me-1 mb-1" title="${_escHtml(item.detail || '')}">${_escHtml(item.id)} ${_escHtml(item.title || item.type || '')}</span>`).join('');
+}
+
+async function generateInsightActionPlan(btn) {
+  const conversation = _getNlqConversation('smart');
+  const question = (document.getElementById('smart-nlq-question')?.value || '').trim();
+  const out = document.getElementById('insight-action-loop-content');
+  if (!out) return;
+  runInsightFlowStep('action_draft');
+  btnLoading(btn, '生成中…');
+  out.innerHTML = '<div class="text-muted py-3"><span class="spinner-border spinner-border-sm me-1"></span>正在基于图谱证据生成改进方案...</div>';
+  try {
+    const r = await fetch('/api/insight/action-plan/draft', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({question, context: conversation.context || {}}),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || '生成改进方案失败');
+    _insightActionPlanDraft = d.plan;
+    _insightActionPlanSubmitted = null;
+    completeInsightFlowStep('action_draft');
+    renderInsightActionPlanDraft(d.plan);
+  } catch(e) {
+    out.innerHTML = `<div class="alert alert-danger mb-0">${_escHtml(e.message || e)}</div>`;
+  } finally {
+    btnRestore(btn);
+  }
+}
+
+function renderInsightActionPlanDraft(plan) {
+  const out = document.getElementById('insight-action-loop-content');
+  if (!out) return;
+  const suggestions = Array.isArray(plan.suggestions) ? plan.suggestions : [];
+  out.innerHTML = `
+    <div class="row g-2 mb-2">
+      <div class="col-md-7">
+        <div class="border rounded p-2 h-100">
+          <div class="fw-semibold mb-1"><span class="badge bg-primary me-1">1</span>${_escHtml(plan.stateAnalysis?.title || '现状分析')}</div>
+          <div class="mb-2">${_escHtml(plan.stateAnalysis?.summary || '')}</div>
+          <div>${_insightEvidenceBadge(plan, plan.stateAnalysis?.evidenceIds || [])}</div>
+        </div>
+      </div>
+      <div class="col-md-5">
+        <div class="border rounded p-2 h-100">
+          <div class="fw-semibold mb-1">图谱支撑证据</div>
+          ${(plan.evidence || []).map(item => `<div class="mb-1"><span class="badge bg-secondary me-1">${_escHtml(item.id)}</span><strong>${_escHtml(item.title || '')}</strong><div class="text-muted">${_escHtml(item.detail || '')}</div></div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="fw-semibold mb-2"><span class="badge bg-primary me-1">2</span>改进建议，支持手工调整</div>
+    <div class="d-grid gap-2 mb-2">
+      ${suggestions.map((item, idx) => `
+        <div class="border rounded p-2">
+          <div class="row g-2 align-items-center mb-2">
+            <div class="col-md-5"><input class="form-control form-control-sm" id="ins-act-title-${idx}" value="${_escHtml(item.title || '')}"></div>
+            <div class="col-md-2"><input class="form-control form-control-sm" id="ins-act-owner-${idx}" value="${_escHtml(item.owner || '')}" placeholder="负责人"></div>
+            <div class="col-md-2">
+              <select class="form-select form-select-sm" id="ins-act-priority-${idx}">
+                ${['高','中','低'].map(x => `<option value="${x}" ${item.priority === x ? 'selected' : ''}>${x}优先级</option>`).join('')}
+              </select>
+            </div>
+            <div class="col-md-3"><input class="form-control form-control-sm" id="ins-act-days-${idx}" type="number" min="1" max="60" value="${_escHtml(item.dueDays || 3)}"></div>
+          </div>
+          <textarea class="form-control form-control-sm mb-2" rows="2" id="ins-act-action-${idx}">${_escHtml(item.action || '')}</textarea>
+          <input class="form-control form-control-sm mb-2" id="ins-act-metric-${idx}" value="${_escHtml(item.successMetric || '')}" placeholder="成功标准 / 观测指标">
+          <div class="small">${_insightEvidenceBadge(plan, item.evidenceIds || [])}</div>
+        </div>`).join('')}
+    </div>
+    <div class="border rounded p-2 mb-2">
+      <div class="fw-semibold mb-1"><span class="badge bg-primary me-1">3</span>追盯策略</div>
+      <div class="row g-2">
+        <div class="col-md-4"><input id="ins-act-baseline" class="form-control form-control-sm" value="${_escHtml(plan.tracking?.baseline || '')}" placeholder="基线"></div>
+        <div class="col-md-4"><input id="ins-act-frequency" class="form-control form-control-sm" value="${_escHtml(plan.tracking?.frequency || '')}" placeholder="频率"></div>
+        <div class="col-md-4"><input id="ins-act-success" class="form-control form-control-sm" value="${_escHtml(plan.tracking?.successCriteria || '')}" placeholder="成功标准"></div>
+      </div>
+    </div>
+    <button class="btn btn-sm btn-success" onclick="submitInsightActionPlan(this)">
+      <i class="bi bi-send-check me-1"></i>提交方案并生成追盯任务
+    </button>
+  `;
+}
+
+function collectInsightActionPlanEdits() {
+  const plan = JSON.parse(JSON.stringify(_insightActionPlanDraft || {}));
+  const suggestions = Array.isArray(plan.suggestions) ? plan.suggestions : [];
+  suggestions.forEach((item, idx) => {
+    item.title = document.getElementById(`ins-act-title-${idx}`)?.value || item.title;
+    item.owner = document.getElementById(`ins-act-owner-${idx}`)?.value || item.owner;
+    item.priority = document.getElementById(`ins-act-priority-${idx}`)?.value || item.priority;
+    item.dueDays = parseInt(document.getElementById(`ins-act-days-${idx}`)?.value || item.dueDays || 3, 10);
+    item.action = document.getElementById(`ins-act-action-${idx}`)?.value || item.action;
+    item.successMetric = document.getElementById(`ins-act-metric-${idx}`)?.value || item.successMetric;
+  });
+  plan.suggestions = suggestions;
+  plan.tracking = {
+    ...(plan.tracking || {}),
+    baseline: document.getElementById('ins-act-baseline')?.value || plan.tracking?.baseline || '',
+    frequency: document.getElementById('ins-act-frequency')?.value || plan.tracking?.frequency || '',
+    successCriteria: document.getElementById('ins-act-success')?.value || plan.tracking?.successCriteria || '',
+  };
+  return plan;
+}
+
+async function submitInsightActionPlan(btn) {
+  if (!_insightActionPlanDraft) return showToast('请先生成改进方案', 'warning');
+  const plan = collectInsightActionPlanEdits();
+  runInsightFlowStep('action_submit');
+  btnLoading(btn, '提交中…');
+  try {
+    const r = await fetch('/api/insight/action-plan/submit', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({plan}),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || '提交追盯任务失败');
+    _insightActionPlanSubmitted = d.plan;
+    _insightActionPlanDraft = d.plan;
+    completeInsightFlowStep('action_submit');
+    renderInsightActionPlanTracking(d.plan);
+    showToast('已生成追盯任务', 'success');
+  } catch(e) {
+    showToast(e.message || String(e), 'danger');
+  } finally {
+    btnRestore(btn);
+  }
+}
+
+function renderInsightActionPlanTracking(plan) {
+  const out = document.getElementById('insight-action-loop-content');
+  if (!out) return;
+  const tasks = Array.isArray(plan.tasks) ? plan.tasks : [];
+  const feedback = Array.isArray(plan.feedback) ? plan.feedback : [];
+  out.innerHTML = `
+    <div class="alert alert-success py-2 mb-2">
+      <div class="fw-semibold"><span class="badge bg-success me-1">3</span>已提交追盯方案：${_escHtml(plan.subject || plan.id)}</div>
+      <div class="small">方案 ID：${_escHtml(plan.id || '')}；基线：${_escHtml(plan.tracking?.baseline || '')}；频率：${_escHtml(plan.tracking?.frequency || '')}</div>
+    </div>
+    <div class="table-responsive mb-2"><table class="table table-sm table-bordered mb-0">
+      <thead class="table-light"><tr><th>任务</th><th>负责人</th><th>优先级</th><th>期限</th><th>状态</th><th>成功标准</th></tr></thead>
+      <tbody>${tasks.map(t => `<tr>
+        <td><strong>${_escHtml(t.title || '')}</strong><div class="text-muted">${_escHtml(t.action || '')}</div><div>${_insightEvidenceBadge(plan, t.evidenceIds || [])}</div></td>
+        <td>${_escHtml(t.owner || '')}</td>
+        <td>${_escHtml(t.priority || '')}</td>
+        <td>${_escHtml(t.dueDays || '')} 天</td>
+        <td><span class="badge bg-warning text-dark">${_escHtml(t.status || '待处理')}</span></td>
+        <td>${_escHtml(t.successMetric || '')}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div class="border rounded p-2">
+      <div class="fw-semibold mb-2"><span class="badge bg-primary me-1">4</span>持续追进反馈</div>
+      <div class="row g-2 mb-2">
+        <div class="col-md-2"><select id="ins-feedback-status" class="form-select form-select-sm"><option>跟进中</option><option>已改善</option><option>无改善</option><option>需升级</option></select></div>
+        <div class="col-md-3"><input id="ins-feedback-metric" class="form-control form-control-sm" placeholder="最新指标/命中数"></div>
+        <div class="col-md-4"><input id="ins-feedback-comment" class="form-control form-control-sm" placeholder="反馈说明"></div>
+        <div class="col-md-3"><input id="ins-feedback-next" class="form-control form-control-sm" placeholder="下一步动作"></div>
+      </div>
+      <button class="btn btn-sm btn-outline-success mb-2" onclick="addInsightActionFeedback(this)"><i class="bi bi-plus-circle me-1"></i>追加反馈</button>
+      <div>${feedback.length ? feedback.map(f => `<div class="border-top py-1"><span class="badge bg-light text-dark border me-1">${_escHtml(f.status || '')}</span>${_escHtml(f.createdAt || '')} · ${_escHtml(f.metricValue || '')}<div class="text-muted">${_escHtml(f.comment || '')}${f.nextAction ? `；下一步：${_escHtml(f.nextAction)}` : ''}</div></div>`).join('') : '<div class="text-muted">暂无反馈记录。</div>'}</div>
+    </div>
+    <div class="border rounded p-2 mt-2">
+      <div class="fw-semibold mb-2"><i class="bi bi-plug me-1 text-primary"></i>处理系统连接</div>
+      <div class="small text-muted mb-2">输入处理系统地址，系统会尝试发现 OpenAPI/Swagger 接口，并由大模型生成任务同步方案。默认只生成方案，不自动写入外部系统。</div>
+      <div class="input-group input-group-sm mb-2">
+        <span class="input-group-text">系统地址</span>
+        <input id="ins-integration-url" class="form-control" placeholder="例如：http://localhost:9000/openapi.json 或 https://example.com">
+        <button class="btn btn-outline-primary" onclick="generateInsightIntegrationPlan(this)">
+          <i class="bi bi-magic me-1"></i>生成连接方案
+        </button>
+      </div>
+      <div id="ins-integration-result" class="small text-muted">等待输入处理系统地址。</div>
+    </div>
+  `;
+}
+
+async function addInsightActionFeedback(btn) {
+  const plan = _insightActionPlanSubmitted || _insightActionPlanDraft;
+  if (!plan?.id) return showToast('请先提交追盯方案', 'warning');
+  runInsightFlowStep('feedback');
+  btnLoading(btn, '保存中…');
+  try {
+    const payload = {
+      status: document.getElementById('ins-feedback-status')?.value || '跟进中',
+      metricValue: document.getElementById('ins-feedback-metric')?.value || '',
+      comment: document.getElementById('ins-feedback-comment')?.value || '',
+      nextAction: document.getElementById('ins-feedback-next')?.value || '',
+    };
+    const r = await fetch(`/api/insight/action-plan/${encodeURIComponent(plan.id)}/feedback`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || '反馈保存失败');
+    _insightActionPlanSubmitted = d.plan;
+    _insightActionPlanDraft = d.plan;
+    completeInsightFlowStep('feedback');
+    renderInsightActionPlanTracking(d.plan);
+  } catch(e) {
+    showToast(e.message || String(e), 'danger');
+  } finally {
+    btnRestore(btn);
+  }
+}
+
+async function generateInsightIntegrationPlan(btn) {
+  const plan = _insightActionPlanSubmitted || _insightActionPlanDraft;
+  const url = (document.getElementById('ins-integration-url')?.value || '').trim();
+  const out = document.getElementById('ins-integration-result');
+  if (!plan?.id) return showToast('请先提交追盯方案', 'warning');
+  if (!url) return showToast('请输入处理系统地址', 'warning');
+  if (out) out.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>正在发现接口并生成连接方案...';
+  btnLoading(btn, '生成中…');
+  try {
+    const r = await fetch('/api/insight/action-plan/integration/draft', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({systemUrl: url, plan}),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || '连接方案生成失败');
+    renderInsightIntegrationPlan(d.integration || {});
+  } catch(e) {
+    if (out) out.innerHTML = `<div class="alert alert-warning py-2 mb-0">${_escHtml(e.message || e)}</div>`;
+  } finally {
+    btnRestore(btn);
+  }
+}
+
+function renderInsightIntegrationPlan(integration={}) {
+  const out = document.getElementById('ins-integration-result');
+  if (!out) return;
+  const discovery = integration.discovery || {};
+  const ep = integration.recommendedEndpoint || {};
+  const mapping = integration.payloadMapping || {};
+  const sample = integration.samplePayload || {};
+  const required = Array.isArray(integration.requiredUserInputs) ? integration.requiredUserInputs : [];
+  const safety = Array.isArray(integration.safety) ? integration.safety : [];
+  out.innerHTML = `
+    <div class="row g-2">
+      <div class="col-md-4">
+        <div class="border rounded p-2 h-100">
+          <div class="fw-semibold mb-1">接口发现</div>
+          <div>状态：<span class="badge ${discovery.ok ? 'bg-success' : 'bg-warning text-dark'}">${discovery.ok ? '已发现' : '未发现 OpenAPI'}</span></div>
+          <div class="text-muted text-break">地址：${_escHtml(discovery.schemaUrl || integration.systemUrl || '')}</div>
+          <div>端点数量：${_escHtml(discovery.endpointCount ?? 0)}</div>
+          ${integration.warning ? `<div class="text-warning mt-1">LLM 回退：${_escHtml(integration.warning)}</div>` : ''}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="border rounded p-2 h-100">
+          <div class="fw-semibold mb-1">推荐接口</div>
+          ${ep.path ? `<div><span class="badge bg-primary me-1">${_escHtml(ep.method || '')}</span><code>${_escHtml(ep.path || '')}</code></div>
+            <div class="text-muted mt-1">${_escHtml(ep.summary || ep.operationId || '')}</div>` : '<div class="text-muted">未从接口描述中识别到明确的任务创建接口。</div>'}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="border rounded p-2 h-100">
+          <div class="fw-semibold mb-1">执行边界</div>
+          <span class="badge bg-light text-dark border">dry-run</span>
+          <div class="text-muted mt-1">当前只生成方案，不自动写入处理系统。</div>
+        </div>
+      </div>
+    </div>
+    <div class="border rounded p-2 mt-2">
+      <div class="fw-semibold mb-1">字段映射建议</div>
+      <div class="d-flex flex-wrap gap-1">${Object.entries(mapping).map(([k,v]) => `<span class="badge bg-light text-dark border">${_escHtml(k)} ← ${_escHtml(v)}</span>`).join('') || '<span class="text-muted">暂无映射建议</span>'}</div>
+    </div>
+    <div class="border rounded p-2 mt-2">
+      <div class="fw-semibold mb-1">样例载荷</div>
+      <pre class="mb-0 small" style="white-space:pre-wrap;max-height:180px;overflow:auto">${_escHtml(JSON.stringify(sample, null, 2))}</pre>
+    </div>
+    <div class="row g-2 mt-1">
+      <div class="col-md-6"><div class="border rounded p-2 h-100"><div class="fw-semibold mb-1">需要用户补充</div>${required.map(x => `<div>• ${_escHtml(x)}</div>`).join('') || '<div class="text-muted">暂无</div>'}</div></div>
+      <div class="col-md-6"><div class="border rounded p-2 h-100"><div class="fw-semibold mb-1">安全约束</div>${safety.map(x => `<div>• ${_escHtml(x)}</div>`).join('') || '<div class="text-muted">暂无</div>'}</div></div>
+    </div>
+  `;
+}
+
 function _prepareInsightAnalysisPanels(conversation) {
   const mode = _insightAnalysisMode(conversation);
   const sixPart = document.getElementById('insight-six-part-card');
   const docCard = document.getElementById('insight-document-trace-card');
+  const actionCard = document.getElementById('insight-action-loop-card');
+  initInsightFlow(mode === 'document_trace' ? 'document_trace' : 'standard');
   if (mode === 'document_trace') {
     if (sixPart) sixPart.style.display = 'none';
     if (docCard) docCard.style.display = '';
     _renderDocumentTraceInsightDetails(conversation.context || {});
+    _renderInsightActionWorkflow(conversation.context || {});
+    completeInsightFlowStep('classify');
+    completeInsightFlowStep('precheck');
+    completeInsightFlowStep('cell_context');
+    completeInsightFlowStep('doc_evidence');
+    completeInsightFlowStep('kg');
+    if (conversation.context?.cellInsight?.summary || conversation.context?.cellInsight?.anomaly) {
+      completeInsightFlowStep('answer');
+    }
     return;
   }
   if (sixPart) sixPart.style.display = '';
   if (docCard) docCard.style.display = 'none';
+  if (actionCard) actionCard.style.display = 'none';
 }
 
 function startInsight(questionOverride, triggerBtn) {
@@ -14387,6 +16949,8 @@ function startInsight(questionOverride, triggerBtn) {
   if (!q) { alert('请输入分析问题'); return; }
   const conversation = _getNlqConversation('smart');
   _prepareInsightAnalysisPanels(conversation);
+  runInsightFlowStep('classify');
+  const routeNode = _inferInsightBranch(q, conversation);
 
   // 重置界面（安全访问可能不存在的元素）
   _insightAnswerBuf = '';
@@ -14425,6 +16989,9 @@ function startInsight(questionOverride, triggerBtn) {
     })
   }).then(res => res.json()).then(data => {
     if (data.error) { _insightLog('✗ ' + data.error, 'error'); _insightDone(triggerBtn); return; }
+    completeInsightFlowStep('classify');
+    completeInsightFlowStep('precheck');
+    completeInsightFlowStep(routeNode);
     if (data.conversationId) conversation.conversationId = data.conversationId;
     conversation.hasTurns = true;
     _renderSmartNlqContextStatus();
@@ -14462,6 +17029,8 @@ function _insightLog(msg, cls) {
 
 function _insightOnMsg(e) {
   if (e.data === '__DONE__') {
+    completeInsightFlowStep('evidence_answer');
+    completeInsightFlowStep('done');
     _insightDone();
     return;
   }
@@ -14475,12 +17044,14 @@ function _insightOnMsg(e) {
   if (obj.step === 'time_parsed') {
     const r = obj.result || {};
     const gran = r.gran === 'week' ? '周' : r.gran === 'month' ? '月' : '日';
+    completeInsightFlowStep('plan');
     _insightLog(`✓ 时间解析: 当期 ${r.time_start||''}~${r.time_end||''} | 上期 ${r.prev_start||''}~${r.prev_end||''} | 粒度=${gran}`, 'success');
     return;
   }
   if (obj.step === 'intent') {
     const r = obj.result || {};
     const ap = r.anomaly_profile || {};
+    completeInsightFlowStep('classify');
     _insightLog(`✓ 意图解析: 关键词=${(r.meas_keywords||[]).join('、')} | 类型=${r.analysis_type||''} | 异常=${ap.label || r.anomaly_type || ''}`, 'info');
     return;
   }
@@ -14490,6 +17061,7 @@ function _insightOnMsg(e) {
     const shape = r.shape_label || r.shape || 'unknown';
     const strength = r.evidence_strength_label ? `${r.evidence_strength_label}(${r.evidence_strength ?? '-'})` : '-';
     const confidence = r.confidence_label ? `${r.confidence_label}(${r.confidence ?? '-'})` : '-';
+    completeInsightFlowStep('confidence');
     _insightLog(`✓ 异常画像: ${r.label || ''} | 来源=${source} | 形态=${shape} | 证据=${strength} | 置信度=${confidence}`, 'info');
     return;
   }
@@ -14502,6 +17074,7 @@ function _insightOnMsg(e) {
       mc_c.innerHTML = `<div>指标：<strong>${_escHtml(r.cn_name||'')}</strong></div>
         <div>可用维度：<strong>${r.dim_count||0}</strong> 个</div>`;
     }
+    completeInsightFlowStep('kg_candidates');
     _insightLog(`✓ 图谱匹配: ${r.cn_name||''}，${r.dim_count||0}个可用维度`, 'info');
     return;
   }
@@ -14509,12 +17082,15 @@ function _insightOnMsg(e) {
     const ec = document.getElementById('insight-error-card');
     const et = document.getElementById('insight-error-text');
     if (ec && et) { ec.style.display = ''; et.textContent = obj.error || '未知错误'; }
+    setInsightFlowStep('kg_candidates', 'error');
+    setInsightFlowStep('reject', 'error');
     _insightLog('✗ ' + (obj.error || ''), 'error');
     _insightDone();
     return;
   }
   if (obj.step === 'query_built') {
     const r = obj.result || {};
+    completeInsightFlowStep('plan');
     _insightLog(`✓ 查询构造: ${r.configure_count||0}列 | ${r.filter_summary||''} | 粒度=${r.gran||''}`, 'info');
     return;
   }
@@ -14523,14 +17099,17 @@ function _insightOnMsg(e) {
     const content = document.getElementById('insight-answer-content');
     if (card) card.style.display = '';
     if (content) content.innerHTML = '<span class="text-muted small"><div class="spinner-border spinner-border-sm me-1"></div>生成直接回答中...</span>';
+    completeInsightFlowStep('validation');
+    runInsightFlowStep('evidence_answer');
     _insightLog('▶ 生成 Insight 直接回答...', 'info');
     return;
   }
-  if (obj.step === 'done') { _insightDone(); return; }
+  if (obj.step === 'done') { completeInsightFlowStep('evidence_answer'); completeInsightFlowStep('done'); _insightDone(); return; }
 
   // Insight 流式直答
   if (obj.insight_text !== undefined) {
     _insightAnswerBuf += obj.insight_text;
+    runInsightFlowStep('evidence_answer');
     const content = document.getElementById('insight-answer-content');
     if (content) {
       try {
@@ -14545,21 +17124,27 @@ function _insightOnMsg(e) {
   // Part 结果（与波动分析共用渲染函数，传 ns='ins'）
   try {
     if (obj.part === 1 && obj.result !== undefined) {
+      completeInsightFlowStep('execute');
       _renderWithAck(1, 'ins-part1-content', 1, () => renderPart1(obj.result, 'ins'), 'ins'); return;
     }
     if (obj.part === 4 && obj.result !== undefined) {
+      completeInsightFlowStep('execute');
       _renderWithAck(4, 'ins-part2-content', 2, () => renderPart2(obj.result, 'ins'), 'ins'); return;
     }
     if (obj.part === 2 && obj.result !== undefined) {
+      completeInsightFlowStep('execute');
       _renderWithAck(2, 'ins-part3-content', 3, () => renderPart3(obj.result, 'ins'), 'ins'); return;
     }
     if (obj.part === 3 && obj.result !== undefined) {
+      completeInsightFlowStep('execute');
       _renderWithAck(3, 'ins-part6-content', 6, () => renderPartContrib(obj.result, 'ins'), 'ins'); return;
     }
     if (obj.part === 5 && obj.result !== undefined) {
+      completeInsightFlowStep('execute');
       _renderWithAck(5, 'ins-part5-content', 5, () => renderPart5(obj.result, 'ins'), 'ins'); return;
     }
     if (obj.report !== undefined && obj.part === undefined) {
+      completeInsightFlowStep('validation');
       _renderWithAck('report', 'ins-part4-content', 4, () => renderReport(obj.report, 'ins'), 'ins'); return;
     }
     // KG 报告

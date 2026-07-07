@@ -3385,6 +3385,63 @@ class IndicatorAnalyzer:
 
     # ── Part 2 KG AI: 图谱专项 AI 分析 ─────────────────────────────────── #
 
+    def _fallback_kg_report(self, part1: dict, part2: dict,
+                            part_kg_attr: Optional[dict] = None,
+                            reason: str = "") -> str:
+        lines = [
+            "## 图谱关系摘要",
+            "",
+            f"> AI 图谱解读暂不可用，系统已基于 KG 结构和已返回数据生成规则化摘要。{('原因：' + reason) if reason else ''}",
+            "",
+            "### 1. 指标口径与来源",
+        ]
+        measures = part2.get("measures") if isinstance(part2, dict) else []
+        if measures:
+            for m_info in measures[:4]:
+                if m_info.get("error"):
+                    continue
+                lines.append(f"- {m_info.get('cnName') or m_info.get('code')}：类型 {m_info.get('type', '-')}，分类 {m_info.get('category', '-')}。")
+                if m_info.get("caliber"):
+                    lines.append(f"  - 口径：{m_info.get('caliber')}")
+                for ma in (m_info.get("measureApps") or [])[:2]:
+                    tbl = ma.get("table") or {}
+                    lines.append(f"  - 来源表：{tbl.get('tableName', '-')}，聚合：{ma.get('aggOperator', '-')}({ma.get('factColumn', '-')})。")
+        else:
+            lines.append("- 当前没有可展示的指标图谱信息。")
+
+        lines.extend(["", "### 2. 可解释维度"])
+        dims = part2.get("dimensions") if isinstance(part2, dict) else []
+        if dims:
+            for d_info in dims[:8]:
+                if d_info.get("error"):
+                    continue
+                lines.append(f"- {d_info.get('cnName') or d_info.get('code')}：类型 {d_info.get('dimType', '-')}，时间粒度 {d_info.get('timeGrain', '无')}。")
+        else:
+            lines.append("- 当前图谱没有返回可用维度。")
+
+        lines.extend(["", "### 3. 维度归因线索"])
+        kg_dims = part_kg_attr.get("kg_dimensions") if isinstance(part_kg_attr, dict) else []
+        if kg_dims:
+            for kd in sorted(kg_dims, key=lambda x: abs(x.get("total_change_pct") or 0), reverse=True)[:5]:
+                pct = kd.get("total_change_pct")
+                pct_text = f"{pct:+.2f}%" if isinstance(pct, (int, float)) else "无变化幅度"
+                lines.append(f"- {kd.get('cn_name') or kd.get('dim_code')}：整体变化 {pct_text}。")
+                for mv in (kd.get("top_movers") or [])[:2]:
+                    lines.append(f"  - {mv.get('value', '-')}：当期 {self._report_value(mv.get('current'))}，上期 {self._report_value(mv.get('previous'))}。")
+        else:
+            movers = part1.get("global_top20") if isinstance(part1, dict) else []
+            if movers:
+                for mv in movers[:5]:
+                    lines.append(f"- {mv.get('dim_cn') or mv.get('dim_col')}={mv.get('value', '-')}：贡献/变化约 {self._report_value(mv.get('lmdi_contrib') or mv.get('change'))}。")
+            else:
+                lines.append("- 暂无可确认的维度归因线索。")
+
+        lines.extend(["", "### 4. 建议"])
+        lines.append("- 优先沿可用维度下钻，验证变化是否集中在少数维度值。")
+        lines.append("- 对高贡献对象补充明细样本，确认是否由单据、口径或真实业务变化导致。")
+        lines.append("- 保留本次图谱匹配和查询 Trace，便于后续回归验证。")
+        return "\n".join(lines)
+
     def _generate_kg_report(self, part1: dict, part2: dict,
                             part_kg_attr: Optional[dict] = None,
                             focus_dim_codes: Optional[set] = None,
@@ -3396,6 +3453,9 @@ class IndicatorAnalyzer:
         api_key  = self._llm_config.get("api_key", "")
         base_url = self._llm_config.get("base_url", "").rstrip("/")
         model    = self._llm_config.get("model", "GPT5.5")
+        if not api_key or not base_url:
+            self._log("  ⚠ LLM 未配置，使用本地图谱摘要")
+            return self._fallback_kg_report(part1, part2, part_kg_attr, "LLM 未配置")
 
         # ── 构建聚焦摘要（Parts 1/2/3 发现的问题）── #
         focus_lines = []
@@ -3643,8 +3703,12 @@ class IndicatorAnalyzer:
             )
 
         self._log("  正在调用 LLM 生成图谱 AI 分析…")
-        with _ureq.urlopen(req, timeout=120) as resp:
-            resp_data = json.loads(resp.read().decode("utf-8"))
+        try:
+            with _ureq.urlopen(req, timeout=120) as resp:
+                resp_data = json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            self._log(f"  ⚠ LLM 图谱分析失败，使用本地图谱摘要: {exc}")
+            return self._fallback_kg_report(part1, part2, part_kg_attr, str(exc))
 
         if is_anth:
             content = resp_data.get("content", [])
@@ -3656,7 +3720,113 @@ class IndicatorAnalyzer:
 
         return f"LLM 响应异常: {json.dumps(resp_data, ensure_ascii=False)}"
 
-    # ── Part 6: LLM 综合报告 ────────────────────────────────────────────── #
+    # ── Part 6: 综合报告 ───────────────────────────────────────────────── #
+
+    @staticmethod
+    def _report_value(v) -> str:
+        n = _safe_float(v)
+        if n is None:
+            return "无数据"
+        if abs(n) >= 1000:
+            return f"{n:,.2f}".rstrip("0").rstrip(".")
+        return f"{n:.4f}".rstrip("0").rstrip(".")
+
+    @classmethod
+    def _fallback_report(cls, part1: dict, part2: dict, part3: dict, meta: dict,
+                         part5: Optional[dict] = None,
+                         part_kg_attr: Optional[dict] = None,
+                         reason: str = "") -> str:
+        measures = part1.get("measures") if isinstance(part1, dict) else []
+        movers = part1.get("global_top20") if isinstance(part1, dict) else []
+        kg_dims = part_kg_attr.get("kg_dimensions") if isinstance(part_kg_attr, dict) else []
+        current_period = part1.get("current_period") or meta.get("time_col") or "当期"
+        previous_period = part1.get("previous_period") or "上期"
+
+        lines = [
+            "## 综合报告",
+            "",
+            f"> AI 解读暂不可用，系统已基于已返回的数据和校验结果生成规则化报告。{('原因：' + reason) if reason else ''}",
+            "",
+            "### 1. 一句话总结",
+        ]
+        if measures:
+            primary = measures[0]
+            cn = primary.get("cn_name") or primary.get("col") or "核心指标"
+            curr = cls._report_value(primary.get("current"))
+            prev = cls._report_value(primary.get("previous"))
+            chg = cls._report_value(primary.get("change"))
+            pct = primary.get("change_pct")
+            pct_text = f"{pct:+.2f}%" if isinstance(pct, (int, float)) else "无百分比"
+            lines.append(f"- {cn} 从 {prev} 变为 {curr}，变化 {chg}，变化幅度 {pct_text}。")
+        else:
+            lines.append("- 当前查询返回的数据不足，无法形成稳定的指标变化结论。")
+
+        lines.extend(["", "### 2. 数字怎么变的"])
+        if measures:
+            for item in measures[:5]:
+                cn = item.get("cn_name") or item.get("col") or "指标"
+                curr = cls._report_value(item.get("current"))
+                prev = cls._report_value(item.get("previous"))
+                chg = cls._report_value(item.get("change"))
+                pct = item.get("change_pct")
+                pct_text = f"{pct:+.2f}%" if isinstance(pct, (int, float)) else "无百分比"
+                lines.append(f"- {cn}：{prev} -> {curr}，变化 {chg}，幅度 {pct_text}。")
+        else:
+            lines.append("- 没有可展示的指标变化数据。")
+
+        lines.extend(["", "### 3. 问题出在哪里"])
+        if kg_dims:
+            for dim in sorted(kg_dims, key=lambda x: abs(x.get("total_change_pct") or 0), reverse=True)[:3]:
+                dim_name = dim.get("cn_name") or dim.get("dim_code") or "维度"
+                pct = dim.get("total_change_pct")
+                pct_text = f"{pct:+.2f}%" if isinstance(pct, (int, float)) else "无变化幅度"
+                lines.append(f"- {dim_name} 的整体变化幅度为 {pct_text}。")
+                for mv in (dim.get("top_movers") or [])[:2]:
+                    val = mv.get("value") or mv.get("dim_value") or "-"
+                    contrib = cls._report_value(mv.get("lmdi_contrib") or mv.get("change"))
+                    lines.append(f"  - 其中 {val} 的贡献/变化约为 {contrib}。")
+        elif movers:
+            for mv in movers[:5]:
+                dim = mv.get("dim_cn") or mv.get("dim_code") or "维度"
+                val = mv.get("dim_value") or mv.get("value") or "-"
+                contrib = cls._report_value(mv.get("lmdi_contrib") or mv.get("change"))
+                lines.append(f"- {dim}={val} 的贡献/变化约为 {contrib}。")
+        else:
+            skip = part5.get("skip_reason") if isinstance(part5, dict) else ""
+            lines.append(f"- 暂无明确维度贡献数据。{skip or '建议查看明细或扩大时间范围。'}")
+
+        lines.extend(["", "### 4. 有没有异常情况"])
+        anomaly_periods = part3.get("anomaly_periods") if isinstance(part3, dict) else {}
+        if anomaly_periods:
+            added = 0
+            for col, rows in anomaly_periods.items():
+                for row in (rows or [])[:2]:
+                    lines.append(f"- {col} 在 {row.get('period', '-')} 出现 {row.get('label', '异常')}，值为 {cls._report_value(row.get('value'))}。")
+                    added += 1
+                    if added >= 5:
+                        break
+                if added >= 5:
+                    break
+            if added == 0:
+                lines.append("- 未发现明显异常周期。")
+        else:
+            lines.append("- 当前结果未发现可确认的统计异常点，或样本不足以判断。")
+
+        lines.extend(["", "### 5. 接下来怎么办"])
+        if kg_dims:
+            for dim in kg_dims[:3]:
+                dim_name = dim.get("cn_name") or dim.get("dim_code") or "关键维度"
+                lines.append(f"- 先按「{dim_name}」下钻，确认变化是否集中在少数维度值。")
+        elif movers:
+            top = movers[0]
+            dim = top.get("dim_cn") or top.get("dim_code") or "贡献维度"
+            lines.append(f"- 优先查看「{dim}」的明细样本，确认是否由局部对象拉动。")
+        else:
+            lines.append("- 扩大查询时间范围或增加维度，避免单点数据导致判断不稳定。")
+        lines.append("- 对红色异常或高贡献对象补充明细样本，确认是否是数据质量、单据规则或真实业务变化。")
+        lines.append("- 记录本次查询 Trace，后续与最近 50 次同类查询做偏差对比。")
+
+        return "\n".join(lines)
 
     def _generate_report(self, part1: dict, part2: dict, part3: dict, meta: dict,
                          part5: Optional[dict] = None, part_kg_attr: Optional[dict] = None,
@@ -3667,6 +3837,9 @@ class IndicatorAnalyzer:
         api_key  = self._llm_config.get("api_key", "")
         base_url = self._llm_config.get("base_url", "").rstrip("/")
         model    = self._llm_config.get("model", "GPT5.5")
+        if not api_key or not base_url:
+            self._log("  ⚠ LLM 未配置，使用本地综合报告")
+            return self._fallback_report(part1, part2, part3, meta, part5, part_kg_attr, "LLM 未配置")
 
         system_prompt = (
             "你是一位经验丰富的业务运营负责人，正在给团队讲解这两天的数据情况。"
@@ -3792,6 +3965,9 @@ class IndicatorAnalyzer:
         try:
             with _ureq.urlopen(req, timeout=120) as resp:
                 resp_data = json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            self._log(f"  ⚠ LLM 报告生成失败，使用本地综合报告: {exc}")
+            return self._fallback_report(part1, part2, part3, meta, part5, part_kg_attr, str(exc))
         finally:
             _done_flag.set()
 

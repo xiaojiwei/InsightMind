@@ -9,14 +9,17 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import math
 import functools
 import json
 import logging
 import queue
+import re
 import shutil
 import threading
 import time
 import uuid
+from collections import deque
 from pathlib import Path
 from typing import Any, Optional
 
@@ -49,6 +52,8 @@ ADHOC_DIR = OUTPUT_DIR / "adhoc"
 ADHOC_DIR.mkdir(exist_ok=True)
 DASHBOARD_DIR = OUTPUT_DIR / "dashboards"
 DASHBOARD_DIR.mkdir(exist_ok=True)
+INSIGHT_ACTION_DIR = OUTPUT_DIR / "insight_actions"
+INSIGHT_ACTION_DIR.mkdir(exist_ok=True)
 SEMANTIC_DIR = OUTPUT_DIR / "semantic"
 SEMANTIC_DIR.mkdir(exist_ok=True)
 FORMULA_REGISTRY_PATH = SEMANTIC_DIR / "formulas.json"
@@ -103,6 +108,8 @@ def _seed_demo_assets() -> None:
         if not src.is_file():
             continue
         rel = src.relative_to(DEMO_OUTPUT_DIR)
+        if rel.parts and rel.parts[0] == "dashboards" and not src.name.startswith("dash_da_tms_"):
+            continue
         dst = OUTPUT_DIR / rel
         if dst.exists():
             continue
@@ -214,21 +221,21 @@ for _mod in ("kg_builder.utils.translator", "kg_builder.entities.extractor",
 # ── Pydantic models ─────────────────────────────────────────────────────── #
 
 class DSConfig(BaseModel):
-    name:            str  = "mysql_local"
+    name:            str  = "da_tms_local"
     db_type:         str  = "mysql"
-    host:            str  = "localhost"
+    host:            str  = "127.0.0.1"
     port:            int  = 3306
-    database:        str  = "tpcds"
+    database:        str  = "da_tms"
     username:        str  = "root"
-    password:        str  = "root"
-    schema_name:     str  = ""
+    password:        str  = "123456"
+    schema_name:     str  = "da_tms"
     service_name:    str  = ""
     sid:             str  = ""
     windows_auth:    bool = False
     driver:          str  = ""
     sample_limit:    int  = 1000
     exclude_tables:  list[str] = []
-    all_databases:   bool = True   # scan every non-system database on the server
+    all_databases:   bool = False  # keep the demo scoped to the selected database/schema
 
 class BuildRequest(BaseModel):
     datasource:             DSConfig
@@ -266,6 +273,16 @@ class EntityLookupRequest(BaseModel):
     question: str
     pageSize: int = 500
     pageNum: int = 1
+
+class NLQInterpretRequest(BaseModel):
+    question: str = ""
+    queryMode: str = ""
+    matched: dict[str, Any] = Field(default_factory=dict)
+    resultSummary: dict[str, Any] = Field(default_factory=dict)
+    graphContext: dict[str, Any] = Field(default_factory=dict)
+    validation: dict[str, Any] = Field(default_factory=dict)
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    crossValidation: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── Helper: make connector ───────────────────────────────────────────────── #
@@ -1994,7 +2011,7 @@ def _bkg_refine_worker(user_prompt: str, target_file: str, auto_empty_dim: bool 
     import urllib.request, urllib.error, json as _json
     import re as _re
     from rdflib import Graph
-    from kg_builder.utils.llm_config import llm_config_from_env, validate_llm_config
+    from kg_builder.utils.llm_config import chat_completions_url, llm_config_from_env, llm_request_headers, validate_llm_config
 
     def blog(msg: str) -> None:
         _bkg_log_queue.put(msg)
@@ -2010,10 +2027,9 @@ def _bkg_refine_worker(user_prompt: str, target_file: str, auto_empty_dim: bool 
         }).encode("utf-8")
         blog(f"  → {label}（请求体 {len(body):,} 字节）")
         req2 = urllib.request.Request(
-            cfg["base_url"].rstrip("/") + "/chat/completions",
+            chat_completions_url(cfg["base_url"]),
             data=body, method="POST",
-            headers={"Content-Type": "application/json",
-                     "Authorization": f"Bearer {cfg['api_key']}"},
+            headers=llm_request_headers(cfg),
         )
         t0 = _time.time()
         try:
@@ -2434,6 +2450,10 @@ async def business_kg_measures(file: str = ""):
         content = p.read_text(encoding="utf-8")
     elif _bkg_turtle:
         content = _bkg_turtle
+    elif _current_bkg_path and _current_bkg_path.exists():
+        content = _current_bkg_path.read_text(encoding="utf-8")
+    elif (BKG_DIR / "indicator-data.ttl").exists():
+        content = (BKG_DIR / "indicator-data.ttl").read_text(encoding="utf-8")
     else:
         return JSONResponse(status_code=404, content={"error": "尚未生成业务图谱"})
 
@@ -2777,61 +2797,121 @@ async def nlq_suggestions(file: str = ""):
             is_dim = 0 if c.get("filterType") == "dimension" else 1
             is_order_like = 0 if any(kw in label for kw in ("订单", "编号", "号")) else 1
             return (is_order_like, is_dim, label)
+        def _verified_entity_value(c: dict) -> str:
+            """Return a value that is known to hit the live entity lookup query."""
+            conn = None
+            try:
+                import pymysql
+                conn_cfg = service._db_connection_for_table(
+                    str(c.get("tableName") or ""),
+                    str(c.get("schema") or ""),
+                )
+                conn = pymysql.connect(
+                    host=conn_cfg["host"],
+                    port=conn_cfg["port"],
+                    user=conn_cfg["user"],
+                    password=conn_cfg["password"],
+                    database=conn_cfg["database"],
+                    charset="utf8mb4",
+                )
+                if c.get("filterType") == "dimension":
+                    fact_table = service._sql_table(str(c.get("tableName") or ""), "")
+                    dim_table = service._sql_table(str(c.get("dimTable") or ""), "")
+                    fact_col = str(c.get("dimFactColumn") or "")
+                    dim_pk = str(c.get("dimPrimaryKey") or "")
+                    dim_col = str(c.get("dimColumn") or "")
+                    if not fact_col or not dim_pk or not dim_col:
+                        return ""
+                    sql = (
+                        f"SELECT d.`{dim_col}` AS v FROM {fact_table} f "
+                        f"JOIN {dim_table} d ON f.`{fact_col}` = d.`{dim_pk}` "
+                        f"WHERE d.`{dim_col}` IS NOT NULL AND d.`{dim_col}` <> '' "
+                        f"LIMIT 1"
+                    )
+                else:
+                    table = service._sql_table(str(c.get("tableName") or ""), "")
+                    col = str(c.get("columnName") or "")
+                    if not col:
+                        return ""
+                    sql = (
+                        f"SELECT `{col}` AS v FROM {table} "
+                        f"WHERE `{col}` IS NOT NULL AND `{col}` <> '' LIMIT 1"
+                    )
+                with conn.cursor(pymysql.cursors.DictCursor) as cur:
+                    cur.execute(sql)
+                    row = cur.fetchone()
+                return str(row.get("v")).strip() if row and row.get("v") not in (None, "") else ""
+            except Exception:
+                return ""
+            finally:
+                try:
+                    if conn:
+                        conn.close()
+                except Exception:
+                    pass
+        def _entity_prompt_label(c: dict, label: str) -> str:
+            table_label = service._table_business_label(str(c.get("sourceTableName") or c.get("tableName") or ""))
+            return f"{table_label}-{label}" if table_label and table_label not in label else label
         candidates.sort(key=_entity_sort_key)
         used_entity = set()
+        checked_candidates = 0
         for c in candidates:
+            if checked_candidates >= 24:
+                break
+            checked_candidates += 1
             label = str(c.get("_display_label") or "").strip()
-            if not label or label in used_entity:
+            if not label:
                 continue
-            source_table = str(c.get("sourceTableName") or c.get("tableName") or "").lower()
-            column_name = str(c.get("columnName") or "").lower()
-            value = ""
-            for (tbl, col, val), _rows in service._source_rows_by_table_col_value.items():
-                if tbl == source_table and col == column_name and str(val).strip():
-                    value = str(val)
-                    break
+            value = _verified_entity_value(c)
             if not value:
                 continue
-            used_entity.add(label)
-            entity_examples.append(f"{label} ： {value}")
+            prompt_label = _entity_prompt_label(c, label)
+            entity_key = (
+                str(c.get("sourceTableName") or c.get("tableName") or "").lower(),
+                str(c.get("columnName") or "").lower(),
+                value,
+            )
+            if entity_key in used_entity:
+                continue
+            used_entity.add(entity_key)
+            entity_examples.append(f"{prompt_label} ： {value}")
             if len(entity_examples) >= 4:
                 break
     except Exception:
         entity_examples = []
 
-    # 用实体例子生成维度过滤的明细查询提示
-    detail_examples = [
-        f"查询最近3个月{primary_measure['name']}的明细",
-        f"分析最近3个月{second_measure['name']}的明细数据",
-    ]
-    for ee in entity_examples[:2]:
-        parts = ee.split(" ： ", 1)
-        if len(parts) == 2:
-            dim_label, dim_value = parts[0].strip(), parts[1].strip()
-            # 维度过滤例子交替使用不同指标
-            m = primary_measure['name'] if len(detail_examples) % 2 == 0 else second_measure['name']
-            detail_examples.append(
-                f"查询最近3个月{dim_label}{dim_value}的{m}明细"
-            )
-
     category_defs = [
         ("指标汇总", [
-            f"查询最近3个月{primary_measure['name']}",
-            f"统计最近3个月{second_measure['name']}",
+            f"查询{primary_measure['name']}",
+            f"统计{second_measure['name']}",
         ]),
-        ("维度分析", [
-            f"最近3个月按{first_dim['name']}分析{primary_measure['name']}",
+        ("指标分析", [
+            f"查看{primary_measure['name']}整体情况",
+            f"查看{second_measure['name']}整体情况",
+            f"按{first_dim['name']}分析{primary_measure['name']}",
             f"按{second_dim['name']}对比{second_measure['name']}",
         ]),
-        ("明细检索", detail_examples),
+        ("时间分析", [
+            f"按{first_dim['name']}查看{primary_measure['name']}",
+            f"按{first_dim['name']}统计{second_measure['name']}",
+        ]),
+        ("维度分析", [
+            f"按{second_dim['name']}查看{primary_measure['name']}",
+            f"按{second_dim['name']}统计{second_measure['name']}",
+        ]),
+        ("结构分析", [
+            f"按{first_dim['name']}统计{primary_measure['name']}",
+            f"按{second_dim['name']}统计{second_measure['name']}",
+        ]),
+        ("问题订单", [
+            "查询最近三个月有问题的订单",
+            "查看监控预警命中的异常订单",
+            "列出单据追踪规则命中的问题单据",
+        ]),
         ("属性检索", entity_examples[:4]),
         ("图谱解释", [
-            f"{primary_measure['name']}有哪些可分析维度",
-            f"{second_measure['name']}的口径是什么",
-        ]),
-        ("深度洞察", [
-            f"为什么最近3个月{primary_measure['name']}变化",
-            f"哪个维度对{second_measure['name']}影响最大",
+            f"解释{primary_measure['name']}有哪些可分析维度",
+            f"解释{second_measure['name']}的口径",
         ]),
     ]
 
@@ -2992,7 +3072,7 @@ async def business_kg_generate_hint(file: str = ""):
     ]
 
     # 构建 LLM prompt
-    from kg_builder.utils.llm_config import llm_config_from_env
+    from kg_builder.utils.llm_config import chat_completions_url, llm_config_from_env, llm_request_headers
     llm_config = llm_config_from_env(BASE_DIR)
     api_key = llm_config["api_key"]
     base_url = llm_config["base_url"]
@@ -3031,9 +3111,8 @@ async def business_kg_generate_hint(file: str = ""):
         "messages": [{"role": "user", "content": combined}],
     }).encode("utf-8")
     req = _ureq.Request(
-        f"{base_url}/chat/completions", data=payload,
-        headers={"Content-Type": "application/json",
-                 "Authorization": f"Bearer {api_key}"},
+        chat_completions_url(base_url), data=payload,
+        headers=llm_request_headers(llm_config),
         method="POST",
     )
     try:
@@ -4270,11 +4349,11 @@ def _insight_worker(
                 _insight_ack_event.clear()
             _insight_log_queue.put(msg)
             if needs_ack:
-                ack_received = _insight_ack_event.wait(timeout=60)
+                ack_received = _insight_ack_event.wait(timeout=8)
                 if _insight_generation != generation:
                     return
                 if not ack_received:
-                    ilog(f"⚠ Part {part_key or 'report'} 前端60s内未确认，继续执行")
+                    ilog(f"⚠ Part {part_key or 'report'} 前端8s内未确认，继续执行")
                 elif not _insight_ack_info.get("success", True):
                     err = _insight_ack_info.get("error", "未知错误")
                     ilog(f"✗ Part {part_key or 'report'} 前端渲染失败: {err}")
@@ -4371,10 +4450,1757 @@ async def insight_explain_cell(request: Request):
         return JSONResponse({"success": False, "error": str(exc)}, status_code=500)
 
 
+def _insight_action_text(value: Any, default: str = "") -> str:
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text or default
+
+
+def _insight_action_evidence(context: dict[str, Any]) -> list[dict[str, Any]]:
+    cell = context.get("cellInsight") if isinstance(context.get("cellInsight"), dict) else {}
+    measure = cell.get("measure") if isinstance(cell.get("measure"), dict) else {}
+    cell_context = cell.get("cellContext") if isinstance(cell.get("cellContext"), dict) else {}
+    anomaly = cell.get("anomaly") if isinstance(cell.get("anomaly"), dict) else {}
+    diagnosis = cell.get("diagnosis") if isinstance(cell.get("diagnosis"), dict) else {}
+    docs = cell.get("documents") if isinstance(cell.get("documents"), list) else []
+    contributions = cell.get("contributions") if isinstance(cell.get("contributions"), list) else []
+    selected = context.get("selectedDocument") if isinstance(context.get("selectedDocument"), dict) else (docs[0] if docs else {})
+    evidence: list[dict[str, Any]] = []
+    evidence.append({
+        "id": "G1",
+        "type": "metric",
+        "title": "图谱指标",
+        "detail": f"{measure.get('name') or measure.get('code') or '当前指标'}，当前值 {cell.get('cellValue', '-')}",
+        "raw": measure,
+    })
+    evidence.append({
+        "id": "G2",
+        "type": "slice",
+        "title": "图谱切片",
+        "detail": cell_context.get("label") or "当前单元格切片",
+        "raw": cell_context,
+    })
+    if anomaly:
+        evidence.append({
+            "id": "G3",
+            "type": "anomaly",
+            "title": "异常画像",
+            "detail": "；".join(filter(None, [
+                _insight_action_text(anomaly.get("title")),
+                _insight_action_text(anomaly.get("reason")),
+                f"来源={diagnosis.get('source') or anomaly.get('source') or '-'}",
+                f"置信度={diagnosis.get('confidence') or anomaly.get('confidence') or '-'}",
+            ])),
+            "raw": {"anomaly": anomaly, "diagnosis": diagnosis},
+        })
+    if selected:
+        evidence.append({
+            "id": "G4",
+            "type": "document",
+            "title": "代表性异常单据",
+            "detail": (
+                f"{selected.get('documentNo') or '-'}，"
+                f"{selected.get('fieldName') or selected.get('field') or '异常字段'}={selected.get('value', '-')}"
+            ),
+            "raw": selected,
+        })
+    if docs:
+        evidence.append({
+            "id": "G5",
+            "type": "document_count",
+            "title": "单据命中规模",
+            "detail": f"共命中 {len(docs)} 条异常单据，规则：{'、'.join(sorted({str(x.get('ruleName') or '单据追踪') for x in docs})[:4])}",
+            "raw": docs[:12],
+        })
+    if contributions:
+        evidence.append({
+            "id": "G6",
+            "type": "graph_drill",
+            "title": "图谱推荐下钻维度",
+            "detail": "；".join(
+                f"{x.get('dimensionName') or x.get('dimensionCode')}({x.get('score', '-')})"
+                for x in contributions[:5]
+                if isinstance(x, dict)
+            ),
+            "raw": contributions[:8],
+        })
+    return evidence
+
+
+def _insight_action_draft(body: dict[str, Any]) -> dict[str, Any]:
+    context = body.get("context") if isinstance(body.get("context"), dict) else {}
+    question = _insight_action_text(body.get("question"), "单据异常处理")
+    cell = context.get("cellInsight") if isinstance(context.get("cellInsight"), dict) else {}
+    measure = cell.get("measure") if isinstance(cell.get("measure"), dict) else {}
+    cell_context = cell.get("cellContext") if isinstance(cell.get("cellContext"), dict) else {}
+    anomaly = cell.get("anomaly") if isinstance(cell.get("anomaly"), dict) else {}
+    docs = cell.get("documents") if isinstance(cell.get("documents"), list) else []
+    contributions = cell.get("contributions") if isinstance(cell.get("contributions"), list) else []
+    selected = context.get("selectedDocument") if isinstance(context.get("selectedDocument"), dict) else (docs[0] if docs else {})
+    measure_name = measure.get("name") or measure.get("code") or "当前指标"
+    slice_label = cell_context.get("label") or "当前切片"
+    field_name = selected.get("fieldName") or selected.get("field") or "异常字段"
+    doc_no = selected.get("documentNo") or "代表性单据"
+    rule_name = selected.get("ruleName") or (docs[0].get("ruleName") if docs else "") or "单据追踪规则"
+    top_dim = next((x for x in contributions if isinstance(x, dict) and x.get("dimensionName")), {})
+    top_dim_name = top_dim.get("dimensionName") or top_dim.get("dimensionCode") or "推荐维度"
+    evidence = _insight_action_evidence(context)
+    suggestions = [
+        {
+            "id": "S1",
+            "title": "核对异常单据和规则命中条件",
+            "priority": "高",
+            "owner": "业务运营",
+            "dueDays": 1,
+            "action": f"复核规则「{rule_name}」命中的 {len(docs)} 条单据，优先确认 {doc_no} 的 {field_name}={selected.get('value', '-')} 是否符合真实业务口径。",
+            "successMetric": "确认异常单据是否真实、规则是否过宽或过窄",
+            "evidenceIds": ["G4", "G5"],
+        },
+        {
+            "id": "S2",
+            "title": "按图谱维度定位影响范围",
+            "priority": "中",
+            "owner": "数据分析",
+            "dueDays": 2,
+            "action": f"围绕「{measure_name}」在「{slice_label}」下继续按「{top_dim_name}」下钻，确认异常是否集中在特定商品、渠道、仓库、促销或时间段。",
+            "successMetric": "找出贡献最大的异常维度成员和可解释范围",
+            "evidenceIds": ["G1", "G2", "G6"],
+        },
+        {
+            "id": "S3",
+            "title": "形成规则或流程改进方案",
+            "priority": "中",
+            "owner": "规则负责人",
+            "dueDays": 3,
+            "action": f"根据异常画像「{anomaly.get('title') or '当前异常'}」调整监控条件、阈值或业务处理流程，并记录调整前后的规则版本。",
+            "successMetric": "新规则能减少误报，同时不漏掉真实异常",
+            "evidenceIds": ["G3", "G5"],
+        },
+        {
+            "id": "S4",
+            "title": "建立追盯和复盘节奏",
+            "priority": "中",
+            "owner": "运营负责人",
+            "dueDays": 7,
+            "action": f"以「{measure_name}」和当前图谱切片为追踪对象，每日/每周回看异常单据数、异常金额或命中率，观察改进后是否下降。",
+            "successMetric": "连续观察周期内异常命中率下降，且关键指标未出现新的异常偏移",
+            "evidenceIds": ["G1", "G2", "G5"],
+        },
+    ]
+    return {
+        "id": f"draft_{uuid.uuid4().hex[:8]}",
+        "question": question,
+        "status": "draft",
+        "createdAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "subject": f"{measure_name} · {slice_label}",
+        "stateAnalysis": {
+            "title": "现状分析",
+            "summary": (
+                f"基于图谱指标「{measure_name}」、切片「{slice_label}」和单据追踪证据，"
+                f"当前发现 {len(docs)} 条异常单据。{anomaly.get('reason') or '建议先确认异常是否集中于特定规则、维度或业务流程。'}"
+            ),
+            "evidenceIds": [item["id"] for item in evidence[:6]],
+        },
+        "evidence": evidence,
+        "suggestions": suggestions,
+        "tracking": {
+            "baseline": f"{measure_name} 当前值 {cell.get('cellValue', '-')}",
+            "frequency": "每日跟进，连续 7 天复盘",
+            "successCriteria": "异常命中数量下降、规则误报减少、相关指标未出现新的异常偏移",
+        },
+    }
+
+
+@app.post("/api/insight/action-plan/draft")
+async def insight_action_plan_draft(request: Request):
+    body = await request.json()
+    try:
+        return {"ok": True, "plan": _insight_action_draft(body)}
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.post("/api/insight/action-plan/submit")
+async def insight_action_plan_submit(request: Request):
+    body = await request.json()
+    try:
+        plan = body.get("plan") if isinstance(body.get("plan"), dict) else body
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        item_id = _artifact_safe_id(plan.get("id") or f"insight_action_{uuid.uuid4().hex[:8]}")
+        suggestions = plan.get("suggestions") if isinstance(plan.get("suggestions"), list) else []
+        tasks = []
+        for idx, item in enumerate(suggestions, start=1):
+            if not isinstance(item, dict) or item.get("disabled"):
+                continue
+            tasks.append({
+                "id": f"T{idx}",
+                "title": item.get("title") or f"追盯任务 {idx}",
+                "owner": item.get("owner") or "待分配",
+                "priority": item.get("priority") or "中",
+                "dueDays": item.get("dueDays") or 3,
+                "status": "待处理",
+                "action": item.get("action") or "",
+                "successMetric": item.get("successMetric") or "",
+                "evidenceIds": item.get("evidenceIds") or [],
+            })
+        data = {
+            **plan,
+            "id": item_id,
+            "kind": "insight_action_plan",
+            "status": "tracking",
+            "submittedAt": now,
+            "updatedAt": now,
+            "tasks": tasks,
+            "feedback": plan.get("feedback") if isinstance(plan.get("feedback"), list) else [],
+        }
+        path = _artifact_path(INSIGHT_ACTION_DIR, item_id)
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        return {"ok": True, "plan": data}
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.post("/api/insight/action-plan/{item_id}/feedback")
+async def insight_action_plan_feedback(item_id: str, request: Request):
+    body = await request.json()
+    try:
+        path = _artifact_path(INSIGHT_ACTION_DIR, item_id)
+        data = _read_json_artifact(path)
+        feedback = data.get("feedback") if isinstance(data.get("feedback"), list) else []
+        feedback.append({
+            "id": f"F{len(feedback) + 1}",
+            "createdAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "status": body.get("status") or "跟进中",
+            "metricValue": body.get("metricValue") or "",
+            "comment": body.get("comment") or "",
+            "nextAction": body.get("nextAction") or "",
+        })
+        data["feedback"] = feedback
+        data["status"] = body.get("planStatus") or data.get("status") or "tracking"
+        data["updatedAt"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        return {"ok": True, "plan": data}
+    except FileNotFoundError:
+        return JSONResponse({"ok": False, "error": "追盯方案不存在"}, status_code=404)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.get("/api/insight/action-plan/list")
+async def insight_action_plan_list():
+    return {"items": _list_json_artifacts(INSIGHT_ACTION_DIR)}
+
+
+def _integration_url_candidates(system_url: str) -> list[str]:
+    from urllib.parse import urlparse, urlunparse
+
+    parsed = urlparse(system_url.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("处理系统地址必须是 http 或 https URL")
+    base = urlunparse((parsed.scheme, parsed.netloc, "", "", "", ""))
+    candidates = [system_url.strip()]
+    for suffix in ("/openapi.json", "/swagger.json", "/v3/api-docs", "/api-docs"):
+        candidate = base + suffix
+        if candidate not in candidates:
+            candidates.append(candidate)
+    return candidates[:5]
+
+
+def _fetch_integration_schema(system_url: str) -> dict[str, Any]:
+    import urllib.request
+
+    errors: list[str] = []
+    for url in _integration_url_candidates(system_url):
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"Accept": "application/json", "User-Agent": "InsightMind-Integration-Discovery/1.0"},
+                method="GET",
+            )
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                content_type = resp.headers.get("content-type", "")
+                raw = resp.read(300_000)
+            text = raw.decode("utf-8", errors="replace")
+            data = json.loads(text)
+            return {"ok": True, "url": url, "contentType": content_type, "schema": data}
+        except Exception as exc:
+            errors.append(f"{url}: {exc}")
+    return {"ok": False, "url": system_url, "errors": errors, "schema": {}}
+
+
+def _extract_integration_endpoints(schema: dict[str, Any]) -> list[dict[str, Any]]:
+    paths = schema.get("paths") if isinstance(schema, dict) else {}
+    if not isinstance(paths, dict):
+        return []
+    endpoints: list[dict[str, Any]] = []
+    for path, methods in paths.items():
+        if not isinstance(methods, dict):
+            continue
+        for method, op in methods.items():
+            if str(method).lower() not in {"get", "post", "put", "patch", "delete"}:
+                continue
+            op = op if isinstance(op, dict) else {}
+            endpoints.append({
+                "method": str(method).upper(),
+                "path": str(path),
+                "operationId": op.get("operationId") or "",
+                "summary": op.get("summary") or op.get("description") or "",
+                "tags": op.get("tags") or [],
+                "hasRequestBody": bool(op.get("requestBody")),
+            })
+    return endpoints[:80]
+
+
+def _choose_task_endpoint(endpoints: list[dict[str, Any]]) -> dict[str, Any]:
+    keywords = ("task", "ticket", "issue", "work", "todo", "follow", "order", "工单", "任务", "问题", "跟进", "追踪")
+    write_methods = {"POST": 5, "PUT": 3, "PATCH": 3}
+    scored = []
+    for ep in endpoints:
+        hay = " ".join([
+            str(ep.get("path") or ""),
+            str(ep.get("operationId") or ""),
+            str(ep.get("summary") or ""),
+            " ".join(str(x) for x in ep.get("tags") or []),
+        ]).lower()
+        keyword_hits = sum(1 for key in keywords if key.lower() in hay)
+        if keyword_hits <= 0:
+            continue
+        score = write_methods.get(str(ep.get("method") or "").upper(), 0) + keyword_hits * 2
+        if score:
+            scored.append((score, ep))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return scored[0][1] if scored else {}
+
+
+def _local_integration_plan(plan: dict[str, Any], system_url: str, discovery: dict[str, Any]) -> dict[str, Any]:
+    endpoints = _extract_integration_endpoints(discovery.get("schema") or {})
+    selected = _choose_task_endpoint(endpoints)
+    tasks = plan.get("tasks") if isinstance(plan.get("tasks"), list) else []
+    evidence = plan.get("evidence") if isinstance(plan.get("evidence"), list) else []
+    return {
+        "mode": "dry_run",
+        "systemUrl": system_url,
+        "discovery": {
+            "ok": bool(discovery.get("ok")),
+            "schemaUrl": discovery.get("url") or system_url,
+            "endpointCount": len(endpoints),
+            "errors": discovery.get("errors") or [],
+        },
+        "recommendedEndpoint": selected,
+        "payloadMapping": {
+            "title": "task.title",
+            "description": "task.action + task.successMetric + evidence",
+            "owner": "task.owner",
+            "priority": "task.priority",
+            "dueDate": "submittedAt + dueDays",
+            "externalKey": "plan.id + task.id",
+            "evidence": "G1-G6 图谱和单据证据",
+        },
+        "samplePayload": {
+            "title": tasks[0].get("title") if tasks else plan.get("subject") or "Insight 追盯任务",
+            "description": tasks[0].get("action") if tasks else plan.get("stateAnalysis", {}).get("summary", ""),
+            "owner": tasks[0].get("owner") if tasks else "待分配",
+            "priority": tasks[0].get("priority") if tasks else "中",
+            "source": "InsightMind",
+            "sourcePlanId": plan.get("id") or "",
+            "evidence": [
+                {"id": item.get("id"), "title": item.get("title"), "detail": item.get("detail")}
+                for item in evidence[:6] if isinstance(item, dict)
+            ],
+        },
+        "requiredUserInputs": [
+            "认证方式或 Token",
+            "目标项目/空间/队列 ID",
+            "字段映射确认",
+            "是否允许系统真正调用写接口",
+        ],
+        "safety": [
+            "当前只生成连接方案，不自动创建外部任务。",
+            "大模型只能基于接口描述生成映射建议，不能直接提升为可执行写操作。",
+            "正式推送前需要用户确认接口、鉴权、字段映射和样例载荷。",
+        ],
+    }
+
+
+def _llm_integration_plan(plan: dict[str, Any], system_url: str, discovery: dict[str, Any]) -> dict[str, Any]:
+    import os
+    import urllib.request
+
+    from kg_builder.utils.llm_config import chat_completions_url, llm_config_from_env, llm_request_headers, validate_llm_config
+
+    local = _local_integration_plan(plan, system_url, discovery)
+    cfg = llm_config_from_env(BASE_DIR, model_override=os.environ.get("BUSINESS_KG_MODEL", "").strip())
+    validate_llm_config(cfg, purpose="处理系统连接方案生成")
+    endpoints = _extract_integration_endpoints(discovery.get("schema") or {})
+    prompt = {
+        "instruction": (
+            "你是企业系统集成架构师。请基于 Insight 追盯方案、OpenAPI 端点和样例证据，"
+            "生成处理系统连接方案。只允许生成方案和字段映射，不能声称已经调用接口，不能要求自动写入。"
+            "必须输出 JSON，字段包括 mode,dryRunReason,recommendedEndpoint,payloadMapping,samplePayload,requiredUserInputs,safety。"
+        ),
+        "systemUrl": system_url,
+        "plan": {
+            "id": plan.get("id"),
+            "subject": plan.get("subject"),
+            "tasks": (plan.get("tasks") or [])[:6],
+            "evidence": (plan.get("evidence") or [])[:8],
+        },
+        "endpoints": endpoints[:40],
+        "fallbackPlan": local,
+    }
+    base_url = cfg.get("base_url", "").rstrip("/")
+    api_key = cfg.get("api_key", "")
+    model = cfg.get("model", "GPT5.5")
+    body = json.dumps({
+        "model": model,
+        "max_tokens": 1600,
+        "messages": [{"role": "user", "content": json.dumps(prompt, ensure_ascii=False, default=str)}],
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        chat_completions_url(base_url),
+        data=body,
+        headers=llm_request_headers(cfg),
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=50) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    try:
+        parsed = json.loads(text)
+        return {**local, **parsed, "mode": "dry_run", "generatedBy": "llm"}
+    except Exception:
+        return {**local, "generatedBy": "local", "llmText": text[:4000]}
+
+
+@app.post("/api/insight/action-plan/integration/draft")
+async def insight_action_plan_integration_draft(request: Request):
+    body = await request.json()
+    try:
+        system_url = _insight_action_text(body.get("systemUrl"))
+        if not system_url:
+            return JSONResponse({"ok": False, "error": "请输入处理系统地址"}, status_code=400)
+        plan = body.get("plan") if isinstance(body.get("plan"), dict) else {}
+        if not plan and body.get("planId"):
+            plan = _read_json_artifact(_artifact_path(INSIGHT_ACTION_DIR, str(body.get("planId"))))
+        discovery = await asyncio.to_thread(_fetch_integration_schema, system_url)
+        try:
+            integration = await asyncio.to_thread(_llm_integration_plan, plan, system_url, discovery)
+        except Exception as exc:
+            integration = _local_integration_plan(plan, system_url, discovery)
+            integration["generatedBy"] = "local"
+            integration["warning"] = str(exc)
+        return {"ok": True, "integration": integration}
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except FileNotFoundError:
+        return JSONResponse({"ok": False, "error": "追盯方案不存在"}, status_code=404)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
 # ── NLQ API ──────────────────────────────────────────────────────────────── #
 
 _nlq_context_store: dict[str, dict[str, Any]] = {}
 _nlq_context_lock = threading.Lock()
+_nlq_result_history: dict[str, deque[dict[str, Any]]] = {}
+_nlq_result_history_lock = threading.Lock()
+_nlq_trace_store: deque[dict[str, Any]] = deque(maxlen=200)
+_nlq_trace_lock = threading.Lock()
+
+
+def _safe_float(value: Any) -> Optional[float]:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value) if math.isfinite(float(value)) else None
+    text = str(value).strip()
+    if not text or text in {"-", "—", "null", "None", "NaN", "nan"}:
+        return None
+    text = (
+        text.replace(",", "")
+        .replace("￥", "")
+        .replace("¥", "")
+        .replace("%", "")
+        .strip()
+    )
+    try:
+        num = float(text)
+        return num if math.isfinite(num) else None
+    except Exception:
+        return None
+
+
+def _quantile(sorted_values: list[float], q: float) -> float:
+    if not sorted_values:
+        return 0.0
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    pos = (len(sorted_values) - 1) * q
+    lo = math.floor(pos)
+    hi = math.ceil(pos)
+    if lo == hi:
+        return sorted_values[lo]
+    return sorted_values[lo] * (hi - pos) + sorted_values[hi] * (pos - lo)
+
+
+def _median(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    vals = sorted(values)
+    mid = len(vals) // 2
+    if len(vals) % 2:
+        return vals[mid]
+    return (vals[mid - 1] + vals[mid]) / 2
+
+
+def _nlq_result_history_key(result: dict[str, Any]) -> str:
+    matched = result.get("matched") or {}
+    measure = str(matched.get("measureCode") or "")
+    dims = ",".join(sorted(str(x) for x in (matched.get("dimensionCodes") or []) if x))
+    mode = str(result.get("queryMode") or "")
+    return f"{mode}|{measure}|{dims}"
+
+
+def _extract_aggregate_numeric_series(result: dict[str, Any]) -> list[dict[str, Any]]:
+    mode = str(result.get("queryMode") or "")
+    if mode not in {"aggregate"}:
+        return []
+    matched = result.get("matched") or {}
+    measure_code = str(matched.get("measureCode") or "")
+    cell_list = (((result.get("result") or {}).get("data") or {}).get("cellList") or [])
+    if not isinstance(cell_list, list):
+        return []
+    series: list[dict[str, Any]] = []
+    for row_idx, row in enumerate(cell_list):
+        if not isinstance(row, list):
+            continue
+        dim_labels: list[str] = []
+        for cell in row:
+            if not isinstance(cell, dict):
+                continue
+            code = str(cell.get("code") or "")
+            typ = str(cell.get("type") or "").upper()
+            if typ == "DIMENSION" or code.startswith("DIM_"):
+                dim_labels.append(str(cell.get("data") or cell.get("id") or ""))
+        label = " / ".join(x for x in dim_labels if x) or f"row-{row_idx + 1}"
+        for cell in row:
+            if not isinstance(cell, dict):
+                continue
+            code = str(cell.get("code") or "")
+            typ = str(cell.get("type") or "").upper()
+            if measure_code and code != measure_code:
+                continue
+            if not measure_code and typ != "MEASURE" and not code.startswith("MEAS_"):
+                continue
+            value = _safe_float(cell.get("data"))
+            if value is None:
+                continue
+            series.append({
+                "label": label,
+                "code": code,
+                "name": cell.get("name") or code,
+                "value": value,
+            })
+    return series
+
+
+def _stat_check(
+    check_id: str,
+    name: str,
+    status: str,
+    message: str,
+    *,
+    severity: str = "minor",
+    evidence: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    return {
+        "id": check_id,
+        "name": name,
+        "status": status,
+        "severity": severity,
+        "message": message,
+        "evidence": evidence or {},
+    }
+
+
+def _statistical_checks_for_values(series: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    values = [float(item["value"]) for item in series if _safe_float(item.get("value")) is not None]
+    checks: list[dict[str, Any]] = []
+    if not values:
+        checks.append(_stat_check(
+            "numeric_values_present",
+            "数值可解析",
+            "warning",
+            "当前结果没有可用于统计校验的数值列。",
+            severity="major",
+        ))
+        return checks
+
+    n = len(values)
+    zero_count = sum(1 for v in values if abs(v) < 1e-12)
+    checks.append(_stat_check(
+        "numeric_values_present",
+        "数值可解析",
+        "passed",
+        f"已解析 {n} 个指标数值。",
+        evidence={"count": n, "zeroCount": zero_count},
+    ))
+    if n >= 3 and zero_count == n:
+        checks.append(_stat_check(
+            "all_zero",
+            "全零检测",
+            "warning",
+            "当前指标结果全部为 0，可能需要确认筛选条件或数据口径。",
+            severity="major",
+        ))
+
+    vals_sorted = sorted(values)
+    if n >= 4:
+        q1 = _quantile(vals_sorted, 0.25)
+        q3 = _quantile(vals_sorted, 0.75)
+        iqr = q3 - q1
+        if abs(iqr) > 1e-12:
+            lower = q1 - 1.5 * iqr
+            upper = q3 + 1.5 * iqr
+            far_lower = q1 - 3 * iqr
+            far_upper = q3 + 3 * iqr
+            outliers = [item for item in series if item["value"] < lower or item["value"] > upper]
+            far_outliers = [item for item in series if item["value"] < far_lower or item["value"] > far_upper]
+            if outliers:
+                top = sorted(outliers, key=lambda x: abs(float(x["value"])), reverse=True)[:5]
+                checks.append(_stat_check(
+                    "iqr_outlier",
+                    "IQR 四分位距异常",
+                    "warning",
+                    f"发现 {len(outliers)} 个分组值超出 IQR 正常区间。",
+                    severity="critical" if far_outliers else "major",
+                    evidence={
+                        "q1": q1,
+                        "q3": q3,
+                        "iqr": iqr,
+                        "lower": lower,
+                        "upper": upper,
+                        "outlierCount": len(outliers),
+                        "topOutliers": top,
+                    },
+                ))
+            else:
+                checks.append(_stat_check(
+                    "iqr_outlier",
+                    "IQR 四分位距异常",
+                    "passed",
+                    "未发现 IQR 离群分组。",
+                    evidence={"q1": q1, "q3": q3, "iqr": iqr},
+                ))
+
+    if n >= 4:
+        med = _median(values)
+        deviations = [abs(v - med) for v in values]
+        mad = _median(deviations)
+        if mad > 1e-12:
+            robust = [
+                {
+                    **item,
+                    "robustZ": abs(0.6745 * (float(item["value"]) - med) / mad),
+                }
+                for item in series
+            ]
+            flagged = [item for item in robust if item["robustZ"] > 3.5]
+            if flagged:
+                top = sorted(flagged, key=lambda x: x["robustZ"], reverse=True)[:5]
+                max_z = max(item["robustZ"] for item in flagged)
+                checks.append(_stat_check(
+                    "mad_robust_zscore",
+                    "MAD Robust Z-score",
+                    "warning",
+                    f"发现 {len(flagged)} 个分组值 robust z-score > 3.5。",
+                    severity="critical" if max_z > 5 else "major",
+                    evidence={
+                        "median": med,
+                        "mad": mad,
+                        "maxRobustZ": max_z,
+                        "topOutliers": top,
+                    },
+                ))
+            else:
+                checks.append(_stat_check(
+                    "mad_robust_zscore",
+                    "MAD Robust Z-score",
+                    "passed",
+                    "未发现 MAD robust z-score 异常。",
+                    evidence={"median": med, "mad": mad},
+                ))
+
+    if n >= 3:
+        abs_values = [abs(v) for v in values]
+        total_abs = sum(abs_values)
+        if total_abs > 1e-12:
+            max_idx = max(range(n), key=lambda idx: abs_values[idx])
+            top_share = abs_values[max_idx] / total_abs
+            if top_share >= 0.8:
+                checks.append(_stat_check(
+                    "top_share_concentration",
+                    "Top Share 集中度",
+                    "warning",
+                    f"最大分组占总体绝对值的 {top_share * 100:.1f}%，集中度偏高。",
+                    severity="critical" if top_share >= 0.9 else "major",
+                    evidence={
+                        "topShare": top_share,
+                        "topItem": series[max_idx],
+                        "totalAbs": total_abs,
+                    },
+                ))
+            else:
+                checks.append(_stat_check(
+                    "top_share_concentration",
+                    "Top Share 集中度",
+                    "passed",
+                    f"最大分组占比 {top_share * 100:.1f}%，未超过集中度阈值。",
+                    evidence={"topShare": top_share},
+                ))
+
+            probs = [v / total_abs for v in abs_values if v > 0]
+            if len(probs) >= 2:
+                entropy = -sum(p * math.log(p) for p in probs) / math.log(len(probs))
+                if entropy < 0.35 and n >= 5:
+                    checks.append(_stat_check(
+                        "entropy_distribution",
+                        "Entropy 分布熵",
+                        "warning",
+                        f"分布熵 {entropy:.2f}，说明结果高度集中在少数分组。",
+                        severity="major",
+                        evidence={"entropy": entropy},
+                    ))
+                else:
+                    checks.append(_stat_check(
+                        "entropy_distribution",
+                        "Entropy 分布熵",
+                        "passed",
+                        f"分布熵 {entropy:.2f}，未发现明显低熵集中。",
+                        evidence={"entropy": entropy},
+                    ))
+
+    if n >= 3:
+        mean = sum(values) / n
+        if abs(mean) > 1e-12:
+            variance = sum((v - mean) ** 2 for v in values) / max(n - 1, 1)
+            cv = math.sqrt(variance) / abs(mean)
+            if cv >= 2:
+                checks.append(_stat_check(
+                    "coefficient_of_variation",
+                    "Coefficient of Variation 变异系数",
+                    "warning",
+                    f"变异系数 {cv:.2f}，分组间波动较大。",
+                    severity="critical" if cv >= 5 else "major",
+                    evidence={"mean": mean, "cv": cv},
+                ))
+            else:
+                checks.append(_stat_check(
+                    "coefficient_of_variation",
+                    "Coefficient of Variation 变异系数",
+                    "passed",
+                    f"变异系数 {cv:.2f}，分组波动未超过阈值。",
+                    evidence={"mean": mean, "cv": cv},
+                ))
+
+    return checks
+
+
+def _history_checks_for_result(result: dict[str, Any], series: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not series:
+        return []
+    key = _nlq_result_history_key(result)
+    current_total = sum(float(item["value"]) for item in series)
+    now = time.time()
+    with _nlq_result_history_lock:
+        history = _nlq_result_history.setdefault(key, deque(maxlen=50))
+        previous = list(history)
+        history.append({
+            "ts": now,
+            "question": result.get("question") or "",
+            "total": current_total,
+            "rowCount": len(series),
+        })
+
+    if len(previous) < 5:
+        return [_stat_check(
+            "history_baseline",
+            "最近 50 次相关查询历史基线",
+            "passed",
+            f"当前相关历史仅 {len(previous)} 次，暂不做历史偏离告警。",
+            evidence={"historyCount": len(previous), "currentTotal": current_total},
+        )]
+
+    totals = [float(item.get("total") or 0) for item in previous]
+    med = _median(totals)
+    mad = _median([abs(v - med) for v in totals])
+    status = "passed"
+    severity = "minor"
+    message = "当前汇总值未显著偏离最近相关查询历史。"
+    evidence: dict[str, Any] = {
+        "historyCount": len(previous),
+        "currentTotal": current_total,
+        "median": med,
+        "mad": mad,
+    }
+    if mad > 1e-12:
+        robust_z = abs(0.6745 * (current_total - med) / mad)
+        evidence["robustZ"] = robust_z
+        if robust_z > 3.5:
+            status = "warning"
+            severity = "critical" if robust_z > 5 else "major"
+            message = f"当前汇总值相对最近 {len(previous)} 次相关查询偏离较大，历史 robust z-score={robust_z:.2f}。"
+    else:
+        vals_sorted = sorted(totals)
+        q1 = _quantile(vals_sorted, 0.25)
+        q3 = _quantile(vals_sorted, 0.75)
+        iqr = q3 - q1
+        evidence.update({"q1": q1, "q3": q3, "iqr": iqr})
+        if iqr > 1e-12 and (current_total < q1 - 1.5 * iqr or current_total > q3 + 1.5 * iqr):
+            status = "warning"
+            severity = "major"
+            message = f"当前汇总值超出最近 {len(previous)} 次相关查询的 IQR 历史区间。"
+    return [_stat_check(
+        "history_deviation",
+        "最近 50 次相关查询历史偏离",
+        status,
+        message,
+        severity=severity,
+        evidence=evidence,
+    )]
+
+
+def _detail_result_checks(result: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    detail = result.get("detailData") or {}
+    records = detail.get("records") or []
+    columns = detail.get("columns") or []
+    checks: list[dict[str, Any]] = []
+    statistical: list[dict[str, Any]] = []
+    if not isinstance(records, list):
+        records = []
+    if not isinstance(columns, list):
+        columns = []
+
+    if not columns:
+        checks.append(_stat_check(
+            "detail_columns_present",
+            "明细字段存在",
+            "failed",
+            "明细结果没有返回字段列表。",
+            severity="blocking",
+        ))
+    else:
+        checks.append(_stat_check(
+            "detail_columns_present",
+            "明细字段存在",
+            "passed",
+            f"明细结果包含 {len(columns)} 个字段。",
+            evidence={"columnCount": len(columns)},
+        ))
+    if not records:
+        checks.append(_stat_check(
+            "detail_records_present",
+            "明细记录存在",
+            "warning",
+            "查询成功，但没有返回明细记录。",
+            severity="major",
+        ))
+    else:
+        checks.append(_stat_check(
+            "detail_records_present",
+            "明细记录存在",
+            "passed",
+            f"返回 {len(records)} 条明细记录。",
+            evidence={"rowCount": len(records)},
+        ))
+
+    if records:
+        keys = set()
+        for record in records[:20]:
+            if isinstance(record, dict):
+                keys.update(record.keys())
+        has_business_key = any(re.search(r"(order|订单|单号|id|编号|number)", str(key), re.I) for key in keys)
+        checks.append(_stat_check(
+            "business_key_present",
+            "业务键识别",
+            "passed" if has_business_key else "warning",
+            "已识别订单号/编号/ID 类业务键。" if has_business_key else "未明显识别订单号、单号或 ID 类业务键，明细追溯性较弱。",
+            severity="minor" if has_business_key else "major",
+        ))
+
+        numeric_columns: list[tuple[str, list[float]]] = []
+        for key in sorted(keys):
+            vals = [
+                _safe_float(record.get(key))
+                for record in records
+                if isinstance(record, dict)
+            ]
+            nums = [v for v in vals if v is not None]
+            if len(nums) >= max(4, min(10, len(records) // 3)):
+                numeric_columns.append((str(key), nums))
+        if numeric_columns:
+            key, nums = max(numeric_columns, key=lambda item: len(item[1]))
+            series = [
+                {"label": f"row-{idx + 1}", "code": key, "name": key, "value": value}
+                for idx, value in enumerate(nums[:500])
+            ]
+            statistical = _statistical_checks_for_values(series)
+            for item in statistical:
+                item["id"] = f"detail_{item['id']}"
+                item["name"] = f"明细数值列 {key} · {item['name']}"
+        else:
+            statistical.append(_stat_check(
+                "detail_numeric_scan",
+                "明细数值列扫描",
+                "passed",
+                "未找到足够样本的数值列，跳过明细统计异常检验。",
+            ))
+    return checks, statistical
+
+
+def _relationship_result_checks(result: dict[str, Any]) -> list[dict[str, Any]]:
+    analysis = result.get("relationshipAnalysis") or {}
+    sample = analysis.get("sample") or {}
+    valid_rows = int(sample.get("validRowCount") or sample.get("rowCount") or 0)
+    checks: list[dict[str, Any]] = []
+    if valid_rows <= 0:
+        checks.append(_stat_check(
+            "relationship_sample_present",
+            "关系分析样本",
+            "failed",
+            "关系分析没有可用样本，结果不足以支撑判断。",
+            severity="blocking",
+        ))
+    elif valid_rows < 30:
+        checks.append(_stat_check(
+            "relationship_sample_present",
+            "关系分析样本",
+            "warning",
+            f"关系分析样本仅 {valid_rows} 行，相关性和差异判断稳定性较弱。",
+            severity="major",
+            evidence={"validRowCount": valid_rows},
+        ))
+    else:
+        checks.append(_stat_check(
+            "relationship_sample_present",
+            "关系分析样本",
+            "passed",
+            f"关系分析使用 {valid_rows} 行有效样本。",
+            evidence={"validRowCount": valid_rows},
+        ))
+
+    correlations = analysis.get("correlations") or []
+    if isinstance(correlations, list) and correlations:
+        weak = [
+            item for item in correlations
+            if isinstance(item, dict) and int(item.get("sampleCount") or 0) < 30
+        ]
+        if weak:
+            checks.append(_stat_check(
+                "relationship_correlation_sample",
+                "相关性样本量",
+                "warning",
+                f"{len(weak)} 个相关性结果样本量不足 30，建议谨慎解读。",
+                severity="major",
+            ))
+        else:
+            checks.append(_stat_check(
+                "relationship_correlation_sample",
+                "相关性样本量",
+                "passed",
+                "相关性结果样本量满足快速校验要求。",
+            ))
+    return checks
+
+
+def _attach_result_validation(result: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(result, dict):
+        return result
+    mode = str(result.get("queryMode") or "")
+    checks: list[dict[str, Any]] = []
+    statistical_checks: list[dict[str, Any]] = []
+    history_checks: list[dict[str, Any]] = []
+
+    if mode == "aggregate":
+        da_result = result.get("result") or {}
+        if da_result.get("ok") is False:
+            checks.append(_stat_check(
+                "da_ok",
+                "DA 查询成功",
+                "failed",
+                str(da_result.get("error") or "DA 查询失败"),
+                severity="blocking",
+            ))
+        else:
+            checks.append(_stat_check("da_ok", "DA 查询成功", "passed", "DA 返回成功。"))
+        series = _extract_aggregate_numeric_series(result)
+        statistical_checks = _statistical_checks_for_values(series)
+        history_checks = _history_checks_for_result(result, series) if result.get("ok") else []
+    elif mode in {"detail", "analyze_detail", "entity_lookup"}:
+        checks, statistical_checks = _detail_result_checks(result)
+        if mode == "analyze_detail":
+            graph = result.get("graphContext") or {}
+            if not graph.get("joinPaths") and not graph.get("detailColumns"):
+                checks.append(_stat_check(
+                    "detail_graph_context",
+                    "明细图谱上下文",
+                    "warning",
+                    "明细结果缺少可用图谱关联路径或字段注释，增强分析边界较大。",
+                    severity="major",
+                ))
+            else:
+                checks.append(_stat_check(
+                    "detail_graph_context",
+                    "明细图谱上下文",
+                    "passed",
+                    "明细结果已关联图谱上下文。",
+                ))
+    elif mode == "relationship_analysis":
+        checks = _relationship_result_checks(result)
+    elif mode == "problem_orders":
+        summary = result.get("summary") or {}
+        if result.get("problemOrderMode") == "specific_document":
+            if int(summary.get("documentRows") or 0) <= 0:
+                checks.append(_stat_check(
+                    "specific_document_detail",
+                    "指定单据明细",
+                    "failed",
+                    "没有返回指定单据明细，无法继续做单据追踪校验。",
+                    severity="blocking",
+                ))
+            elif int(summary.get("scannedRules") or 0) <= 0:
+                checks.append(_stat_check(
+                    "document_rules_scanned",
+                    "单据追踪规则扫描",
+                    "failed",
+                    "没有扫描到可用的单据追踪规则。",
+                    severity="blocking",
+                ))
+            elif int(summary.get("returnedRows") or 0) <= 0:
+                checks.append(_stat_check(
+                    "specific_document_trace",
+                    "指定单据追踪",
+                    "passed",
+                    "指定单据明细已返回，单据追踪规则已扫描；当前单据未命中已返回的异常规则样本。",
+                ))
+            else:
+                checks.append(_stat_check(
+                    "specific_document_trace",
+                    "指定单据追踪",
+                    "passed",
+                    f"指定单据命中 {summary.get('returnedRows')} 条单据追踪规则样本。",
+                ))
+        elif int(summary.get("scannedRules") or 0) <= 0:
+            checks.append(_stat_check(
+                "document_rules_scanned",
+                "单据追踪规则扫描",
+                "failed",
+                "没有扫描到可用的单据追踪规则。",
+                severity="blocking",
+            ))
+        elif int(summary.get("returnedRows") or 0) <= 0:
+            checks.append(_stat_check(
+                "problem_orders_returned",
+                "问题订单返回",
+                "warning",
+                "规则已扫描，但当前结果没有返回问题订单样本。",
+                severity="major",
+            ))
+        else:
+            checks.append(_stat_check(
+                "problem_orders_returned",
+                "问题订单返回",
+                "passed",
+                f"返回 {summary.get('returnedRows')} 条问题订单样本。",
+            ))
+
+    all_checks = checks + statistical_checks + history_checks
+    has_blocking = any(c.get("status") == "failed" and c.get("severity") == "blocking" for c in all_checks)
+    has_critical = any(c.get("status") == "warning" and c.get("severity") == "critical" for c in all_checks)
+    has_major = any(c.get("status") == "warning" and c.get("severity") in {"major", "critical"} for c in all_checks)
+    if has_blocking:
+        status, confidence = "failed", "low"
+        summary = "结果校验失败，当前结果不足以支撑回答。"
+    elif has_critical:
+        status, confidence = "warning", "medium"
+        summary = "结果可返回，但统计校验发现明显异常，请结合业务判断。"
+    elif has_major:
+        status, confidence = "warning", "medium"
+        summary = "结果可返回，但存在统计或样本边界。"
+    else:
+        status, confidence = "passed", "high"
+        summary = "结果校验通过，未发现明显统计异常。"
+
+    result["validation"] = {
+        "status": status,
+        "confidence": confidence,
+        "canAnswer": not has_blocking,
+        "shouldReject": has_blocking,
+        "summary": summary,
+        "checks": checks,
+        "statisticalChecks": statistical_checks,
+        "historyChecks": history_checks,
+        "warnings": [c for c in all_checks if c.get("status") == "warning"],
+        "blockingErrors": [c for c in all_checks if c.get("status") == "failed"],
+    }
+    return result
+
+
+def _build_result_evidence(result: dict[str, Any]) -> list[dict[str, Any]]:
+    evidence: list[dict[str, Any]] = []
+    mode = str(result.get("queryMode") or "")
+    matched = result.get("matched") or {}
+    validation = result.get("validation") or {}
+
+    def add(kind: str, title: str, detail: str, payload: Optional[dict[str, Any]] = None) -> None:
+        evidence.append({
+            "id": f"E{len(evidence) + 1}",
+            "kind": kind,
+            "title": title,
+            "detail": detail,
+            "payload": payload or {},
+        })
+
+    if matched.get("measureName") or matched.get("measureCode"):
+        add(
+            "semantic_match",
+            "指标匹配",
+            f"匹配指标：{matched.get('measureName') or matched.get('measureCode')}",
+            {"matched": matched},
+        )
+    if mode == "aggregate":
+        series = _extract_aggregate_numeric_series(result)
+        if series:
+            values = [float(item["value"]) for item in series]
+            add(
+                "result_rows",
+                "聚合结果",
+                f"返回 {len(series)} 个指标数值，合计 {sum(values):.4g}。",
+                {"rowCount": len(series), "total": sum(values)},
+            )
+    elif mode in {"detail", "analyze_detail", "entity_lookup"}:
+        detail = result.get("detailData") or {}
+        records = detail.get("records") or []
+        columns = detail.get("columns") or []
+        add(
+            "detail_rows",
+            "明细结果",
+            f"返回 {len(records) if isinstance(records, list) else 0} 条明细、{len(columns) if isinstance(columns, list) else 0} 个字段。",
+            {"rowCount": len(records) if isinstance(records, list) else 0, "columnCount": len(columns) if isinstance(columns, list) else 0},
+        )
+    elif mode == "problem_orders":
+        summary = result.get("summary") or {}
+        if result.get("problemOrderMode") == "specific_document":
+            add(
+                "document_detail",
+                "指定单据明细",
+                f"指定单据 {result.get('documentNo') or ''} 返回 {summary.get('documentRows', 0)} 行明细。",
+                {"documentNo": result.get("documentNo"), "rowCount": summary.get("documentRows", 0)},
+            )
+        add(
+            "problem_orders",
+            "单据追踪",
+            f"扫描 {summary.get('scannedRules', 0)} 条规则，命中 {summary.get('matchedRows', 0)} 条明细，返回 {summary.get('returnedRows', 0)} 条样本。",
+            {"summary": summary},
+        )
+    elif mode == "relationship_analysis":
+        sample = ((result.get("relationshipAnalysis") or {}).get("sample") or {})
+        add(
+            "relationship_sample",
+            "关系分析样本",
+            f"关系分析使用 {sample.get('validRowCount') or 0} 行有效样本。",
+            {"sample": sample},
+        )
+
+    for idx, item in enumerate(validation.get("warnings") or [], 1):
+        evidence.append({
+            "id": f"V{idx}",
+            "kind": "validation_warning",
+            "title": item.get("name") or item.get("id") or "校验提示",
+            "detail": item.get("message") or "",
+            "payload": item.get("evidence") or {},
+        })
+    return evidence[:20]
+
+
+def _attach_trace(result: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(result, dict):
+        return result
+    trace_id = str(uuid.uuid4())
+    trace = {
+        "traceId": trace_id,
+        "ts": time.time(),
+        "question": result.get("question") or "",
+        "queryMode": result.get("queryMode") or "",
+        "ok": bool(result.get("ok")),
+        "matched": result.get("matched") or {},
+        "intent": result.get("intent") or {},
+        "daPayload": result.get("daPayload"),
+        "validation": result.get("validation") or {},
+        "evidence": result.get("evidence") or [],
+        "crossValidation": result.get("crossValidation") or {},
+        "diagnostics": result.get("diagnostics") or {},
+        "elapsedMs": result.get("elapsedMs"),
+    }
+    with _nlq_trace_lock:
+        _nlq_trace_store.append(trace)
+    result["traceId"] = trace_id
+    result["trace"] = trace
+    return result
+
+
+async def _attach_cross_validation(result: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(result, dict) or str(result.get("queryMode") or "") != "aggregate":
+        result.setdefault("crossValidation", {})
+        return result
+    validation = result.get("validation") or {}
+    if not validation.get("warnings"):
+        result["crossValidation"] = {"status": "skipped", "reason": "统计校验未发现异常，未触发自动交叉验证。"}
+        return result
+
+    series = _extract_aggregate_numeric_series(result)
+    values_abs = [(item, abs(float(item["value"]))) for item in series]
+    total_abs = sum(v for _item, v in values_abs)
+    top_contributors = []
+    if total_abs > 1e-12:
+        for item, abs_value in sorted(values_abs, key=lambda x: x[1], reverse=True)[:5]:
+            top_contributors.append({
+                "label": item.get("label"),
+                "value": item.get("value"),
+                "sharePct": round(abs_value / total_abs * 100, 2),
+            })
+
+    anomaly_rows = []
+    for warning in validation.get("warnings") or []:
+        evidence = warning.get("evidence") or {}
+        for item in evidence.get("topOutliers") or []:
+            if isinstance(item, dict):
+                anomaly_rows.append({
+                    "label": item.get("label"),
+                    "value": item.get("value"),
+                    "source": warning.get("name") or warning.get("id"),
+                })
+
+    detail_sample = {"status": "skipped", "reason": "当前查询没有可复用的 DA payload。"}
+    payload = result.get("daPayload")
+    if isinstance(payload, dict) and payload.get("configureList"):
+        try:
+            detail_payload = {
+                **payload,
+                "measureDetail": True,
+                "pageSize": 5,
+                "pageNum": 1,
+            }
+            da_result = await asyncio.to_thread(_pivot_da_query, detail_payload)
+            columns, records, da_data = await asyncio.to_thread(_detail_records_from_da_result, da_result)
+            detail_sample = {
+                "status": "ok",
+                "columns": columns[:12],
+                "records": records[:5],
+                "rowCount": len(records),
+                "reviewSql": da_data.get("reviewSql") or "",
+            }
+        except Exception as exc:
+            detail_sample = {"status": "error", "error": str(exc)}
+
+    document_trace = {"status": "skipped", "reason": "未找到可用于单据追踪的启用规则。"}
+    measure_code = str((result.get("matched") or {}).get("measureCode") or "")
+    if measure_code:
+        try:
+            from kg_builder.alerts import models as alert_models
+
+            rules, _total = await asyncio.to_thread(alert_models.list_rules, 1, 100, "enabled")
+            doc_rules = [
+                rule for rule in rules
+                if str(rule.get("measure_code") or "") == measure_code
+                and (str(rule.get("builtin_type") or "").lower() == "document"
+                     or str(rule.get("operator") or "").lower() == "document"
+                     or _parse_rule_document_config(rule))
+            ][:3]
+            hits = []
+            for rule in doc_rules:
+                conditions = _document_rule_conditions(rule)
+                if not conditions:
+                    continue
+                scan = await _run_alert_document_scan({
+                    "measureCode": measure_code,
+                    "conditions": conditions,
+                    "pageSize": 100,
+                    "maxRows": 500,
+                    "maxMatches": 5,
+                })
+                summary = scan.get("summary") or {}
+                if int(summary.get("matchedRows") or 0) > 0:
+                    hits.append({
+                        "ruleId": rule.get("id"),
+                        "ruleName": rule.get("name") or "单据追踪",
+                        "matchedRows": summary.get("matchedRows") or 0,
+                        "matches": (scan.get("matches") or [])[:3],
+                    })
+            document_trace = {
+                "status": "ok",
+                "scannedRules": len(doc_rules),
+                "hitRules": len(hits),
+                "hits": hits,
+            }
+        except Exception as exc:
+            document_trace = {"status": "error", "error": str(exc)}
+
+    history = validation.get("historyChecks") or []
+    result["crossValidation"] = {
+        "status": "ok",
+        "reason": "统计校验发现异常，已自动补充轻量交叉验证。",
+        "topContributors": top_contributors,
+        "anomalyRows": anomaly_rows[:10],
+        "detailSample": detail_sample,
+        "documentTrace": document_trace,
+        "historyChecks": history,
+    }
+    return result
+
+
+def _is_problem_order_question(question: str) -> bool:
+    q = re.sub(r"\s+", "", question or "")
+    if not q:
+        return False
+    return bool(re.search(r"(有问题|问题|异常|风险|预警|告警).*(订单|单据)|(订单|单据).*(有问题|问题|异常|风险|预警|告警)|单据追踪|问题订单|异常订单", q))
+
+
+def _parse_specific_document_lookup(question: str) -> dict[str, str]:
+    q = re.sub(r"\s+", " ", question or "").strip()
+    if not q:
+        return {}
+    patterns = [
+        r"(?P<field>[\u4e00-\u9fa5A-Za-z_][\u4e00-\u9fa5A-Za-z0-9_\-\s]{0,60})\s*(?:为|是|=|:|：)\s*[\"'“”]?(?P<value>[A-Za-z0-9_.\-]+)[\"'“”]?",
+        r"(?:查|查询|查看)?\s*(?P<field>订单编号|订单号|订单ID|单据编号|单据号|退货单号|销售单号|order[_\s-]?(?:number|no|id)?)\s*(?:为|是|=|:|：)?\s*[\"'“”]?(?P<value>[A-Za-z0-9_.\-]+)[\"'“”]?",
+    ]
+    for pat in patterns:
+        m = re.search(pat, q, re.I)
+        if not m:
+            continue
+        field = str(m.group("field") or "").strip()
+        value = str(m.group("value") or "").strip().strip("'\"“”")
+        if value and re.search(r"订单编号|订单号|订单ID|单据编号|单据号|退货单号|销售单号|order|bill|document", field, re.I):
+            return {"fieldText": field, "value": value}
+    return {}
+
+
+def _is_specific_document_lookup(question: str) -> bool:
+    return bool(_parse_specific_document_lookup(question))
+
+
+def _parse_rule_document_config(rule: dict[str, Any]) -> dict[str, Any]:
+    dims = _json_dict(rule.get("dimensions_json"))
+    doc = dims.get("__document") if isinstance(dims, dict) else {}
+    return doc if isinstance(doc, dict) else {}
+
+
+def _rule_recent_at(rule: dict[str, Any]) -> Any:
+    for key in ("last_triggered_at", "updated_at", "created_at"):
+        value = rule.get(key)
+        if value:
+            return value
+    return None
+
+
+def _is_recent_rule(rule: dict[str, Any], days: int = 92) -> bool:
+    from datetime import datetime, timedelta
+
+    value = _rule_recent_at(rule)
+    if not value:
+        return False
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        text = str(value).strip().replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(text)
+        except Exception:
+            return False
+    if dt.tzinfo is not None:
+        dt = dt.replace(tzinfo=None)
+    return dt >= datetime.now() - timedelta(days=days)
+
+
+def _document_rule_conditions(rule: dict[str, Any]) -> list[dict[str, Any]]:
+    doc = _parse_rule_document_config(rule)
+    raw_conditions = doc.get("conditions")
+    conditions = raw_conditions if isinstance(raw_conditions, list) else []
+    out: list[dict[str, Any]] = []
+    for item in conditions:
+        if not isinstance(item, dict):
+            continue
+        out.append({
+            "columnCode": str(item.get("columnCode") or item.get("column") or "").strip(),
+            "operator": str(item.get("operator") or "eq").lower(),
+            "value": item.get("value", 0),
+            "source": str(item.get("source") or "rule"),
+        })
+    if not out and (doc.get("columnCode") or doc.get("value") is not None):
+        out.append({
+            "columnCode": str(doc.get("columnCode") or "").strip(),
+            "operator": str(doc.get("operator") or "eq").lower(),
+            "value": doc.get("value", 0),
+            "source": "rule",
+        })
+    return out
+
+
+def _document_rule_max_rows(rule: dict[str, Any]) -> int:
+    doc = _parse_rule_document_config(rule)
+    try:
+        return max(100, min(int(doc.get("maxRows") or 500), 5000))
+    except Exception:
+        return 500
+
+
+def _condition_text(condition: dict[str, Any]) -> str:
+    labels = {"eq": "=", "lt": "<", "lte": "<=", "gt": ">", "gte": ">="}
+    name = condition.get("columnName") or condition.get("columnCode") or "自动识别列"
+    op = labels.get(str(condition.get("operator") or "eq").lower(), str(condition.get("operator") or "eq"))
+    return f"{name} {op} {condition.get('value', '')}"
+
+
+async def _query_problem_orders(question: str, page_size: int, page_num: int) -> dict[str, Any]:
+    from kg_builder.alerts import models as alert_models
+
+    rules, _total = await asyncio.to_thread(alert_models.list_rules, 1, 200, "enabled")
+    document_rules = [
+        rule for rule in rules
+        if (str(rule.get("builtin_type") or "").lower() == "document"
+            or str(rule.get("operator") or "").lower() == "document"
+            or _parse_rule_document_config(rule))
+        and str(rule.get("measure_code") or "").strip()
+    ]
+    recent_rules = [rule for rule in document_rules if _is_recent_rule(rule)]
+    scan_rules = recent_rules or document_rules
+    severity_order = {"critical": 0, "warning": 1, "notice": 2, "info": 3}
+    scan_rules = sorted(
+        scan_rules,
+        key=lambda r: (
+            severity_order.get(str(r.get("severity") or "").lower(), 9),
+            -int(r.get("id") or 0),
+        ),
+    )[:8]
+
+    per_rule_limit = max(5, min(page_size, 80))
+    problem_orders: list[dict[str, Any]] = []
+    rule_results: list[dict[str, Any]] = []
+    seen: set[tuple[str, int, str]] = set()
+
+    for rule in scan_rules:
+        conditions = _document_rule_conditions(rule)
+        if not conditions:
+            continue
+        body = {
+            "measureCode": rule.get("measure_code"),
+            "conditions": conditions,
+            "pageSize": 200,
+            "maxRows": _document_rule_max_rows(rule),
+            "maxMatches": per_rule_limit,
+        }
+        try:
+            result = await _run_alert_document_scan(body)
+        except Exception as exc:
+            rule_results.append({
+                "ruleId": rule.get("id"),
+                "ruleName": rule.get("name") or "单据追踪",
+                "severity": rule.get("severity") or "",
+                "measureCode": rule.get("measure_code") or "",
+                "error": str(exc),
+            })
+            continue
+        summary = result.get("summary") or {}
+        resolved_conditions = result.get("conditions") or []
+        condition_label = " 且 ".join(_condition_text(item) for item in resolved_conditions) or "单据追踪规则"
+        rule_results.append({
+            "ruleId": rule.get("id"),
+            "ruleName": rule.get("name") or "单据追踪",
+            "severity": rule.get("severity") or "",
+            "measureCode": rule.get("measure_code") or "",
+            "measureName": (result.get("measure") or {}).get("name") or rule.get("measure_code") or "",
+            "condition": condition_label,
+            "matchedRows": summary.get("matchedRows") or 0,
+            "returnedRows": summary.get("returnedRows") or 0,
+            "scannedRows": summary.get("scannedRows") or 0,
+        })
+        for idx, match in enumerate(result.get("matches") or []):
+            order_no = str(match.get("orderNumber") or "").strip()
+            target_column = str(result.get("targetColumn") or "")
+            key = (order_no or f"row-{idx}", int(rule.get("id") or 0), target_column)
+            if key in seen:
+                continue
+            seen.add(key)
+            problem_orders.append({
+                "orderNumber": order_no,
+                "ruleId": rule.get("id"),
+                "ruleName": rule.get("name") or "单据追踪",
+                "severity": rule.get("severity") or "",
+                "measureCode": rule.get("measure_code") or "",
+                "measureName": (result.get("measure") or {}).get("name") or rule.get("measure_code") or "",
+                "targetColumn": target_column,
+                "targetColumnName": result.get("targetColumnName") or target_column,
+                "targetValue": match.get("targetValue"),
+                "condition": condition_label,
+                "conditionValues": match.get("conditionValues") or {},
+                "record": match.get("record") or {},
+            })
+            if len(problem_orders) >= max(1, min(page_size, 200)):
+                break
+        if len(problem_orders) >= max(1, min(page_size, 200)):
+            break
+
+    total_matched = sum(int(item.get("matchedRows") or 0) for item in rule_results)
+    hit_rules = [item for item in rule_results if int(item.get("matchedRows") or 0) > 0]
+    columns = [
+        {"code": "orderNumber", "name": "订单编号"},
+        {"code": "ruleName", "name": "命中规则"},
+        {"code": "severity", "name": "严重等级"},
+        {"code": "measureName", "name": "关联指标"},
+        {"code": "targetColumnName", "name": "判定字段"},
+        {"code": "targetValue", "name": "命中值"},
+        {"code": "condition", "name": "判定条件"},
+    ]
+    return {
+        "ok": True,
+        "question": question,
+        "queryMode": "problem_orders",
+        "matched": {
+            "measureCode": "alert_document_rules",
+            "measureName": "监控预警单据追踪规则",
+            "dimensionCodes": [],
+            "dimensions": [],
+        },
+        "periodLabel": "最近三个月启用、更新或触发的单据追踪规则",
+        "problemOrders": problem_orders,
+        "ruleResults": rule_results,
+        "detailData": {
+            "columns": columns,
+            "records": problem_orders,
+            "rowCount": len(problem_orders),
+        },
+        "summary": {
+            "scannedRules": len(rule_results),
+            "hitRules": len(hit_rules),
+            "matchedRows": total_matched,
+            "returnedRows": len(problem_orders),
+            "pageNum": max(1, page_num),
+            "pageSize": max(1, min(page_size, 200)),
+        },
+        "explain": "基于监控预警中启用的单据追踪规则扫描明细，返回命中规则的问题订单样本。",
+        "resolvedContext": {
+            "queryMode": "problem_orders",
+            "analysisMode": "document_trace",
+            "lastQuestion": question,
+        },
+        "suggestedNextQuestions": [
+            "这些问题订单按商品分布如何",
+            "解释负利润订单的共同特征",
+            "查看订单 8000000 的明细",
+        ],
+    }
+
+
+def _same_document_no(a: Any, b: Any) -> bool:
+    left = re.sub(r"\D+", "", str(a or ""))
+    right = re.sub(r"\D+", "", str(b or ""))
+    if left and right:
+        return left == right
+    return str(a or "").strip() == str(b or "").strip()
+
+
+def _record_contains_document_no(record: dict[str, Any], document_no: str) -> bool:
+    if not isinstance(record, dict) or not document_no:
+        return False
+    for key, value in record.items():
+        if not re.search(r"订单|单据|单号|order|bill|document", str(key), re.I):
+            continue
+        if _same_document_no(value, document_no):
+            return True
+    return False
+
+
+async def _query_specific_document_trace(
+    question: str,
+    page_size: int,
+    page_num: int,
+    ttl_path: Path,
+) -> dict[str, Any]:
+    from kg_builder.alerts import models as alert_models
+    from kg_builder.nlq import NaturalLanguageQueryService
+
+    parsed = _parse_specific_document_lookup(question)
+    document_no = parsed.get("value") or ""
+    service = NaturalLanguageQueryService(
+        ttl_path=ttl_path,
+        data_agent_url=_DATA_AGENT_URL,
+        source_ttl_path=_get_active_path(),
+        log_cb=lambda msg: logging.getLogger("uvicorn").info(msg),
+    )
+    entity_result = await asyncio.to_thread(
+        service.entity_lookup,
+        question,
+        page_size=max(1, min(page_size, 10000)),
+        page_num=max(1, page_num),
+        intent={"mode": "entity_lookup", "entity": parsed},
+    )
+    if not entity_result.get("ok"):
+        entity_result.setdefault("queryMode", "problem_orders")
+        return entity_result
+
+    rules, _total = await asyncio.to_thread(alert_models.list_rules, 1, 200, "enabled")
+    document_rules = [
+        rule for rule in rules
+        if (str(rule.get("builtin_type") or "").lower() == "document"
+            or str(rule.get("operator") or "").lower() == "document"
+            or _parse_rule_document_config(rule))
+        and str(rule.get("measure_code") or "").strip()
+    ]
+    recent_rules = [rule for rule in document_rules if _is_recent_rule(rule)]
+    severity_order = {"critical": 0, "warning": 1, "notice": 2, "info": 3}
+    scan_rules = sorted(
+        recent_rules or document_rules,
+        key=lambda r: (
+            severity_order.get(str(r.get("severity") or "").lower(), 9),
+            -int(r.get("id") or 0),
+        ),
+    )[:8]
+
+    rule_results: list[dict[str, Any]] = []
+    problem_orders: list[dict[str, Any]] = []
+    seen: set[tuple[int, str]] = set()
+    for rule in scan_rules:
+        conditions = _document_rule_conditions(rule)
+        if not conditions:
+            continue
+        try:
+            scan = await _run_alert_document_scan({
+                "measureCode": rule.get("measure_code"),
+                "conditions": conditions,
+                "pageSize": 200,
+                "maxRows": _document_rule_max_rows(rule),
+                "maxMatches": 1000,
+            })
+        except Exception as exc:
+            rule_results.append({
+                "ruleId": rule.get("id"),
+                "ruleName": rule.get("name") or "单据追踪",
+                "severity": rule.get("severity") or "",
+                "measureCode": rule.get("measure_code") or "",
+                "error": str(exc),
+                "matchedRows": 0,
+                "scannedRows": 0,
+            })
+            continue
+        summary = scan.get("summary") or {}
+        resolved_conditions = scan.get("conditions") or []
+        condition_label = " 且 ".join(_condition_text(item) for item in resolved_conditions) or "单据追踪规则"
+        specific_matches = []
+        for match in scan.get("matches") or []:
+            order_no = match.get("orderNumber")
+            record = match.get("record") or {}
+            if _same_document_no(order_no, document_no) or _record_contains_document_no(record, document_no):
+                specific_matches.append(match)
+        rule_results.append({
+            "ruleId": rule.get("id"),
+            "ruleName": rule.get("name") or "单据追踪",
+            "severity": rule.get("severity") or "",
+            "measureCode": rule.get("measure_code") or "",
+            "measureName": (scan.get("measure") or {}).get("name") or rule.get("measure_code") or "",
+            "condition": condition_label,
+            "matchedRows": len(specific_matches),
+            "globalMatchedRows": summary.get("matchedRows") or 0,
+            "returnedRows": len(specific_matches),
+            "scannedRows": summary.get("scannedRows") or 0,
+        })
+        for idx, match in enumerate(specific_matches):
+            key = (int(rule.get("id") or 0), str(match.get("orderNumber") or idx))
+            if key in seen:
+                continue
+            seen.add(key)
+            first_condition = resolved_conditions[0] if resolved_conditions else {}
+            target_column = str(scan.get("targetColumn") or first_condition.get("columnCode") or "")
+            problem_orders.append({
+                "orderNumber": match.get("orderNumber") or document_no,
+                "ruleId": rule.get("id"),
+                "ruleName": rule.get("name") or "单据追踪",
+                "severity": rule.get("severity") or "",
+                "measureCode": rule.get("measure_code") or "",
+                "measureName": (scan.get("measure") or {}).get("name") or rule.get("measure_code") or "",
+                "targetColumn": target_column,
+                "targetColumnName": scan.get("targetColumnName") or first_condition.get("columnName") or target_column,
+                "targetValue": match.get("targetValue"),
+                "condition": condition_label,
+                "conditionValues": match.get("conditionValues") or {},
+                "record": match.get("record") or {},
+            })
+
+    hit_rules = [item for item in rule_results if int(item.get("matchedRows") or 0) > 0]
+    detail = entity_result.get("detailData") or {}
+    detail_rows = int(detail.get("rowCount") or len(detail.get("records") or []))
+    explain = (
+        f"已按「{parsed.get('fieldText') or '单据编号'} = {document_no}」获取单据明细，"
+        f"并扫描启用的单据追踪规则；当前单据命中 {len(problem_orders)} 条规则样本。"
+        if problem_orders
+        else f"已按「{parsed.get('fieldText') or '单据编号'} = {document_no}」获取单据明细，"
+             "并扫描启用的单据追踪规则；当前单据未命中已返回的规则样本。"
+    )
+    return {
+        "ok": True,
+        "question": question,
+        "queryMode": "problem_orders",
+        "problemOrderMode": "specific_document",
+        "documentNo": document_no,
+        "entity": entity_result.get("entity") or {},
+        "documentDetail": detail,
+        "joinedDimensions": entity_result.get("joinedDimensions") or [],
+        "peerAnalysis": entity_result.get("peerAnalysis") or {},
+        "graphContext": entity_result.get("graphContext") or {},
+        "matched": entity_result.get("matched") or {
+            "measureCode": "alert_document_rules",
+            "measureName": "指定单据追踪",
+            "dimensionCodes": [],
+            "dimensions": [],
+        },
+        "periodLabel": "指定单据追踪：明细检索 + 启用规则扫描",
+        "problemOrders": problem_orders,
+        "ruleResults": rule_results,
+        "detailData": {
+            "columns": [
+                {"code": "orderNumber", "name": "订单编号"},
+                {"code": "ruleName", "name": "命中规则"},
+                {"code": "severity", "name": "严重等级"},
+                {"code": "measureName", "name": "关联指标"},
+                {"code": "targetColumnName", "name": "判定字段"},
+                {"code": "targetValue", "name": "命中值"},
+                {"code": "condition", "name": "判定条件"},
+            ],
+            "records": problem_orders,
+            "rowCount": len(problem_orders),
+        },
+        "summary": {
+            "scannedRules": len(rule_results),
+            "hitRules": len(hit_rules),
+            "matchedRows": len(problem_orders),
+            "returnedRows": len(problem_orders),
+            "documentRows": detail_rows,
+            "pageNum": max(1, page_num),
+            "pageSize": max(1, min(page_size, 200)),
+        },
+        "explain": explain,
+        "resolvedContext": {
+            "queryMode": "problem_orders",
+            "analysisMode": "document_trace",
+            "lastQuestion": question,
+            "documentNo": document_no,
+        },
+        "suggestedNextQuestions": [
+            "解释这张单据的异常判定原因",
+            "查看这张单据的同类对象分析",
+            "这些问题订单按商品分布如何",
+        ],
+    }
 
 
 @app.post("/api/nlq/query")
@@ -4399,6 +6225,51 @@ async def nlq_query(req: NLQRequest):
     if req.context:
         request_context.update(req.context)
 
+    if _is_specific_document_lookup(question):
+        try:
+            result = await _query_specific_document_trace(
+                question,
+                page_size=max(1, min(req.pageSize, 10000)),
+                page_num=max(1, req.pageNum),
+                ttl_path=ttl_path,
+            )
+            _attach_result_validation(result)
+            await _attach_cross_validation(result)
+            result["evidence"] = _build_result_evidence(result)
+            _attach_trace(result)
+            result["conversationId"] = conversation_id
+            resolved_context = result.get("resolvedContext")
+            if isinstance(resolved_context, dict):
+                with _nlq_context_lock:
+                    if len(_nlq_context_store) >= 200 and conversation_id not in _nlq_context_store:
+                        _nlq_context_store.pop(next(iter(_nlq_context_store)), None)
+                    _nlq_context_store[conversation_id] = dict(resolved_context)
+            return JSONResponse(result)
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+    if _is_problem_order_question(question):
+        try:
+            result = await _query_problem_orders(
+                question,
+                page_size=max(1, min(req.pageSize, 10000)),
+                page_num=max(1, req.pageNum),
+            )
+            _attach_result_validation(result)
+            await _attach_cross_validation(result)
+            result["evidence"] = _build_result_evidence(result)
+            _attach_trace(result)
+            result["conversationId"] = conversation_id
+            resolved_context = result.get("resolvedContext")
+            if isinstance(resolved_context, dict):
+                with _nlq_context_lock:
+                    if len(_nlq_context_store) >= 200 and conversation_id not in _nlq_context_store:
+                        _nlq_context_store.pop(next(iter(_nlq_context_store)), None)
+                    _nlq_context_store[conversation_id] = dict(resolved_context)
+            return JSONResponse(result)
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
     def _run():
         from kg_builder.nlq import NaturalLanguageQueryService
         source_ttl_path = _get_active_path()
@@ -4421,6 +6292,10 @@ async def nlq_query(req: NLQRequest):
 
     try:
         result = await asyncio.to_thread(_run)
+        _attach_result_validation(result)
+        await _attach_cross_validation(result)
+        result["evidence"] = _build_result_evidence(result)
+        _attach_trace(result)
         result["conversationId"] = conversation_id
         resolved_context = result.get("resolvedContext")
         if isinstance(resolved_context, dict):
@@ -4431,6 +6306,194 @@ async def nlq_query(req: NLQRequest):
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@app.get("/api/nlq/traces")
+async def nlq_traces(limit: int = 20):
+    limit = max(1, min(int(limit or 20), 100))
+    with _nlq_trace_lock:
+        items = list(_nlq_trace_store)[-limit:]
+    return {"items": items[::-1], "total": len(items)}
+
+
+@app.get("/api/nlq/traces/{trace_id}")
+async def nlq_trace_detail(trace_id: str):
+    with _nlq_trace_lock:
+        for item in reversed(_nlq_trace_store):
+            if item.get("traceId") == trace_id:
+                return item
+    return JSONResponse({"error": "trace 不存在或已过期"}, status_code=404)
+
+
+@app.post("/api/nlq/interpret")
+async def nlq_interpret(req: NLQInterpretRequest):
+    """Use the configured LLM to interpret a completed NLQ result."""
+
+    def _compact(obj: Any, max_chars: int = 16000) -> str:
+        text = json.dumps(obj, ensure_ascii=False, default=str)
+        return text[:max_chars]
+
+    def _strip_reasoning(text: str) -> str:
+        text = str(text or "").strip()
+        text = re.sub(r"(?is)<think>.*?</think>", "", text).strip()
+        text = re.sub(r"(?is)^```(?:markdown|md)?\s*|\s*```$", "", text).strip()
+        return text
+
+    def _validate_interpretation_output(text: str) -> dict[str, Any]:
+        checks: list[dict[str, Any]] = []
+        evidence_ids = {
+            str(item.get("id"))
+            for item in (req.evidence or [])
+            if item.get("id")
+        }
+        warning_count = len((req.validation or {}).get("warnings") or [])
+        has_refs = bool(re.search(r"\[(?:E|V|C)\d+\]", text or ""))
+        checks.append({
+            "id": "evidence_refs_present",
+            "status": "passed" if has_refs or not evidence_ids else "warning",
+            "message": "解读已引用证据编号。" if has_refs else "解读未引用证据编号，建议补充 [E1]/[V1]/[C1]。",
+        })
+        strong_causal = bool(re.search(r"(导致|证明|必然|一定|根因|唯一原因)", text or ""))
+        guarded = bool(re.search(r"(可能|相关|推测|需要进一步|不足以|不能证明|边界|样本)", text or ""))
+        checks.append({
+            "id": "causality_guard",
+            "status": "warning" if strong_causal and not guarded else "passed",
+            "message": "存在强因果表述但缺少不确定性边界。" if strong_causal and not guarded else "未发现无边界强因果表述。",
+        })
+        has_boundary = bool(re.search(r"(风险|边界|样本|不足|谨慎|不能|无法|校验)", text or ""))
+        checks.append({
+            "id": "warning_boundary_mentioned",
+            "status": "passed" if warning_count == 0 or has_boundary else "warning",
+            "message": "校验存在 warning，解读已说明边界。" if warning_count and has_boundary else (
+                "校验存在 warning，但解读未明确说明边界。" if warning_count else "结果无校验 warning。"
+            ),
+        })
+        status = "warning" if any(c["status"] == "warning" for c in checks) else "passed"
+        return {
+            "status": status,
+            "checks": checks,
+        }
+
+    def _fallback_interpretation(reason: str) -> str:
+        evidence = req.evidence or []
+        validation = req.validation or {}
+        result_summary = req.resultSummary or {}
+        evidence_lines = []
+        for item in evidence[:6]:
+            eid = item.get("id") or f"E{len(evidence_lines) + 1}"
+            title = item.get("title") or item.get("kind") or "证据"
+            detail = item.get("detail") or ""
+            evidence_lines.append(f"- [{eid}] {title}：{detail}")
+        if not evidence_lines:
+            evidence_lines.append("- 暂无结构化证据，当前解读只基于返回结果摘要。")
+
+        row_count = (
+            result_summary.get("rowCount")
+            or (result_summary.get("summary") or {}).get("returnedRows")
+            or (result_summary.get("summary") or {}).get("documentRows")
+            or 0
+        )
+        warnings = validation.get("warnings") or []
+        blockers = validation.get("blockingErrors") or []
+        boundary = validation.get("summary") or "当前结果已完成后置校验。"
+        if reason:
+            boundary = f"{boundary} DeepSeek 当前未完成调用：{reason}"
+
+        return "\n".join([
+            "1. 核心结论",
+            f"- 当前查询已返回结构化结果，样本/明细规模为 {row_count}。结论必须以已返回数据和校验项为准。",
+            "",
+            "2. 关键数据观察",
+            *evidence_lines,
+            "",
+            "3. 可能业务含义",
+            "- 当前结果可以作为问题定位或下一步追问的依据，但不单独证明强因果关系。",
+            "",
+            "4. 风险与边界",
+            f"- {boundary}",
+            f"- 校验 warning 数：{len(warnings)}；blocking 数：{len(blockers)}。如存在 warning，需要结合业务口径复核。",
+            "- 当前为本地证据解读兜底；配置 DeepSeek 后将生成更完整的行业分析文本。",
+            "",
+            "5. 建议下一步分析",
+            "- 优先查看命中规则、异常字段、明细样本和历史对比；若是单据问题，继续下钻同类订单和规则阈值。",
+        ])
+
+    def _call_llm() -> str:
+        import re
+        import urllib.error
+        import urllib.request
+        from kg_builder.utils.llm_config import chat_completions_url, llm_config_from_env, llm_request_headers
+
+        cfg = llm_config_from_env(BASE_DIR)
+        api_key = (cfg.get("api_key") or "").strip()
+        base_url = (cfg.get("base_url") or "").strip().rstrip("/")
+        model = (cfg.get("model") or "").strip()
+        if not api_key or not base_url or not model:
+            raise ValueError("DeepSeek 未配置：请设置 DEEPSEEK_API_KEY，或在 apps/ad/config.local.yaml 配置 deepseek.api_key")
+
+        system = (
+            "你是一名资深行业数据分析专家，擅长从指标查询结果中提炼业务含义。"
+            "必须只基于用户提供的数据摘要进行解读，不要编造不存在的事实、原因或外部行业数值。"
+            "如果样本量不足、缺少时间对比或不能证明因果，要明确说明边界。"
+            "如果 validation 中包含 warning 或 failed，必须在风险与边界中说明这些校验提示，不得把异常结果包装成确定结论。"
+            "核心结论和关键数据观察中的每条判断必须引用证据编号，例如 [E1]、[V1] 或 [C1]；没有证据不得下结论。"
+            "输出中文 Markdown，结构固定为："
+            "1. 核心结论；2. 关键数据观察；3. 可能业务含义；4. 风险与边界；5. 建议下一步分析。"
+            "每条结论尽量引用具体数值、维度或样本量。"
+        )
+        user = {
+            "question": req.question,
+            "queryMode": req.queryMode,
+            "matched": req.matched,
+            "resultSummary": req.resultSummary,
+            "graphContext": req.graphContext,
+            "validation": req.validation,
+            "evidence": req.evidence,
+            "crossValidation": req.crossValidation,
+        }
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": _compact(user)},
+            ],
+            "temperature": 0.2,
+            "max_tokens": 1200,
+        }
+        request = urllib.request.Request(
+            chat_completions_url(base_url),
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers=llm_request_headers(cfg),
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=90) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")[:800]
+            raise ValueError(f"DeepSeek 调用失败 HTTP {exc.code}: {body}") from exc
+        content = (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+        )
+        content = _strip_reasoning(content)
+        if not content:
+            raise ValueError("LLM 未返回有效解读")
+        return content
+
+    try:
+        text = await asyncio.to_thread(_call_llm)
+        return {"ok": True, "provider": "deepseek", "interpretation": text, "outputValidation": _validate_interpretation_output(text)}
+    except Exception as e:
+        text = _fallback_interpretation(str(e))
+        return {
+            "ok": True,
+            "provider": "local_fallback",
+            "configWarning": str(e),
+            "interpretation": text,
+            "outputValidation": _validate_interpretation_output(text),
+        }
 
 
 @app.post("/api/nlq/entity-lookup")
@@ -4933,10 +6996,17 @@ async def ad_semantic_drilldown(request: Request):
                     for idx, cell in enumerate(row)
                     if idx < len(columns) and isinstance(cell, dict)
                 })
+        page_no = payload["pageNo"]
+        page_size = payload["pageSize"]
         return {
             "columns": columns,
             "records": records,
-            "pageInfo": da_data.get("pageInfo") or {},
+            "pageInfo": _normalize_detail_page_info(
+                da_data.get("pageInfo") or {},
+                len(records),
+                page_size,
+                page_no,
+            ),
             "daPayload": payload,
             "diagnostics": {"reviewSql": da_data.get("reviewSql") or "", "elapsedMs": da_data.get("cost")},
         }
@@ -5096,6 +7166,18 @@ def _numeric_compare(actual: Any, operator: str, expected: Any) -> bool:
     return False
 
 
+def _json_dict(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return dict(raw)
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
 def _document_scan_conditions_from_body(body: dict[str, Any]) -> list[dict[str, Any]]:
     raw_conditions = body.get("conditions")
     conditions: list[dict[str, Any]] = []
@@ -5145,106 +7227,110 @@ def _resolve_document_scan_conditions(
     return resolved
 
 
+async def _run_alert_document_scan(body: dict[str, Any]) -> dict[str, Any]:
+    service = _ad_semantic_service()
+    measure_member = body.get("measure") or body.get("measureCode")
+    measure = service._resolve_member(measure_member, "measure")
+    if not measure:
+        raise ValueError("缺少或无法识别 measureCode")
+
+    page_size = max(1, min(int(body.get("pageSize") or 500), 500))
+    max_rows = max(1, min(int(body.get("maxRows") or 5000), 50000))
+    max_matches = max(1, min(int(body.get("maxMatches") or 200), 1000))
+    requested_conditions = _document_scan_conditions_from_body(body)
+    resolved_conditions: list[dict[str, Any]] = []
+    filters = service._convert_filters(body.get("filters") or [], [measure])
+    pivot_paths = body.get("pivotPaths")
+    pivot_filter_list = None
+    if isinstance(pivot_paths, list) and pivot_paths:
+        pivot_filter_list = _pivot_drill_filter_list(body.get("pivotFilters") or [], pivot_paths, measure["code"])
+
+    matches: list[dict[str, Any]] = []
+    matched_rows = 0
+    columns: list[dict[str, str]] = []
+    order_column = ""
+    scanned = 0
+    page_no = 1
+    review_sql = ""
+
+    while scanned < max_rows:
+        payload = {
+            "chartType": 0,
+            "sourceType": 0,
+            "operaType": 1,
+            "cacheStrategy": body.get("cacheStrategy", 1),
+            "configureList": [{"code": measure["code"]}],
+            "filterList": pivot_filter_list if pivot_filter_list is not None else _pivot_da_filters(filters),
+            "measureDetail": True,
+            "pageNo": page_no,
+            "pageSize": min(page_size, max_rows - scanned),
+        }
+        da_result = await asyncio.to_thread(_pivot_da_query, payload)
+        page_columns, records, da_data = await asyncio.to_thread(_detail_records_from_da_result, da_result)
+        if page_columns:
+            columns = page_columns
+        if columns:
+            resolved_conditions = _resolve_document_scan_conditions(requested_conditions, measure, columns)
+        if not order_column and columns:
+            order_column = _infer_order_column(columns)
+        review_sql = da_data.get("reviewSql") or review_sql
+        scanned += len(records)
+
+        for record in records:
+            condition_values = {
+                item["columnCode"]: record.get(item["columnCode"])
+                for item in resolved_conditions
+                if item.get("columnCode")
+            }
+            is_match = bool(resolved_conditions) and all(
+                item.get("columnCode") and _numeric_compare(record.get(item["columnCode"]), item["operator"], item.get("value"))
+                for item in resolved_conditions
+            )
+            if is_match:
+                matched_rows += 1
+                if len(matches) < max_matches:
+                    first_column = str(resolved_conditions[0].get("columnCode") or "") if resolved_conditions else ""
+                    matches.append({
+                        "orderNumber": record.get(order_column) if order_column else "",
+                        "targetValue": record.get(first_column) if first_column else "",
+                        "conditionValues": condition_values,
+                        "record": record,
+                    })
+        if len(records) < payload["pageSize"]:
+            break
+        page_no += 1
+
+    first_condition = resolved_conditions[0] if resolved_conditions else {}
+    target_column = str(first_condition.get("columnCode") or "")
+    operator = str(first_condition.get("operator") or "eq")
+    expected = first_condition.get("value", 0)
+    return {
+        "measure": {"code": measure["code"], "name": measure.get("name") or measure.get("title") or measure["code"]},
+        "targetColumn": target_column,
+        "targetColumnName": first_condition.get("columnName") or next((col["name"] for col in columns if col.get("code") == target_column), target_column),
+        "orderColumn": order_column,
+        "orderColumnName": next((col["name"] for col in columns if col.get("code") == order_column), order_column),
+        "operator": operator,
+        "value": expected,
+        "conditions": resolved_conditions,
+        "columns": columns,
+        "matches": matches,
+        "summary": {
+            "scannedRows": scanned,
+            "matchedRows": matched_rows,
+            "returnedRows": len(matches),
+            "maxRows": max_rows,
+            "maxMatches": max_matches,
+        },
+        "diagnostics": {"reviewSql": review_sql},
+    }
+
+
 @app.post("/api/alerts/document-scan")
 async def alert_document_scan(request: Request):
     body = await request.json()
     try:
-        service = _ad_semantic_service()
-        measure_member = body.get("measure") or body.get("measureCode")
-        measure = service._resolve_member(measure_member, "measure")
-        if not measure:
-            return JSONResponse({"error": "缺少或无法识别 measureCode"}, status_code=400)
-
-        page_size = max(1, min(int(body.get("pageSize") or 500), 500))
-        max_rows = max(1, min(int(body.get("maxRows") or 5000), 50000))
-        max_matches = max(1, min(int(body.get("maxMatches") or 200), 1000))
-        requested_conditions = _document_scan_conditions_from_body(body)
-        resolved_conditions: list[dict[str, Any]] = []
-        filters = service._convert_filters(body.get("filters") or [], [measure])
-        pivot_paths = body.get("pivotPaths")
-        pivot_filter_list = None
-        if isinstance(pivot_paths, list) and pivot_paths:
-            pivot_filter_list = _pivot_drill_filter_list(body.get("pivotFilters") or [], pivot_paths, measure["code"])
-
-        matches: list[dict[str, Any]] = []
-        matched_rows = 0
-        columns: list[dict[str, str]] = []
-        order_column = ""
-        scanned = 0
-        page_no = 1
-        review_sql = ""
-
-        while scanned < max_rows:
-            payload = {
-                "chartType": 0,
-                "sourceType": 0,
-                "operaType": 1,
-                "cacheStrategy": body.get("cacheStrategy", 1),
-                "configureList": [{"code": measure["code"]}],
-                "filterList": pivot_filter_list if pivot_filter_list is not None else _pivot_da_filters(filters),
-                "measureDetail": True,
-                "pageNo": page_no,
-                "pageSize": min(page_size, max_rows - scanned),
-            }
-            da_result = await asyncio.to_thread(_pivot_da_query, payload)
-            page_columns, records, da_data = await asyncio.to_thread(_detail_records_from_da_result, da_result)
-            if page_columns:
-                columns = page_columns
-            if columns:
-                resolved_conditions = _resolve_document_scan_conditions(requested_conditions, measure, columns)
-            if not order_column and columns:
-                order_column = _infer_order_column(columns)
-            review_sql = da_data.get("reviewSql") or review_sql
-            scanned += len(records)
-
-            for record in records:
-                condition_values = {
-                    item["columnCode"]: record.get(item["columnCode"])
-                    for item in resolved_conditions
-                    if item.get("columnCode")
-                }
-                is_match = bool(resolved_conditions) and all(
-                    item.get("columnCode") and _numeric_compare(record.get(item["columnCode"]), item["operator"], item.get("value"))
-                    for item in resolved_conditions
-                )
-                if is_match:
-                    matched_rows += 1
-                    if len(matches) < max_matches:
-                        first_column = str(resolved_conditions[0].get("columnCode") or "") if resolved_conditions else ""
-                        matches.append({
-                            "orderNumber": record.get(order_column) if order_column else "",
-                            "targetValue": record.get(first_column) if first_column else "",
-                            "conditionValues": condition_values,
-                            "record": record,
-                        })
-            if len(records) < payload["pageSize"]:
-                break
-            page_no += 1
-
-        first_condition = resolved_conditions[0] if resolved_conditions else {}
-        target_column = str(first_condition.get("columnCode") or "")
-        operator = str(first_condition.get("operator") or "eq")
-        expected = first_condition.get("value", 0)
-        return {
-            "measure": {"code": measure["code"], "name": measure.get("name") or measure.get("title") or measure["code"]},
-            "targetColumn": target_column,
-            "targetColumnName": first_condition.get("columnName") or next((col["name"] for col in columns if col.get("code") == target_column), target_column),
-            "orderColumn": order_column,
-            "orderColumnName": next((col["name"] for col in columns if col.get("code") == order_column), order_column),
-            "operator": operator,
-            "value": expected,
-            "conditions": resolved_conditions,
-            "columns": columns,
-            "matches": matches,
-            "summary": {
-                "scannedRows": scanned,
-                "matchedRows": matched_rows,
-                "returnedRows": len(matches),
-                "maxRows": max_rows,
-                "maxMatches": max_matches,
-            },
-            "diagnostics": {"reviewSql": review_sql},
-        }
+        return await _run_alert_document_scan(body)
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     except Exception as exc:
@@ -5484,7 +7570,7 @@ def _dashboard_ai_call_llm(payload: dict[str, Any]) -> str:
     import os
     import urllib.request as _ureq
 
-    from kg_builder.utils.llm_config import llm_config_from_env, validate_llm_config
+    from kg_builder.utils.llm_config import chat_completions_url, llm_config_from_env, llm_request_headers, validate_llm_config
 
     cfg = llm_config_from_env(BASE_DIR, model_override=os.environ.get("BUSINESS_KG_MODEL", "").strip())
     validate_llm_config(cfg, purpose="Dashboard AI 解读")
@@ -5513,8 +7599,7 @@ def _dashboard_ai_call_llm(payload: dict[str, Any]) -> str:
             "max_tokens": 1600,
             "messages": [{"role": "user", "content": system + "\n\n" + user}],
         }).encode("utf-8")
-        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
-        req = _ureq.Request(f"{base_url}/chat/completions", data=body, headers=headers, method="POST")
+        req = _ureq.Request(chat_completions_url(base_url), data=body, headers=llm_request_headers(cfg), method="POST")
     with _ureq.urlopen(req, timeout=60) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     if "choices" in data:
@@ -5667,6 +7752,7 @@ def _pivot_detail_column_labels_cached(ttl_path: str, modified_ns: int) -> dict[
     graph = Graph()
     graph.parse(ttl_path, format="turtle")
     db = Namespace("http://kg.local/db#")
+    ind = Namespace("http://indicator.insightmind.com/ontology#")
     labels = {}
     for column in graph.subjects(RDF.type, db.Column):
         name = graph.value(column, db.name)
@@ -5681,18 +7767,128 @@ def _pivot_detail_column_labels_cached(ttl_path: str, modified_ns: int) -> dict[
         if not zh_label:
             zh_label = next((
                 label for label in candidates
-                if label != code and any("\u4e00" <= char <= "\u9fff" for char in label)
-            ), "")
+            if label != code and any("\u4e00" <= char <= "\u9fff" for char in label)
+        ), "")
         labels.setdefault(code, zh_label or code)
+    for column in graph.subjects(RDF.type, ind.DwColumn):
+        name = graph.value(column, ind.columnName)
+        if name is None:
+            continue
+        code = str(name)
+        label = graph.value(column, ind.cnName) or graph.value(column, ind.columnComment)
+        if label is not None:
+            labels[code] = str(label)
+        else:
+            labels.setdefault(code, code)
     return labels
 
 
 def _pivot_detail_column_labels() -> dict[str, str]:
     """Return English column name -> Chinese KG label for drill detail headers."""
     ttl_path = _get_active_path()
-    if not ttl_path or not ttl_path.exists():
-        return {}
-    return _pivot_detail_column_labels_cached(str(ttl_path), ttl_path.stat().st_mtime_ns)
+    labels = {}
+    if ttl_path and ttl_path.exists():
+        labels.update(_pivot_detail_column_labels_cached(str(ttl_path), ttl_path.stat().st_mtime_ns))
+    bkg_path = BKG_DIR / "indicator-data.ttl"
+    if bkg_path.exists():
+        labels.update(_pivot_detail_column_labels_cached(str(bkg_path), bkg_path.stat().st_mtime_ns))
+    return labels
+
+
+def _normalize_detail_page_info(
+    page_info: Any,
+    record_count: int,
+    page_size: int,
+    current_page: int,
+) -> dict[str, Any]:
+    """Align detail pagination totals with the rows returned by DA detail queries."""
+    info = dict(page_info or {}) if isinstance(page_info, dict) else {}
+    try:
+        page = max(1, int(info.get("currentPage") or current_page or 1))
+    except Exception:
+        page = max(1, int(current_page or 1))
+    try:
+        size = max(1, int(page_size or info.get("pageSize") or 50))
+    except Exception:
+        size = 50
+    count = max(0, int(record_count or 0))
+    has_next = bool(info.get("hasNextPage"))
+    if not has_next and count <= size:
+        total_rows = (page - 1) * size + count
+        info.update({
+            "totalRows": total_rows,
+            "pageRecorders": count,
+            "totalPages": page if total_rows else 0,
+            "pageStartRow": (page - 1) * size,
+            "pageEndRow": total_rows,
+            "currentPage": page,
+            "hasNextPage": False,
+            "hasPreviousPage": page > 1,
+        })
+    return info
+
+
+def _semantic_member_alias(code: str) -> str:
+    raw = str(code or "").strip()
+    if raw.startswith("DIM_"):
+        return f"ad.{raw[4:].lower()}"
+    if raw.startswith("MEAS_"):
+        return f"ad.{raw[5:].lower()}"
+    return raw
+
+
+def _pivot_dimension_values_fallback(
+    code: str,
+    keyword: str,
+    page_size: int,
+    catalog: dict[str, Any],
+) -> list[dict[str, str]]:
+    """Fallback for degenerate dimensions when DA's value-list endpoint returns null."""
+    measure = next(
+        (
+            item for item in catalog.get("measures", [])
+            if code in (item.get("dimensionCodes") or [])
+        ),
+        None,
+    )
+    if not measure:
+        return []
+    dimension_member = _semantic_member_alias(code)
+    query: dict[str, Any] = {
+        "measures": [_semantic_member_alias(measure.get("code") or "")],
+        "dimensions": [dimension_member],
+        "filters": [],
+        "order": {},
+        "limit": max(1, min(int(page_size or 100), 500)),
+        "enableAlerts": False,
+    }
+    if keyword:
+        query["filters"].append({
+            "kind": "dimension",
+            "member": dimension_member,
+            "operator": "contains",
+            "values": [keyword],
+        })
+    result = _ad_semantic_service().load(query)
+    options = []
+    seen = set()
+    for row in result.get("data") or []:
+        if not isinstance(row, dict):
+            continue
+        value = row.get(dimension_member)
+        if value in (None, ""):
+            continue
+        value = str(value)
+        if value in seen:
+            continue
+        seen.add(value)
+        options.append({
+            "id": value,
+            "data": value,
+            "label": value,
+            "value": value,
+        })
+    return options
 
 
 @app.get("/api/pivot/catalog")
@@ -5764,6 +7960,14 @@ async def pivot_dimension_values(request: Request):
                 "label": label,
                 "value": value,
             })
+        if not options:
+            options = await asyncio.to_thread(
+                _pivot_dimension_values_fallback,
+                code,
+                keyword,
+                int(body.get("pageSize") or 100),
+                catalog,
+            )
         return {
             "options": options,
             "pageInfo": da_data.get("pageInfo") or {},
@@ -5932,10 +8136,17 @@ async def pivot_drill(request: Request):
                     for idx, cell in enumerate(row)
                     if idx < len(columns) and isinstance(cell, dict)
                 })
+        page_no = payload["pageNo"]
+        page_size = payload["pageSize"]
         return {
             "columns": columns,
             "records": records,
-            "pageInfo": da_data.get("pageInfo") or {},
+            "pageInfo": _normalize_detail_page_info(
+                da_data.get("pageInfo") or {},
+                len(records),
+                page_size,
+                page_no,
+            ),
             "filters": filters,
             "diagnostics": {"reviewSql": da_data.get("reviewSql") or "", "elapsedMs": da_data.get("cost")},
         }

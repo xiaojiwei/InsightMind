@@ -1,0 +1,73 @@
+[
+  {"id":"agg_001","category":"aggregate","question":"查询净亏损","expected":{"queryMode":"aggregate","measureCode":"MEAS_net_loss"}},
+  {"id":"agg_002","category":"aggregate","question":"统计优惠券总金额","expected":{"queryMode":"aggregate","measureName":"优惠券总金额"}},
+  {"id":"agg_003","category":"aggregate","question":"查询优惠券总金额","expected":{"queryMode":"aggregate","measureName":"优惠券总金额"}},
+  {"id":"agg_004","category":"aggregate","question":"统计净亏损","expected":{"queryMode":"aggregate","measureCode":"MEAS_net_loss"}},
+  {"id":"agg_005","category":"aggregate","question":"查看净亏损整体情况","expected":{"queryMode":"aggregate","measureCode":"MEAS_net_loss"}},
+  {"id":"agg_006","category":"aggregate","question":"查看优惠券总金额整体情况","expected":{"queryMode":"aggregate","measureName":"优惠券总金额"}},
+
+  {"id":"dim_001","category":"dimension","question":"按商品统计净亏损","expected":{"queryMode":"aggregate","measureCode":"MEAS_net_loss","dimensionName":"商品"}},
+  {"id":"dim_002","category":"dimension","question":"按商品查看优惠券总金额","expected":{"queryMode":"aggregate","measureName":"优惠券总金额","dimensionName":"商品"}},
+  {"id":"dim_003","category":"dimension","question":"按周统计净亏损","expected":{"queryMode":"aggregate","measureCode":"MEAS_net_loss","dimensionName":"周"}},
+  {"id":"dim_004","category":"dimension","question":"按周分析优惠券总金额","expected":{"queryMode":"aggregate","measureName":"优惠券总金额","dimensionName":"周"}},
+  {"id":"dim_005","category":"dimension","question":"按商品对比净亏损","expected":{"queryMode":"aggregate","measureCode":"MEAS_net_loss","dimensionName":"商品"}},
+  {"id":"dim_006","category":"dimension","question":"按周查看净亏损趋势","expected":{"queryMode":"aggregate","measureCode":"MEAS_net_loss","dimensionName":"周"}},
+  {"id":"dim_007","category":"dimension","question":"从商品维度查看优惠券总金额","expected":{"queryMode":"aggregate","measureName":"优惠券总金额","dimensionName":"商品"}},
+  {"id":"dim_008","category":"dimension","question":"从周维度统计优惠券总金额","expected":{"queryMode":"aggregate","measureName":"优惠券总金额","dimensionName":"周"}},
+
+  {"id":"detail_001","category":"detail","question":"查询净亏损的明细","expected":{"queryMode":"detail_or_analyze_detail","measureCode":"MEAS_net_loss"}},
+  {"id":"detail_002","category":"detail","question":"查询优惠券总金额的原始明细","expected":{"queryMode":"detail_or_analyze_detail","measureName":"优惠券总金额"}},
+  {"id":"detail_003","category":"detail","question":"只查净亏损明细","expected":{"queryMode":"detail_or_analyze_detail","measureCode":"MEAS_net_loss"}},
+  {"id":"detail_004","category":"detail","question":"分析净亏损的明细数据","expected":{"queryMode":"analyze_detail","measureCode":"MEAS_net_loss"}},
+  {"id":"detail_005","category":"detail","question":"分析优惠券总金额的明细数据特征","expected":{"queryMode":"analyze_detail","measureName":"优惠券总金额"}},
+
+  {"id":"entity_001","category":"entity_lookup","question":"商品 ： 14341","expected":{"queryMode":"entity_lookup","fieldContains":"商品","value":"14341"}},
+  {"id":"entity_002","category":"problem_orders","question":"目录退货表-订单编号 ： 5000006","expected":{"queryMode":"problem_orders","problemOrderMode":"specific_document","value":"5000006"}},
+  {"id":"entity_003","category":"problem_orders","question":"网络销售事实表-订单编号 ： 8000000","expected":{"queryMode":"problem_orders","problemOrderMode":"specific_document","value":"8000000"}},
+  {"id":"entity_004","category":"problem_orders","question":"门店退货表-退货单号 ： 1023992","expected":{"queryMode":"problem_orders","problemOrderMode":"specific_document","value":"1023992"}},
+  {"id":"entity_005","category":"problem_orders","question":"查看订单编号 8000000 的详情","expected":{"queryMode":"problem_orders","problemOrderMode":"specific_document","value":"8000000"}},
+  {"id":"entity_006","category":"problem_orders","question":"订单编号为8000000的同类对象分析","expected":{"queryMode":"problem_orders","problemOrderMode":"specific_document","value":"8000000"}},
+
+  {"id":"problem_001","category":"problem_orders","question":"查询最近三个月有问题的订单","expected":{"queryMode":"problem_orders"}},
+  {"id":"problem_002","category":"problem_orders","question":"查看监控预警命中的异常订单","expected":{"queryMode":"problem_orders"}},
+  {"id":"problem_003","category":"problem_orders","question":"列出单据追踪规则命中的问题单据","expected":{"queryMode":"problem_orders"}},
+  {"id":"problem_004","category":"problem_orders","question":"有哪些预警订单","expected":{"queryMode":"problem_orders"}},
+  {"id":"problem_005","category":"problem_orders","question":"查询异常单据","expected":{"queryMode":"problem_orders"}},
+
+  {"id":"explain_001","category":"explain","question":"解释净亏损的口径","expected":{"queryMode":"explain","measureCode":"MEAS_net_loss"}},
+  {"id":"explain_002","category":"explain","question":"解释优惠券总金额有哪些可分析维度","expected":{"queryMode":"explain","measureName":"优惠券总金额"}},
+  {"id":"explain_003","category":"explain","question":"净亏损有哪些可分析维度","expected":{"queryMode":"explain","measureCode":"MEAS_net_loss"}},
+  {"id":"explain_004","category":"explain","question":"优惠券总金额的来源是什么","expected":{"queryMode":"explain","measureName":"优惠券总金额"}},
+  {"id":"explain_005","category":"explain","question":"净亏损的图谱关系","expected":{"queryMode":"explain","measureCode":"MEAS_net_loss"}},
+  {"id":"explain_006","category":"explain","question":"能按哪些维度分析净亏损","expected":{"queryMode":"explain","measureCode":"MEAS_net_loss"}},
+
+  {"id":"relationship_001","category":"relationship_analysis","question":"分析优惠券总金额和净亏损是否相关","expected":{"queryMode":"relationship_analysis"}},
+  {"id":"relationship_002","category":"relationship_analysis","question":"优惠券总金额是否影响净亏损","expected":{"queryMode":"relationship_analysis"}},
+  {"id":"relationship_003","category":"relationship_analysis","question":"折扣和净亏损有什么关系","expected":{"queryMode":"relationship_analysis"}},
+  {"id":"relationship_004","category":"relationship_analysis","question":"促销和净亏损是否相关","expected":{"queryMode":"relationship_analysis"}},
+  {"id":"relationship_005","category":"relationship_analysis","question":"高折扣订单和净亏损有什么差异","expected":{"queryMode":"relationship_analysis"}},
+
+  {"id":"clarify_001","category":"clarify","question":"查询收入","expected":{"action":"clarify_or_reject"}},
+  {"id":"clarify_002","category":"clarify","question":"查询利润情况","expected":{"action":"clarify_or_reject"}},
+  {"id":"clarify_003","category":"clarify","question":"网络情况怎么样","expected":{"action":"clarify_or_reject"}},
+  {"id":"clarify_004","category":"clarify","question":"帮我分析一下","expected":{"action":"clarify_or_reject"}},
+  {"id":"clarify_005","category":"clarify","question":"这个指标为什么异常","expected":{"action":"clarify_or_reject"}},
+
+  {"id":"reject_001","category":"reject","question":"查询火星销售额","expected":{"action":"reject"}},
+  {"id":"reject_002","category":"reject","question":"查询不存在指标ABCXYZ","expected":{"action":"reject"}},
+  {"id":"reject_003","category":"reject","question":"帮我删除数据库","expected":{"action":"reject"}},
+  {"id":"reject_004","category":"reject","question":"生成一个新的MEAS_fake_metric并查询","expected":{"action":"reject"}},
+  {"id":"reject_005","category":"reject","question":"证明净亏损一定是促销导致的","expected":{"action":"reject_or_warning"}},
+
+  {"id":"validation_001","category":"validation","question":"按周统计净亏损","expected":{"validation":"warning_or_passed","methods":["IQR","MAD","CV"]}},
+  {"id":"validation_002","category":"validation","question":"按商品统计净亏损","expected":{"validation":"warning_or_passed","methods":["IQR","MAD","TopShare","Entropy"]}},
+  {"id":"validation_003","category":"validation","question":"查询净亏损","expected":{"validation":"passed_or_warning"}},
+  {"id":"validation_004","category":"validation","question":"按商品统计优惠券总金额","expected":{"validation":"warning_or_passed","methods":["IQR","MAD","TopShare","Entropy"]}},
+  {"id":"validation_005","category":"validation","question":"查询最近三个月有问题的订单","expected":{"validation":"passed_or_warning","queryMode":"problem_orders"}},
+
+  {"id":"trace_001","category":"trace","question":"查询净亏损","expected":{"trace":true,"evidence":true}},
+  {"id":"trace_002","category":"trace","question":"按周统计净亏损","expected":{"trace":true,"evidence":true,"crossValidationOnWarning":true}},
+  {"id":"trace_003","category":"trace","question":"网络退货表-订单编号 ： 8000000","expected":{"trace":true,"evidence":true}},
+  {"id":"trace_004","category":"trace","question":"分析优惠券总金额和净亏损是否相关","expected":{"trace":true,"evidence":true}},
+  {"id":"trace_005","category":"trace","question":"查询最近三个月有问题的订单","expected":{"trace":true,"evidence":true}}
+]

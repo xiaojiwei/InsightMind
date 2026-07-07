@@ -543,8 +543,8 @@ class NaturalLanguageQueryService:
     def _parse_entity_lookup(self, question: str) -> dict[str, str]:
         q = re.sub(r"\s+", " ", question or "").strip()
         patterns = [
-            r"(?P<field>[\u4e00-\u9fa5A-Za-z_][\u4e00-\u9fa5A-Za-z0-9_]{0,24})\s*(?:为|是|=|:|：)\s*[\"'“”]?(?P<value>[A-Za-z0-9_.\-]+)[\"'“”]?",
-            r"^(?:查|查询|查看|检索|搜索)?\s*(?P<field>[\u4e00-\u9fa5A-Za-z_][\u4e00-\u9fa5A-Za-z0-9_]{0,24})\s+[\"'“”]?(?P<value>[A-Za-z0-9_.\-]+)[\"'“”]?(?:\s*(?:的)?(?:信息|详情|明细|所有信息|全部信息|情况|分析|画像|同类.*)?)?$",
+            r"(?P<field>[\u4e00-\u9fa5A-Za-z_][\u4e00-\u9fa5A-Za-z0-9_\-]{0,40})\s*(?:为|是|=|:|：)\s*[\"'“”]?(?P<value>[A-Za-z0-9_.\-]+)[\"'“”]?",
+            r"^(?:查|查询|查看|检索|搜索)?\s*(?P<field>[\u4e00-\u9fa5A-Za-z_][\u4e00-\u9fa5A-Za-z0-9_\-]{0,40})\s+[\"'“”]?(?P<value>[A-Za-z0-9_.\-]+)[\"'“”]?(?:\s*(?:的)?(?:信息|详情|明细|所有信息|全部信息|情况|分析|画像|同类.*)?)?$",
         ]
         for pat in patterns:
             m = re.search(pat, q, re.I)
@@ -676,7 +676,7 @@ class NaturalLanguageQueryService:
 
     def _resolve_question_intent_with_llm(self, question: str) -> dict[str, Any]:
         try:
-            from kg_builder.utils.llm_config import llm_config_from_env
+            from kg_builder.utils.llm_config import chat_completions_url, llm_config_from_env, llm_request_headers
 
             cfg = llm_config_from_env(Path.cwd())
             api_key = (cfg.get("api_key") or "").strip()
@@ -736,12 +736,9 @@ class NaturalLanguageQueryService:
                 "max_tokens": 320,
             }
             req = urllib.request.Request(
-                f"{base_url}/chat/completions",
+                chat_completions_url(base_url),
                 data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {api_key}",
-                },
+                headers=llm_request_headers(cfg),
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
@@ -813,6 +810,13 @@ class NaturalLanguageQueryService:
             code_l = c["columnName"].lower()
             label_norm = self._norm(c.get("label") or "")
             comment_norm = self._norm(c.get("comment") or "")
+            table_name = str(c.get("tableName") or "")
+            source_table_name = str(c.get("sourceTableName") or "")
+            table_label_norm = self._norm(self._table_business_label(source_table_name or table_name))
+            table_name_norms = {
+                self._norm(table_name),
+                self._norm(source_table_name),
+            }
             aliases = {a.lower() for a in c.get("aliases", []) if a}
             if field_norm and field_norm == label_norm:
                 score += 120
@@ -828,6 +832,10 @@ class NaturalLanguageQueryService:
                 score += 95
             if field_norm and any(field_norm in self._norm(a) for a in aliases):
                 score += 65
+            if field_norm and table_label_norm and table_label_norm in field_norm:
+                score += 120
+            if field_norm and any(tn and tn in field_norm for tn in table_name_norms):
+                score += 90
             if self._entity_candidate_value_exists(c, value_s):
                 score += 20
             if score <= 0:
@@ -1332,7 +1340,7 @@ class NaturalLanguageQueryService:
         if not row or (not peer_count and not comparisons):
             return {}
         try:
-            from kg_builder.utils.llm_config import llm_config_from_env
+            from kg_builder.utils.llm_config import chat_completions_url, llm_config_from_env, llm_request_headers
 
             cfg = llm_config_from_env(Path.cwd())
             api_key = (cfg.get("api_key") or "").strip()
@@ -1420,12 +1428,9 @@ class NaturalLanguageQueryService:
                 "max_tokens": 900,
             }
             req = urllib.request.Request(
-                f"{base_url}/chat/completions",
+                chat_completions_url(base_url),
                 data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {api_key}",
-                },
+                headers=llm_request_headers(cfg),
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=18) as resp:
@@ -2707,8 +2712,37 @@ class NaturalLanguageQueryService:
             # 尝试 LLM 兜底：将问题中的领域词映射到 KG 实际指标
             llm_mapped = self._llm_map_to_kg_measures(question, measure_hits[:10])
             if llm_mapped:
-                measure = llm_mapped
-                measure_score = 50.0  # LLM 映射的给中等置信度
+                llm_measure = llm_mapped["measure"]
+                llm_diagnostics = {
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "llmMeasureMatch": {
+                        "code": llm_measure.code,
+                        "name": llm_measure.cn_name,
+                        "confidenceLevel": "medium",
+                        "reason": llm_mapped["reason"],
+                        "matchedTerms": llm_mapped["matchedTerms"],
+                    },
+                }
+                if llm_measure.code != measure.code:
+                    return self._clarify_plan(
+                        question,
+                        "LLM 候选与规则候选不一致，请确认要查哪个指标",
+                        llm_diagnostics,
+                    )
+                plan = self._clarify_plan(
+                    question,
+                    f"系统推测你想查询「{llm_measure.cn_name}」，但该匹配仅为中等置信度，请确认后再执行查询",
+                    llm_diagnostics,
+                )
+                plan["diagnosticCode"] = "LLM_MEDIUM_CONFIDENCE"
+                plan["matched"] = {
+                    "measureCode": llm_measure.code,
+                    "measureName": llm_measure.cn_name,
+                    "factTables": sorted(llm_measure.tables),
+                    "dimensionCodes": [],
+                    "dimensions": [],
+                }
+                return plan
             else:
                 available = self._top_measure_examples()
                 names = "、".join(m["name"] for m in available[:8])
@@ -3097,7 +3131,7 @@ class NaturalLanguageQueryService:
 
     def _resolve_query_mode_with_llm(self, question: str) -> str:
         try:
-            from kg_builder.utils.llm_config import llm_config_from_env
+            from kg_builder.utils.llm_config import chat_completions_url, llm_config_from_env, llm_request_headers
 
             cfg = llm_config_from_env(Path.cwd())
             api_key = (cfg.get("api_key") or "").strip()
@@ -3140,12 +3174,9 @@ class NaturalLanguageQueryService:
                 "max_tokens": 120,
             }
             req = urllib.request.Request(
-                f"{base_url}/chat/completions",
+                chat_completions_url(base_url),
                 data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {api_key}",
-                },
+                headers=llm_request_headers(cfg),
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=8) as resp:
@@ -4867,10 +4898,10 @@ class NaturalLanguageQueryService:
         self,
         question: str,
         measure_hits: list[tuple[float, MeasureMeta]],
-    ) -> Optional[MeasureMeta]:
+    ) -> Optional[dict[str, Any]]:
         """LLM 兜底：将问题中的领域术语映射到 KG 中实际存在的指标。"""
         try:
-            from kg_builder.utils.llm_config import llm_config_from_env
+            from kg_builder.utils.llm_config import chat_completions_url, llm_config_from_env, llm_request_headers
             cfg = llm_config_from_env(Path.cwd())
             api_key = (cfg.get("api_key") or "").strip()
             base_url = (cfg.get("base_url") or "").strip().rstrip("/")
@@ -4881,29 +4912,31 @@ class NaturalLanguageQueryService:
                 {"code": m.code, "name": m.cn_name, "tables": sorted(m.tables)}
                 for _score, m in measure_hits
             ]
+            candidate_codes = {item["code"] for item in candidates}
             system = (
                 "你是一个业务指标匹配器。用户提出一个问题，其中可能包含不在候选列表中的业务术语。"
                 "请从候选指标中选择最接近用户意图的一个。"
-                "只返回 JSON：{\"code\": \"指标code\", \"reason\": \"简短理由\"}。"
-                "如果所有候选指标都与用户意图无关，返回 {\"code\": null, \"reason\": \"无匹配\"}。"
-                "不要编造候选列表之外的指标。"
+                "只返回 JSON：{\"code\": \"指标code或null\", \"reason\": \"简短理由\", \"matchedTerms\": [\"命中的用户原词\"]}。"
+                "reason 必须说明为什么选择该候选，matchedTerms 必须列出用户问题中支撑该选择的词。"
+                "如果所有候选指标都与用户意图无关，返回 {\"code\": null, \"reason\": \"无匹配\", \"matchedTerms\": []}。"
+                "严禁编造候选列表之外的指标 code。"
             )
             payload = {
                 "model": model,
-                "messages": [{"role": "user", "content": json.dumps({
-                    "question": question,
-                    "candidates": candidates,
-                }, ensure_ascii=False)}],
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": json.dumps({
+                        "question": question,
+                        "candidates": candidates,
+                    }, ensure_ascii=False)},
+                ],
                 "temperature": 0,
                 "max_tokens": 128,
             }
             req = urllib.request.Request(
-                f"{base_url}/chat/completions",
+                chat_completions_url(base_url),
                 data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {api_key}",
-                },
+                headers=llm_request_headers(cfg),
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
@@ -4911,9 +4944,28 @@ class NaturalLanguageQueryService:
             content = (data.get("choices", [{}])[0].get("message", {}).get("content", "")).strip()
             parsed = json.loads(content) if content.startswith("{") else {}
             code = str(parsed.get("code") or "").strip()
-            if code and code in self._measures:
-                self._log(f"[NLQ] LLM 兜底匹配: {code} ({self._measures[code].cn_name}) reason={parsed.get('reason','')}")
-                return self._measures[code]
+            reason = str(parsed.get("reason") or "").strip()
+            raw_terms = parsed.get("matchedTerms") or []
+            matched_terms = [
+                str(item).strip()
+                for item in raw_terms
+                if str(item).strip()
+            ] if isinstance(raw_terms, list) else []
+            if code and code in candidate_codes and reason and matched_terms:
+                measure = self._measures[code]
+                self._log(
+                    f"[NLQ] LLM 兜底候选: {code} ({measure.cn_name}) "
+                    f"reason={reason} matchedTerms={matched_terms}"
+                )
+                return {
+                    "measure": measure,
+                    "reason": reason,
+                    "matchedTerms": matched_terms,
+                }
+            if code and code not in candidate_codes:
+                self._log(f"[NLQ] LLM 返回了候选外指标，已拒绝: {code}")
+            elif code:
+                self._log("[NLQ] LLM 兜底候选缺少 reason 或 matchedTerms，已拒绝")
         except Exception as e:
             self._log(f"[NLQ] LLM 兜底匹配失败: {e}")
         return None
