@@ -337,10 +337,10 @@ class NaturalLanguageQueryService:
 
         parsed = self._entity_lookup_payload_from_intent(intent or {})
         if not parsed:
+            parsed = self._parse_entity_lookup(question)
+        if not parsed:
             llm_intent = self._resolve_question_intent_with_llm(question)
             parsed = self._entity_lookup_payload_from_intent(llm_intent)
-        if not parsed:
-            parsed = self._parse_entity_lookup(question)
         if not parsed:
             field_hints = self._entity_field_candidates()[:15]
             hint_names = sorted(set(
@@ -542,9 +542,10 @@ class NaturalLanguageQueryService:
 
     def _parse_entity_lookup(self, question: str) -> dict[str, str]:
         q = re.sub(r"\s+", " ", question or "").strip()
+        value_text = r"[^,，;；。！？\n\r]+"
         patterns = [
-            r"(?P<field>[\u4e00-\u9fa5A-Za-z_][\u4e00-\u9fa5A-Za-z0-9_\-]{0,40})\s*(?:为|是|=|:|：)\s*[\"'“”]?(?P<value>[A-Za-z0-9_.\-]+)[\"'“”]?",
-            r"^(?:查|查询|查看|检索|搜索)?\s*(?P<field>[\u4e00-\u9fa5A-Za-z_][\u4e00-\u9fa5A-Za-z0-9_\-]{0,40})\s+[\"'“”]?(?P<value>[A-Za-z0-9_.\-]+)[\"'“”]?(?:\s*(?:的)?(?:信息|详情|明细|所有信息|全部信息|情况|分析|画像|同类.*)?)?$",
+            rf"(?P<field>[\u4e00-\u9fa5A-Za-z_][\u4e00-\u9fa5A-Za-z0-9_\-]{{0,60}})\s*(?:为|是|=|:|：)\s*[\"'“”]?(?P<value>{value_text})[\"'“”]?",
+            rf"^(?:查|查询|查看|检索|搜索)?\s*(?P<field>[\u4e00-\u9fa5A-Za-z_][\u4e00-\u9fa5A-Za-z0-9_\-]{{0,60}})\s+[\"'“”]?(?P<value>{value_text})[\"'“”]?(?:\s*(?:的)?(?:信息|详情|明细|所有信息|全部信息|情况|分析|画像|同类.*)?)?$",
         ]
         for pat in patterns:
             m = re.search(pat, q, re.I)
@@ -552,6 +553,7 @@ class NaturalLanguageQueryService:
                 continue
             field = (m.group("field") or "").strip()
             value = (m.group("value") or "").strip().strip("'\"“”")
+            value = re.sub(r"\s*(?:的)?(?:信息|详情|明细|所有信息|全部信息|情况|分析|画像)$", "", value).strip()
             if field and value and field not in {"查询", "查看", "分析", "输入"}:
                 return {"fieldText": field, "value": value}
         return {}
@@ -3121,7 +3123,7 @@ class NaturalLanguageQueryService:
 
         has_detail = bool(re.search(r"明细|详情|列表|记录|样本|原始|订单列表|行级|下钻", q))
         has_analysis = bool(re.search(r"分析|二次分析|分析明细|从明细|字段分析|样本分析|异常|特征|分布|解释|说明|还能按哪些|推荐", q))
-        has_graph = bool(re.search(r"图谱|关系|血缘|来自|来源|为什么|能不能|有哪些维度|按哪些维度|能按哪些|可用维度|解释|说明|join|关联", q, re.I))
+        has_graph = bool(re.search(r"图谱|关系|血缘|来自|来源|为什么|能不能|有哪些维度|有哪些.*维度|哪些.*维度|按哪些维度|能按哪些|可用维度|可分析维度|分析维度|解释|说明|join|关联", q, re.I))
 
         if has_detail:
             return "analyze_detail"

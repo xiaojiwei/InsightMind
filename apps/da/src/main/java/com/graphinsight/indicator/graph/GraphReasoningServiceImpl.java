@@ -25,12 +25,16 @@ public class GraphReasoningServiceImpl implements GraphReasoningService {
 
     @Override
     public List<ReasoningRelationDTO> listCompatibleDimensions(String measureCode) {
-        return listRelations(
+        List<ReasoningRelationDTO> explicit = listRelations(
                 measureCode,
                 "ind:Measure",
                 "ind:Dimension",
                 "ind:compatibleDimension",
                 "compatibleDimension");
+        if (!explicit.isEmpty()) {
+            return explicit;
+        }
+        return listCompatibleDimensionsBySharedFactTable(measureCode);
     }
 
     @Override
@@ -86,6 +90,37 @@ public class GraphReasoningServiceImpl implements GraphReasoningService {
             dto.setRuleId(str(row, "ruleId"));
             dto.setConfidence(decimal(row, "confidence"));
             dto.setEvidencePath(str(row, "evidencePath"));
+            rows.add(dto);
+        }
+        return rows;
+    }
+
+    private List<ReasoningRelationDTO> listCompatibleDimensionsBySharedFactTable(String measureCode) {
+        String sparql = P + "\n" +
+                "SELECT DISTINCT ?sourceCode ?sourceName ?targetCode ?targetName ?tableName WHERE {\n" +
+                "  ?source a ind:Measure ; ind:code \"" + esc(measureCode) + "\" ; ind:hasMeasureApp ?mapp .\n" +
+                "  ?source ind:code ?sourceCode .\n" +
+                "  OPTIONAL { ?source ind:cnName ?sourceName . }\n" +
+                "  ?mapp (ind:appliesToTable|ind:measFactTable) ?table .\n" +
+                "  ?target a ind:Dimension ; ind:code ?targetCode ; ind:hasDimApp ?dapp .\n" +
+                "  OPTIONAL { ?target ind:cnName ?targetName . }\n" +
+                "  ?dapp ind:dimFactTable ?table .\n" +
+                "  OPTIONAL { ?table ind:tableName ?tableName . }\n" +
+                "} ORDER BY ?targetCode";
+        List<ReasoningRelationDTO> rows = new ArrayList<>();
+        for (QuerySolution row : execSelect(sparql)) {
+            ReasoningRelationDTO dto = new ReasoningRelationDTO();
+            dto.setSourceCode(str(row, "sourceCode"));
+            dto.setSourceName(str(row, "sourceName"));
+            dto.setSourceType("Measure");
+            dto.setTargetCode(str(row, "targetCode"));
+            dto.setTargetName(str(row, "targetName"));
+            dto.setTargetType("Dimension");
+            dto.setRelation("compatibleDimension");
+            dto.setRuleId("compatible_dimension.shared_fact_table");
+            dto.setConfidence(BigDecimal.ONE);
+            dto.setEvidencePath(measureCode + " 与 " + dto.getTargetCode()
+                    + " 共享事实表: " + (str(row, "tableName") == null ? "未知" : str(row, "tableName")));
             rows.add(dto);
         }
         return rows;

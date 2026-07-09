@@ -13,6 +13,7 @@ import math
 import functools
 import json
 import logging
+import os
 import queue
 import re
 import shutil
@@ -2903,11 +2904,6 @@ async def nlq_suggestions(file: str = ""):
             f"按{first_dim['name']}统计{primary_measure['name']}",
             f"按{second_dim['name']}统计{second_measure['name']}",
         ]),
-        ("问题订单", [
-            "查询最近三个月有问题的订单",
-            "查看监控预警命中的异常订单",
-            "列出单据追踪规则命中的问题单据",
-        ]),
         ("属性检索", entity_examples[:4]),
         ("图谱解释", [
             f"解释{primary_measure['name']}有哪些可分析维度",
@@ -5005,6 +5001,55 @@ def _extract_aggregate_numeric_series(result: dict[str, Any]) -> list[dict[str, 
     return series
 
 
+def _is_cross_level_funnel_result(result: dict[str, Any]) -> bool:
+    matched = result.get("matched") or {}
+    measure_text = " ".join([
+        str(matched.get("measureCode") or ""),
+        str(matched.get("measureName") or ""),
+    ]).lower()
+    dim_texts: list[str] = []
+    for dim in matched.get("dimensions") or []:
+        if isinstance(dim, dict):
+            dim_texts.append(str(dim.get("code") or ""))
+            dim_texts.append(str(dim.get("name") or ""))
+    dim_texts.extend(str(code) for code in (matched.get("dimensionCodes") or []))
+    dim_text = " ".join(dim_texts).lower()
+    return (
+        ("celn" in measure_text or "celn" in dim_text)
+        and ("funnel" in measure_text or "funnel" in dim_text or "漏斗" in measure_text or "漏斗" in dim_text)
+        and ("stage" in dim_text or "阶段" in dim_text or "group" in dim_text or "分组" in dim_text)
+    )
+
+
+def _aggregate_statistical_checks(result: dict[str, Any], series: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not _is_cross_level_funnel_result(result):
+        return _statistical_checks_for_values(series)
+    values = [float(item["value"]) for item in series if _safe_float(item.get("value")) is not None]
+    if not values:
+        return [_stat_check(
+            "numeric_values_present",
+            "数值可解析",
+            "warning",
+            "当前结果没有可用于统计校验的数值列。",
+            severity="major",
+        )]
+    return [
+        _stat_check(
+            "numeric_values_present",
+            "数值可解析",
+            "passed",
+            f"已解析 {len(values)} 个指标数值。",
+            evidence={"count": len(values), "zeroCount": sum(1 for v in values if abs(v) < 1e-12)},
+        ),
+        _stat_check(
+            "cross_level_funnel_iqr_skipped",
+            "跨层级漏斗异常校验",
+            "passed",
+            "当前结果包含 CELN 漏斗分组、阶段、总量或转化等不同层级节点，已跳过跨层级 IQR 异常比较。",
+        ),
+    ]
+
+
 def _stat_check(
     check_id: str,
     name: str,
@@ -5435,7 +5480,7 @@ def _attach_result_validation(result: dict[str, Any]) -> dict[str, Any]:
         else:
             checks.append(_stat_check("da_ok", "DA 查询成功", "passed", "DA 返回成功。"))
         series = _extract_aggregate_numeric_series(result)
-        statistical_checks = _statistical_checks_for_values(series)
+        statistical_checks = _aggregate_statistical_checks(result, series)
         history_checks = _history_checks_for_result(result, series) if result.get("ok") else []
     elif mode in {"detail", "analyze_detail", "entity_lookup"}:
         checks, statistical_checks = _detail_result_checks(result)
@@ -6451,32 +6496,61 @@ async def nlq_interpret(req: NLQInterpretRequest):
             "evidence": req.evidence,
             "crossValidation": req.crossValidation,
         }
-        payload = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": _compact(user)},
-            ],
-            "temperature": 0.2,
-            "max_tokens": 1200,
-        }
-        request = urllib.request.Request(
-            chat_completions_url(base_url),
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            headers=llm_request_headers(cfg),
-            method="POST",
-        )
+        is_anthropic = "anthropic" in base_url.lower()
+        if is_anthropic:
+            payload = {
+                "model": model,
+                "max_tokens": 1600,
+                "system": system,
+                "messages": [{"role": "user", "content": _compact(user)}],
+            }
+            endpoint = base_url if base_url.endswith("/messages") else f"{base_url}/messages"
+            request = urllib.request.Request(
+                endpoint,
+                data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                },
+                method="POST",
+            )
+        else:
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": _compact(user)},
+                ],
+                "temperature": 0.2,
+                "max_tokens": 1200,
+            }
+            request = urllib.request.Request(
+                chat_completions_url(base_url),
+                data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                headers=llm_request_headers(cfg),
+                method="POST",
+            )
         try:
             with urllib.request.urlopen(request, timeout=90) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")[:800]
             raise ValueError(f"DeepSeek 调用失败 HTTP {exc.code}: {body}") from exc
-        content = (
-            data.get("choices", [{}])[0]
-            .get("message", {})
-            .get("content", "")
-        )
+        if "choices" in data:
+            content = (
+                data.get("choices", [{}])[0]
+                .get("message", {})
+                .get("content", "")
+            )
+        elif isinstance(data.get("content"), list):
+            content = "\n".join(
+                item.get("text", "")
+                for item in data["content"]
+                if isinstance(item, dict) and item.get("type") == "text" and item.get("text")
+            )
+        else:
+            content = ""
         content = _strip_reasoning(content)
         if not content:
             raise ValueError("LLM 未返回有效解读")
@@ -6875,6 +6949,236 @@ async def ad_semantic_meta():
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+def _semantic_simple_key(value: Any) -> str:
+    text = str(value or "").strip()
+    if "." in text:
+        text = text.rsplit(".", 1)[-1]
+    if text.upper().startswith("MEAS_"):
+        text = text[5:]
+    elif text.upper().startswith("DIM_"):
+        text = text[4:]
+    return text.lower()
+
+
+def _semantic_member_aliases(item: dict[str, Any]) -> set[str]:
+    aliases = {
+        str(item.get("name") or ""),
+        str(item.get("code") or ""),
+        _semantic_simple_key(item.get("name")),
+        _semantic_simple_key(item.get("code")),
+    }
+    for code in item.get("sourceCodes") or []:
+        aliases.add(str(code))
+        aliases.add(_semantic_simple_key(code))
+        aliases.add(f"ad.{_semantic_simple_key(code)}")
+    return {alias for alias in aliases if alias}
+
+
+def _semantic_find_member(items: list[dict[str, Any]], member: Any) -> dict[str, Any] | None:
+    raw = str(member or "").strip()
+    simple = _semantic_simple_key(raw)
+    for item in items:
+        aliases = _semantic_member_aliases(item)
+        if raw in aliases or simple in aliases:
+            return item
+    return None
+
+
+def _semantic_dim_codes(dim: dict[str, Any]) -> set[str]:
+    return {str(code) for code in [dim.get("code"), *(dim.get("sourceCodes") or [])] if code}
+
+
+def _semantic_member_tables(item: dict[str, Any]) -> set[str]:
+    return {str(table) for table in (item.get("tables") or []) if table}
+
+
+def _semantic_measure_supports_dimension(
+    measure: dict[str, Any],
+    dim: dict[str, Any],
+    allowed_codes: set[str] | None = None,
+) -> bool:
+    dim_codes = _semantic_dim_codes(dim)
+    if allowed_codes and dim_codes & allowed_codes:
+        return True
+    measure_codes = {str(code) for code in (measure.get("dimensionCodes") or []) if code}
+    if dim_codes & measure_codes:
+        return True
+    # Some report dimensions are degenerate/derived columns that are queryable
+    # through the same fact table even when the DA reasoning cache has not
+    # materialized them as compatible dimensions yet.
+    return bool(_semantic_member_tables(measure) & _semantic_member_tables(dim))
+
+
+def _semantic_measure_supports_dimensions(
+    measure: dict[str, Any],
+    dims: list[dict[str, Any]],
+    allowed_codes: set[str] | None = None,
+) -> tuple[bool, list[str]]:
+    bad = []
+    for dim in dims:
+        if not _semantic_measure_supports_dimension(measure, dim, allowed_codes):
+            bad.append(dim.get("title") or dim.get("name") or dim.get("code") or "")
+    return (not bad, bad)
+
+
+def _semantic_dimension_reason(measure: dict[str, Any], dim: dict[str, Any]) -> dict[str, Any]:
+    reasons = measure.get("dimensionReasons") or {}
+    for code in [dim.get("code"), *(dim.get("sourceCodes") or [])]:
+        if code and code in reasons:
+            return reasons.get(code) or {}
+    return {}
+
+
+def _da_graph_base_url() -> str:
+    base = os.getenv("DA_BASE_URL")
+    if base:
+        return base.rstrip("/")
+    return _DATA_AGENT_URL.split("/bi/v1/datasource/query", 1)[0].rstrip("/")
+
+
+def _da_compatible_dimension_relations(measure_code: str) -> dict[str, dict[str, Any]]:
+    if not measure_code:
+        return {}
+    import urllib.error as _uerr
+    import urllib.parse as _uparse
+    import urllib.request as _ureq
+
+    url = (
+        f"{_da_graph_base_url()}/api/graph/reasoning/measure/"
+        f"{_uparse.quote(str(measure_code), safe='')}/compatible-dimensions"
+    )
+    try:
+        with _ureq.urlopen(url, timeout=4) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except (_uerr.URLError, TimeoutError, json.JSONDecodeError, OSError):
+        return {}
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        return {}
+    relations: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        code = str(row.get("targetCode") or "").strip()
+        if code:
+            relations[code] = row
+    return relations
+
+
+def _semantic_relation_for_dimension(
+    relations: dict[str, dict[str, Any]],
+    dim: dict[str, Any],
+) -> dict[str, Any] | None:
+    for code in [dim.get("code"), *(dim.get("sourceCodes") or [])]:
+        if code and str(code) in relations:
+            return relations[str(code)]
+    return None
+
+
+def _ad_drill_dimension_candidates(body: dict[str, Any]) -> dict[str, Any]:
+    meta = _ad_semantic_service().meta()
+    model = (meta.get("models") or [{}])[0]
+    measures = model.get("measures") or []
+    dimensions = (model.get("timeDimensions") or []) + (model.get("dimensions") or [])
+    measure = _semantic_find_member(measures, body.get("measure") or body.get("measureCode"))
+    if not measure:
+        raise ValueError("缺少或无法识别 measure")
+
+    filter_members = [
+        item.get("member")
+        for item in (body.get("filters") or [])
+        if isinstance(item, dict) and (not item.get("kind") or item.get("kind") == "dimension") and item.get("member")
+    ]
+    context_members = [
+        body.get("currentMember"),
+        *(body.get("contextMembers") or []),
+        *(body.get("selectedDimensions") or []),
+    ]
+    base_dims = []
+    seen_base = set()
+    for member in [*filter_members, *context_members]:
+        dim = _semantic_find_member(dimensions, member)
+        if not dim:
+            continue
+        key = dim.get("name") or dim.get("code")
+        if key and key not in seen_base:
+            seen_base.add(key)
+            base_dims.append(dim)
+
+    da_relations = _da_compatible_dimension_relations(str(measure.get("code") or ""))
+    allowed_codes = set(da_relations.keys()) or None
+    result_source = "da_graph" if da_relations else "business_kg"
+
+    supported_base, bad_base = _semantic_measure_supports_dimensions(measure, base_dims, allowed_codes)
+    if not supported_base:
+        return {
+            "measure": measure,
+            "items": [],
+            "source": result_source,
+            "error": f"当前指标与上下文维度不兼容：{'、'.join(bad_base)}",
+        }
+
+    preferred = {
+        "sales_expert": (96, "按销售专家定位辅导对象和通话质量差异"),
+        "intent": (94, "按客户意图拆解沟通场景，定位话术和槽位问题来源"),
+        "quality_issue_category": (92, "按问题分类聚合异常，适合安排复盘动作"),
+        "quality_score_level": (88, "按质量分层观察优秀、良好、合格和未通过结构"),
+        "quality_rule": (86, "按质检规则定位缺失槽位和规则命中来源"),
+        "call_flow_total": (84, "按电话流向总入口拆解通话来源路径"),
+        "quality_pass": (82, "按通过/未通过区分质量达标情况"),
+        "store_city": (76, "按城市对比区域门店质量表现"),
+        "store_manager": (74, "按店长视角对比管理责任单元"),
+        "store": (72, "按门店定位经营单元差异"),
+        "date_day": (58, "按日期观察指标短期波动"),
+    }
+    excluded = {_semantic_simple_key(dim.get("name") or dim.get("code")) for dim in base_dims}
+    rows = []
+    for dim in dimensions:
+        key = _semantic_simple_key(dim.get("name") or dim.get("code"))
+        if key in excluded:
+            continue
+        if not _semantic_measure_supports_dimension(measure, dim, allowed_codes):
+            continue
+        supported, _bad = _semantic_measure_supports_dimensions(measure, [*base_dims, dim], allowed_codes)
+        if not supported:
+            continue
+        score, default_reason = preferred.get(key, (70, "业务图谱中该维度与当前指标共享可查询关系"))
+        reason = _semantic_dimension_reason(measure, dim)
+        da_reason = _semantic_relation_for_dimension(da_relations, dim)
+        rows.append({
+            "member": dim.get("name"),
+            "code": dim.get("code"),
+            "title": dim.get("title") or dim.get("shortTitle") or dim.get("name") or dim.get("code"),
+            "sourceCodes": dim.get("sourceCodes") or [dim.get("code")],
+            "score": score,
+            "reason": default_reason,
+            "evidencePath": (da_reason or {}).get("evidencePath") or reason.get("evidencePath") or "",
+            "ruleId": (da_reason or {}).get("ruleId") or reason.get("ruleId") or "business_kg.compatible_dimension",
+            "confidence": (da_reason or {}).get("confidence") or reason.get("confidence") or "",
+            "tables": sorted(set(measure.get("tables") or []) & set(dim.get("tables") or [])),
+            "source": result_source,
+        })
+    rows.sort(key=lambda item: (-int(item.get("score") or 0), str(item.get("title") or "")))
+    return {
+        "measure": measure,
+        "items": rows[: int(body.get("limit") or 10)],
+        "source": result_source,
+    }
+
+
+@app.post("/api/ad/v1/drill-dimensions")
+async def ad_semantic_drill_dimensions(request: Request):
+    try:
+        body = await request.json()
+        return _ad_drill_dimension_candidates(body)
+    except FileNotFoundError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 @app.post("/api/ad/v1/load")
 async def ad_semantic_load(request: Request):
     try:
@@ -7014,6 +7318,532 @@ async def ad_semantic_drilldown(request: Request):
         return JSONResponse({"error": str(exc)}, status_code=404)
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+def _da_tms_engine():
+    from sqlalchemy import create_engine
+    from sqlalchemy.engine import URL
+
+    url = URL.create(
+        "mysql+pymysql",
+        username=os.getenv("DA_TMS_MYSQL_USER", "root"),
+        password=os.getenv("DA_TMS_MYSQL_PASSWORD", "123456"),
+        host=os.getenv("DA_TMS_MYSQL_HOST", "127.0.0.1"),
+        port=int(os.getenv("DA_TMS_MYSQL_PORT", "3306")),
+        database=os.getenv("DA_TMS_MYSQL_DATABASE", "da_tms"),
+        query={"charset": "utf8mb4"},
+    )
+    return create_engine(url, pool_pre_ping=True, pool_recycle=1800)
+
+
+@functools.lru_cache(maxsize=1)
+def _cached_da_tms_engine():
+    return _da_tms_engine()
+
+
+def _jsonable_value(value: Any) -> Any:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    if hasattr(value, "__float__") and value.__class__.__module__ == "decimal":
+        return float(value)
+    return value
+
+
+def _rows_to_dicts(rows) -> list[dict[str, Any]]:
+    return [{key: _jsonable_value(value) for key, value in row._mapping.items()} for row in rows]
+
+
+def _celn_stage_code(raw: str) -> str:
+    text = str(raw or "").strip().upper()
+    if text in {"C", "E", "L", "N"}:
+        return text
+    for code in ("C", "E", "L", "N"):
+        if text.endswith("_" + code) or text.endswith(code):
+            return code
+    return text[:1] if text else ""
+
+
+def _celn_store_insight(payload: dict[str, Any]) -> dict[str, Any]:
+    from sqlalchemy import text
+
+    store = str(payload.get("store") or payload.get("storeName") or "理想汽车滨州赛博汽车园零售中心").strip()
+    day = str(payload.get("date") or payload.get("day") or "2026-07-02").strip()
+    engine = _cached_da_tms_engine()
+    stage_meta = {
+        "C": {"name": "C-考虑", "theme": "Why Car", "focus": "确认购车动机与车型兴趣"},
+        "E": {"name": "E-评估", "theme": "Why Energy", "focus": "对比竞品、补齐体验与价格信息"},
+        "L": {"name": "L-意向", "theme": "Why Li Auto", "focus": "推进试驾、报价、金融方案和下一步动作"},
+        "N": {"name": "N-谈判", "theme": "Why Now", "focus": "锁定时效、政策、权益和成交动作"},
+    }
+    with engine.connect() as conn:
+        dist_rows = _rows_to_dicts(conn.execute(text("""
+            SELECT
+              c.current_stage_code AS stage_code,
+              COALESCE(s.stage_name_zh, c.current_stage_code) AS stage_name,
+              COUNT(*) AS user_count,
+              SUM(CASE WHEN c.is_fc_candidate = 1 THEN 1 ELSE 0 END) AS fc_candidate_count,
+              COUNT(DISTINCT c.intended_model) AS model_count
+            FROM celn_customer c
+            JOIN celn_store st ON st.id = c.current_store_id
+            LEFT JOIN celn_stage s ON s.stage_code = c.current_stage_code
+            WHERE st.store_name = :store
+              AND c.is_active = 1
+              AND c.current_stage_code IN ('C','E','L','N')
+            GROUP BY c.current_stage_code, s.stage_name_zh
+        """), {"store": store}))
+        latest_day = conn.execute(text("""
+            SELECT MAX(activity_date)
+            FROM im_celn_store_funnel_fact
+            WHERE store_name = :store
+              AND activity_date <= :day
+              AND celn_funnel_group = 'CELN阶段推进'
+        """), {"store": store, "day": day}).scalar()
+        if latest_day is None:
+            latest_day = day
+        prev_day = conn.execute(text("""
+            SELECT MAX(activity_date)
+            FROM im_celn_store_funnel_fact
+            WHERE store_name = :store
+              AND activity_date < :day
+              AND celn_funnel_group = 'CELN阶段推进'
+        """), {"store": store, "day": latest_day}).scalar()
+        trend_rows = _rows_to_dicts(conn.execute(text("""
+            SELECT
+              activity_date,
+              celn_funnel_stage_code AS stage_code,
+              celn_funnel_stage_name AS stage_name,
+              celn_stage_order,
+              funnel_count
+            FROM im_celn_store_funnel_fact
+            WHERE store_name = :store
+              AND celn_funnel_group = 'CELN阶段推进'
+              AND activity_date IN (:latest_day, :prev_day)
+              AND celn_stage_order BETWEEN 1 AND 4
+            ORDER BY activity_date, celn_stage_order
+        """), {"store": store, "latest_day": latest_day, "prev_day": prev_day or latest_day}))
+        recent_trend_rows = _rows_to_dicts(conn.execute(text("""
+            SELECT
+              activity_date,
+              celn_funnel_stage_code AS stage_code,
+              celn_funnel_stage_name AS stage_name,
+              celn_stage_order,
+              funnel_count
+            FROM im_celn_store_funnel_fact
+            WHERE store_name = :store
+              AND celn_funnel_group = 'CELN阶段推进'
+              AND activity_date IN (
+                SELECT activity_date FROM (
+                  SELECT DISTINCT activity_date
+                  FROM im_celn_store_funnel_fact
+                  WHERE store_name = :store
+                    AND activity_date <= :latest_day
+                    AND celn_funnel_group = 'CELN阶段推进'
+                  ORDER BY activity_date DESC
+                  LIMIT 7
+                ) recent_days
+              )
+              AND celn_stage_order BETWEEN 1 AND 4
+            ORDER BY activity_date, celn_stage_order
+        """), {"store": store, "latest_day": latest_day}))
+        flow_rows = _rows_to_dicts(conn.execute(text("""
+            SELECT
+              r.stage_before,
+              r.stage_after,
+              COUNT(*) AS flow_count
+            FROM celn_follow_up_record r
+            JOIN celn_customer c ON c.id = r.customer_id
+            JOIN celn_store st ON st.id = c.current_store_id
+            WHERE st.store_name = :store
+              AND DATE(r.started_at) = :day
+              AND r.stage_before IN ('C','E','L','N')
+              AND r.stage_after IN ('C','E','L','N')
+            GROUP BY r.stage_before, r.stage_after
+        """), {"store": store, "day": latest_day}))
+        recent_flow_rows = _rows_to_dicts(conn.execute(text("""
+            SELECT
+              DATE(r.started_at) AS flow_date,
+              r.stage_before,
+              r.stage_after,
+              COUNT(*) AS flow_count
+            FROM celn_follow_up_record r
+            JOIN celn_customer c ON c.id = r.customer_id
+            JOIN celn_store st ON st.id = c.current_store_id
+            WHERE st.store_name = :store
+              AND DATE(r.started_at) IN (
+                SELECT activity_date FROM (
+                  SELECT DISTINCT activity_date
+                  FROM im_celn_store_funnel_fact
+                  WHERE store_name = :store
+                    AND activity_date <= :latest_day
+                    AND celn_funnel_group = 'CELN阶段推进'
+                  ORDER BY activity_date DESC
+                  LIMIT 7
+                ) recent_days
+              )
+              AND r.stage_before IN ('C','E','L','N')
+              AND r.stage_after IN ('C','E','L','N')
+            GROUP BY DATE(r.started_at), r.stage_before, r.stage_after
+        """), {"store": store, "latest_day": latest_day}))
+        manager_rows = _rows_to_dicts(conn.execute(text("""
+            SELECT manager_name
+            FROM celn_store_manager m
+            JOIN celn_store st ON st.id = m.store_id
+            WHERE st.store_name = :store
+              AND m.is_active = 1
+            ORDER BY m.id
+            LIMIT 3
+        """), {"store": store}))
+        determination_rows = _rows_to_dicts(conn.execute(text("""
+            SELECT
+              sd.determined_stage_code AS stage_code,
+              COUNT(DISTINCT sd.id) AS determination_count,
+              AVG(sd.confidence_score) AS avg_confidence,
+              COUNT(de.evidence_id) AS evidence_count
+            FROM celn_stage_determination sd
+            JOIN celn_customer c ON c.id = sd.customer_id
+            JOIN celn_store st ON st.id = c.current_store_id
+            LEFT JOIN celn_determination_evidence de ON de.determination_id = sd.id
+            WHERE st.store_name = :store
+              AND DATE(sd.determination_time) = :day
+              AND sd.determined_stage_code IN ('C','E','L','N')
+            GROUP BY sd.determined_stage_code
+        """), {"store": store, "day": latest_day}))
+        task_rows = _rows_to_dicts(conn.execute(text("""
+            SELECT
+              c.current_stage_code AS stage_code,
+              COUNT(*) AS next_task_count
+            FROM celn_follow_up_task t
+            JOIN celn_customer c ON c.id = t.customer_id
+            JOIN celn_store st ON st.id = c.current_store_id
+            WHERE st.store_name = :store
+              AND DATE(t.next_plan_time) = :day
+              AND c.current_stage_code IN ('C','E','L','N')
+            GROUP BY c.current_stage_code
+        """), {"store": store, "day": latest_day}))
+        conversion_rows = _rows_to_dicts(conn.execute(text("""
+            SELECT
+              c.current_stage_code AS stage_code,
+              COUNT(*) AS conversion_count
+            FROM celn_conversion_event ce
+            JOIN celn_customer c ON c.id = ce.customer_id
+            JOIN celn_store st ON st.id = ce.store_id
+            WHERE st.store_name = :store
+              AND DATE(ce.conversion_time) = :day
+              AND c.current_stage_code IN ('C','E','L','N')
+            GROUP BY c.current_stage_code
+        """), {"store": store, "day": latest_day}))
+        tag_rows = _rows_to_dicts(conn.execute(text("""
+            SELECT
+              t.tag_type,
+              COUNT(*) AS tag_count
+            FROM celn_customer_tag ct
+            JOIN celn_tag t ON t.id = ct.tag_id
+            JOIN celn_customer c ON c.id = ct.customer_id
+            JOIN celn_store st ON st.id = c.current_store_id
+            WHERE st.store_name = :store
+              AND ct.is_active = 1
+            GROUP BY t.tag_type
+        """), {"store": store}))
+        review_rows = _rows_to_dicts(conn.execute(text("""
+            SELECT
+              dr.review_date,
+              dr.review_conclusion,
+              dr.strategy_adjustment
+            FROM celn_daily_review dr
+            JOIN celn_store st ON st.id = dr.store_id
+            WHERE st.store_name = :store
+              AND dr.review_date <= :day
+            ORDER BY dr.review_date DESC, dr.id DESC
+            LIMIT 3
+        """), {"store": store, "day": latest_day}))
+
+    dist_by_stage = {row["stage_code"]: row for row in dist_rows}
+    determination_by_stage = {_celn_stage_code(row.get("stage_code")): row for row in determination_rows}
+    task_by_stage = {_celn_stage_code(row.get("stage_code")): row for row in task_rows}
+    conversion_by_stage = {_celn_stage_code(row.get("stage_code")): row for row in conversion_rows}
+    trend_map: dict[tuple[str, str], float] = {}
+    for row in trend_rows:
+        stage = _celn_stage_code(row.get("stage_code"))
+        trend_map[(str(row.get("activity_date")), stage)] = float(row.get("funnel_count") or 0)
+    recent_dates = sorted({str(row.get("activity_date")) for row in recent_trend_rows if row.get("activity_date")})
+    recent_trend_map: dict[tuple[str, str], float] = {}
+    for row in recent_trend_rows:
+        stage = _celn_stage_code(row.get("stage_code"))
+        recent_trend_map[(str(row.get("activity_date")), stage)] = float(row.get("funnel_count") or 0)
+    recent_net_map: dict[tuple[str, str], int] = {}
+    for date_value in recent_dates:
+        for code in ("C", "E", "L", "N"):
+            recent_net_map[(date_value, code)] = 0
+    for row in recent_flow_rows:
+        date_value = str(row.get("flow_date"))
+        before = _celn_stage_code(row.get("stage_before"))
+        after = _celn_stage_code(row.get("stage_after"))
+        count = int(row.get("flow_count") or 0)
+        if before == after:
+            continue
+        if before in {"C", "E", "L", "N"}:
+            recent_net_map[(date_value, before)] = recent_net_map.get((date_value, before), 0) - count
+        if after in {"C", "E", "L", "N"}:
+            recent_net_map[(date_value, after)] = recent_net_map.get((date_value, after), 0) + count
+    total = sum(int((dist_by_stage.get(code) or {}).get("user_count") or 0) for code in ("C", "E", "L", "N"))
+    stage_net = {code: 0 for code in ("C", "E", "L", "N")}
+    stage_flow = []
+    for row in flow_rows:
+        before = _celn_stage_code(row.get("stage_before"))
+        after = _celn_stage_code(row.get("stage_after"))
+        count = int(row.get("flow_count") or 0)
+        if before != after:
+            if before in stage_net:
+                stage_net[before] -= count
+            if after in stage_net:
+                stage_net[after] += count
+        stage_flow.append({"from": before, "to": after, "count": count})
+    distribution = []
+    latest_key = str(latest_day)
+    prev_key = str(prev_day) if prev_day else ""
+    for code in ("C", "E", "L", "N"):
+        row = dist_by_stage.get(code) or {}
+        count = int(row.get("user_count") or 0)
+        determination_row = determination_by_stage.get(code) or {}
+        determination_count = int(determination_row.get("determination_count") or 0)
+        cur_snapshot = trend_map.get((latest_key, code), count)
+        prev_snapshot = trend_map.get((prev_key, code), cur_snapshot)
+        snapshot_change = cur_snapshot - prev_snapshot
+        change = stage_net.get(code) if any(stage_net.values()) else snapshot_change
+        distribution.append({
+            "stageCode": code,
+            "stageName": row.get("stage_name") or stage_meta[code]["name"],
+            "theme": stage_meta[code]["theme"],
+            "focus": stage_meta[code]["focus"],
+            "ontologyIndividual": {
+                "C": "celn:Li-C-Consider",
+                "E": "celn:Li-E-Evaluate",
+                "L": "celn:Li-L-Lead",
+                "N": "celn:Li-N-Negotiate",
+            }[code],
+            "ontologyClass": "celn:Li-CELNStage",
+            "userCount": count,
+            "ratio": (count / total) if total else 0,
+            "fcCandidateCount": int(row.get("fc_candidate_count") or 0),
+            "modelCount": int(row.get("model_count") or 0),
+            "determinationCount": determination_count,
+            "evidenceCount": int(determination_row.get("evidence_count") or 0),
+            "avgConfidence": (
+                float(determination_row.get("avg_confidence"))
+                if determination_count and determination_row.get("avg_confidence") is not None
+                else None
+            ),
+            "nextTaskCount": int((task_by_stage.get(code) or {}).get("next_task_count") or 0),
+            "conversionCount": int((conversion_by_stage.get(code) or {}).get("conversion_count") or 0),
+            "snapshotCount": cur_snapshot,
+            "previousSnapshotCount": prev_snapshot,
+            "change": change,
+            "snapshotChange": snapshot_change,
+            "flowNetChange": stage_net.get(code, 0),
+            "recentTrend": [
+                {"date": date_value, "value": recent_net_map.get((date_value, code), 0)}
+                for date_value in recent_dates
+            ] or [{"date": latest_key, "value": change}],
+            "recentTrendMetric": "stage_net_change",
+        })
+    ln_current = sum(item["snapshotCount"] for item in distribution if item["stageCode"] in {"L", "N"})
+    ln_prev = sum(item["previousSnapshotCount"] for item in distribution if item["stageCode"] in {"L", "N"})
+    flow_ln_change = sum(stage_net.get(code, 0) for code in ("L", "N"))
+    ln_change = flow_ln_change if any(stage_net.values()) else ln_current - ln_prev
+    severity = "critical" if ln_change <= -10 else "warning" if ln_change < 0 else "notice"
+    direction = "增加" if ln_change > 0 else "减少" if ln_change < 0 else "持平"
+    return {
+        "store": store,
+        "date": str(day),
+        "snapshotDate": latest_key,
+        "previousDate": prev_key or None,
+        "totalUsers": total,
+        "distribution": distribution,
+        "stageFlows": stage_flow,
+        "ln": {"current": ln_current, "previous": ln_prev, "change": ln_change, "direction": direction},
+        "businessGraph": {
+            "ontology": "理想汽车 CELN 用户分层与跟进闭环业务场景本体",
+            "storeManagers": [row.get("manager_name") for row in manager_rows if row.get("manager_name")],
+            "coreQuestion": "查询某用户当前处于 CELN 的哪个阶段，并追溯阶段判断、证据、标签、跟进闭环和转化结果。",
+            "path": [
+                {"node": "core:Li-Store", "label": "门店", "relation": "celn:Li-CoversStore / celn:Li-BelongsToStore", "table": "celn_store", "count": 1},
+                {"node": "core:Li-Customer", "label": "用户", "relation": "celn:Li-HasStage", "table": "celn_customer", "count": total},
+                {"node": "celn:Li-CELNStage", "label": "CELN阶段", "relation": "celn:Li-DeterminesStage", "table": "celn_stage / celn_stage_determination", "count": sum(int((r or {}).get("determination_count") or 0) for r in determination_rows)},
+                {"node": "celn:Li-Evidence", "label": "判断证据", "relation": "celn:Li-BasedOnEvidence", "table": "celn_evidence / celn_determination_evidence", "count": sum(int((r or {}).get("evidence_count") or 0) for r in determination_rows)},
+                {"node": "celn:Li-Tag", "label": "标签", "relation": "celn:Li-HasTag / celn:Li-TagAppliesToStage", "table": "celn_tag / celn_customer_tag", "count": sum(int(row.get("tag_count") or 0) for row in tag_rows)},
+                {"node": "celn:Li-FollowUpTask", "label": "跟进任务", "relation": "celn:Li-AssignedTo / celn:Li-HasFollowUpRecord", "table": "celn_follow_up_task", "count": sum(int((r or {}).get("next_task_count") or 0) for r in task_rows)},
+                {"node": "celn:Li-FollowUpRecord", "label": "跟进记录", "relation": "celn:Li-TriggersStageChange", "table": "celn_follow_up_record", "count": sum(int(row.get("count") or 0) for row in stage_flow)},
+                {"node": "celn:Li-ConversionEvent", "label": "转化事件", "relation": "celn:Li-TracesTo / celn:Li-LeadsToConversion", "table": "celn_conversion_event / celn_conversion_trace", "count": sum(int((r or {}).get("conversion_count") or 0) for r in conversion_rows)},
+                {"node": "celn:Li-DailyReview", "label": "每日复盘", "relation": "celn:Li-HasInventory / celn:Li-ProducesKnowledge", "table": "celn_daily_review / celn_customer_inventory", "count": len(review_rows)},
+            ],
+            "tagBreakdown": tag_rows,
+            "dailyReviews": review_rows,
+        },
+        "agentPush": {
+            "title": f"{store} CELN每日变化",
+            "severity": severity,
+            "message": f"{latest_key} L/N 合计 {int(ln_current)}；基于 celn:Li-TriggersStageChange 统计今日阶段流转，L净{stage_net.get('L', 0):+d}、N净{stage_net.get('N', 0):+d}，L/N净{int(ln_change):+d}。请重点查看 L-意向与 N-谈判用户名单、阶段判断证据、跟进记录和下一步计划。",
+            "schedule": "每日 09:00 以 celn:Li-DailyReview 生成主动推送；外部通道可接飞书/企微/Webhook。",
+        },
+    }
+
+
+@app.post("/api/da-tms/celn/store-insight")
+async def da_tms_celn_store_insight(request: Request):
+    try:
+        payload = await request.json()
+        return await asyncio.to_thread(_celn_store_insight, payload)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.get("/api/da-tms/celn/customers")
+async def da_tms_celn_customers(store: str = "理想汽车滨州赛博汽车园零售中心", stage: str = "", limit: int = 100):
+    from sqlalchemy import text
+
+    try:
+        stage_code = _celn_stage_code(stage)
+        page_size = max(1, min(int(limit or 100), 300))
+        with _cached_da_tms_engine().connect() as conn:
+            rows = _rows_to_dicts(conn.execute(text("""
+                SELECT
+                  c.id,
+                  c.customer_code,
+                  c.customer_name,
+                  c.phone,
+                  c.source_type,
+                  c.current_stage_code AS stage_code,
+                  COALESCE(s.stage_name_zh, c.current_stage_code) AS stage_name,
+                  c.city,
+                  c.intended_model,
+                  c.is_fc_candidate,
+                  c.first_visit_time,
+                  c.updated_at,
+                  (
+                    SELECT pe.expert_name
+                    FROM celn_follow_up_task t
+                    LEFT JOIN celn_product_expert pe ON pe.id = t.assigned_expert_id
+                    WHERE t.customer_id = c.id
+                    ORDER BY t.updated_at DESC, t.id DESC
+                    LIMIT 1
+                  ) AS assigned_expert,
+                  (
+                    SELECT COUNT(*)
+                    FROM celn_follow_up_record r
+                    WHERE r.customer_id = c.id
+                  ) AS follow_up_count,
+                  (
+                    SELECT MAX(COALESCE(r.ended_at, r.started_at))
+                    FROM celn_follow_up_record r
+                    WHERE r.customer_id = c.id
+                  ) AS last_follow_up_time
+                FROM celn_customer c
+                JOIN celn_store st ON st.id = c.current_store_id
+                LEFT JOIN celn_stage s ON s.stage_code = c.current_stage_code
+                WHERE st.store_name = :store
+                  AND c.is_active = 1
+                  AND (:stage = '' OR c.current_stage_code = :stage)
+                ORDER BY FIELD(c.current_stage_code, 'N','L','E','C'), c.is_fc_candidate DESC, c.updated_at DESC, c.id DESC
+                LIMIT :limit
+            """), {"store": store, "stage": stage_code, "limit": page_size}))
+        return {"store": store, "stage": stage_code or None, "records": rows, "totalShown": len(rows)}
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.get("/api/da-tms/celn/customer/{customer_id}")
+async def da_tms_celn_customer_detail(customer_id: int):
+    from sqlalchemy import text
+
+    try:
+        with _cached_da_tms_engine().connect() as conn:
+            customer_rows = _rows_to_dicts(conn.execute(text("""
+                SELECT
+                  c.*,
+                  st.store_name,
+                  st.city AS store_city,
+                  COALESCE(s.stage_name_zh, c.current_stage_code) AS stage_name
+                FROM celn_customer c
+                LEFT JOIN celn_store st ON st.id = c.current_store_id
+                LEFT JOIN celn_stage s ON s.stage_code = c.current_stage_code
+                WHERE c.id = :customer_id
+                LIMIT 1
+            """), {"customer_id": customer_id}))
+            if not customer_rows:
+                return JSONResponse({"error": "用户不存在"}, status_code=404)
+            tags = _rows_to_dicts(conn.execute(text("""
+                SELECT t.tag_code, t.tag_name, t.tag_type, ct.tagged_at
+                FROM celn_customer_tag ct
+                JOIN celn_tag t ON t.id = ct.tag_id
+                WHERE ct.customer_id = :customer_id AND ct.is_active = 1
+                ORDER BY ct.tagged_at DESC
+                LIMIT 20
+            """), {"customer_id": customer_id}))
+            followups = _rows_to_dicts(conn.execute(text("""
+                SELECT
+                  r.id,
+                  pe.expert_name,
+                  r.follow_up_method,
+                  r.stage_before,
+                  r.stage_after,
+                  r.follow_up_result,
+                  r.started_at,
+                  r.ended_at
+                FROM celn_follow_up_record r
+                LEFT JOIN celn_product_expert pe ON pe.id = r.expert_id
+                WHERE r.customer_id = :customer_id
+                ORDER BY COALESCE(r.ended_at, r.started_at) DESC, r.id DESC
+                LIMIT 10
+            """), {"customer_id": customer_id}))
+            tasks = _rows_to_dicts(conn.execute(text("""
+                SELECT
+                  t.id,
+                  pe.expert_name,
+                  t.task_status,
+                  t.next_plan_time,
+                  t.priority,
+                  t.source_type,
+                  t.updated_at
+                FROM celn_follow_up_task t
+                LEFT JOIN celn_product_expert pe ON pe.id = t.assigned_expert_id
+                WHERE t.customer_id = :customer_id
+                ORDER BY t.updated_at DESC, t.id DESC
+                LIMIT 8
+            """), {"customer_id": customer_id}))
+            fc = _rows_to_dicts(conn.execute(text("""
+                SELECT f.id, r.rule_name, f.fc_status, f.identification_time, f.remark
+                FROM celn_fc_identification f
+                LEFT JOIN celn_fc_rule r ON r.id = f.fc_rule_id
+                WHERE f.customer_id = :customer_id
+                ORDER BY f.identification_time DESC, f.id DESC
+                LIMIT 5
+            """), {"customer_id": customer_id}))
+            determinations = _rows_to_dicts(conn.execute(text("""
+                SELECT
+                  sd.id,
+                  sd.determined_stage_code,
+                  COALESCE(s.stage_name_zh, sd.determined_stage_code) AS stage_name,
+                  sd.confidence_score,
+                  sd.judged_by_type,
+                  sd.is_reviewable,
+                  sd.determination_time,
+                  sd.remark,
+                  GROUP_CONCAT(CONCAT(e.evidence_name, IFNULL(CONCAT('：', de.evidence_value), '')) SEPARATOR '；') AS evidence_summary
+                FROM celn_stage_determination sd
+                LEFT JOIN celn_stage s ON s.stage_code = sd.determined_stage_code
+                LEFT JOIN celn_determination_evidence de ON de.determination_id = sd.id
+                LEFT JOIN celn_evidence e ON e.id = de.evidence_id
+                WHERE sd.customer_id = :customer_id
+                GROUP BY sd.id, sd.determined_stage_code, s.stage_name_zh, sd.confidence_score,
+                         sd.judged_by_type, sd.is_reviewable, sd.determination_time, sd.remark
+                ORDER BY sd.determination_time DESC, sd.id DESC
+                LIMIT 5
+            """), {"customer_id": customer_id}))
+        return {"customer": customer_rows[0], "tags": tags, "followups": followups, "tasks": tasks, "fcIdentifications": fc, "determinations": determinations}
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -7486,6 +8316,71 @@ async def dashboard_delete(item_id: str):
 
 def _dashboard_ai_local_interpretation(payload: dict[str, Any]) -> str:
     widgets = payload.get("widgets") or []
+    def _num(value: Any) -> float | None:
+        try:
+            text = str(value if value is not None else "").replace(",", "").replace("%", "").strip()
+            if text in {"", "-", "None", "null"}:
+                return None
+            return float(text)
+        except Exception:
+            return None
+
+    def _biz_measure(name: Any) -> str:
+        text = str(name or "")
+        rules = [
+            ("CELN阶段用户数", "各 CELN 阶段的客户人数"),
+            ("CELN漏斗计数", "漏斗节点人数"),
+            ("经营闭环承接数", "跟进承接量"),
+            ("成交结果承接数", "成交推进结果"),
+            ("L/N用户数", "高意向和临门成交客户"),
+            ("质检通话", "已质检电话"),
+            ("通过率", "电话质量达标率"),
+            ("平均质量分", "电话沟通质量"),
+            ("低覆盖", "关键信息缺口"),
+            ("缺失槽位", "话术漏问项"),
+        ]
+        for key, label in rules:
+            if key in text:
+                return label
+        return text or "当前指标"
+
+    def _row_label(row: dict[str, Any], dimensions: list[str]) -> str:
+        parts = []
+        for dim in dimensions:
+            value = row.get(dim)
+            if value not in (None, ""):
+                parts.append(str(value))
+        if parts:
+            return " / ".join(parts[:2])
+        for key, value in row.items():
+            if _num(value) is None and value not in (None, ""):
+                return str(value)
+        return "当前门店"
+
+    def _rank(rows: list[dict[str, Any]], measure: str, dimensions: list[str]) -> tuple[tuple[str, float] | None, tuple[str, float] | None, list[tuple[str, float]]]:
+        values: list[tuple[str, float]] = []
+        for row in rows:
+            value = _num(row.get(measure))
+            if value is None:
+                continue
+            values.append((_row_label(row, dimensions), value))
+        if not values:
+            return None, None, []
+        return max(values, key=lambda item: item[1]), min(values, key=lambda item: item[1]), values
+
+    def _widget_focus(name: str) -> str:
+        if "异常节点" in name:
+            return "列出需要店长当天介入复盘的漏斗断点。"
+        if "桑基" in name or "流向" in name:
+            return "看客户从兴趣到跟进、再到成交的流向是否顺畅。"
+        if "透视" in name:
+            return "把阶段推进、经营承接和成交结果放在一起对比，方便定位卡点。"
+        if "总览" in name or "异常卡片" in name:
+            return "先看当前门店客户主要卡在哪个 CELN 阶段，以及后段 L/N 是否足够。"
+        if "电话" in name or "质检" in name:
+            return "用电话质量解释跟进承接为什么好或不好。"
+        return "用于辅助店长判断当前经营动作是否有效。"
+
     lines = ["### 现状"]
     if not widgets:
         return "### 现状\n暂无可解读的组件数据。\n\n### 趋势\n暂无趋势数据。\n\n### 异常\n暂无异常信号。\n\n### 建议\n请先刷新看板并确保组件有返回数据。"
@@ -7496,19 +8391,13 @@ def _dashboard_ai_local_interpretation(payload: dict[str, Any]) -> str:
         dimensions = widget.get("dimensions") or []
         rows = widget.get("rows") or []
         measure = measures[0] if measures else ""
-        dim = dimensions[0] if dimensions else ""
-        values = []
-        for row in rows:
-            try:
-                values.append(float(str(row.get(measure, "")).replace(",", "")))
-            except Exception:
-                continue
+        high, low, values = _rank(rows, measure, dimensions)
         if values:
-            total = sum(values)
-            avg = total / len(values)
-            lines.append(f"- **{name}**：围绕 {', '.join(measures) or '指标'} 按 {', '.join(dimensions) or '汇总'} 观察，当前样本 {len(values)} 个，合计约 {total:,.2f}，均值约 {avg:,.2f}。")
+            key_measure = "、".join(_biz_measure(m) for m in measures[:3]) or "当前指标"
+            main = high[0] if high else "当前节点"
+            lines.append(f"- **{name}**：重点看{key_measure}。{_widget_focus(name)} 当前最突出的节点是「{main}」，需要结合下钻名单看具体客户和跟进动作。")
         else:
-            lines.append(f"- **{name}**：已纳入解读，但当前返回数据不足以计算数值概览。")
+            lines.append(f"- **{name}**：这个组件主要用于补充经营判断，当前没有足够数据形成明确结论。")
 
     lines.append("\n### 趋势")
     for widget in widgets[:8]:
@@ -7519,16 +8408,26 @@ def _dashboard_ai_local_interpretation(payload: dict[str, Any]) -> str:
         measure = measures[0] if measures else ""
         if len(rows) >= 2 and measure:
             try:
-                first = float(str(rows[0].get(measure, "")).replace(",", ""))
-                last = float(str(rows[-1].get(measure, "")).replace(",", ""))
+                first = _num(rows[0].get(measure))
+                last = _num(rows[-1].get(measure))
+                if first is None or last is None:
+                    raise ValueError("empty trend value")
                 delta = last - first
                 pct = (delta / first * 100) if first else 0
                 direction = "上升" if delta > 0 else "下降" if delta < 0 else "持平"
-                lines.append(f"- **{name}**：沿 {dimensions[0] if dimensions else '当前维度'} 从首项到末项呈{direction}，变化约 {pct:.1f}%。")
+                if "CELN" in name or "漏斗" in name:
+                    if delta < 0:
+                        lines.append(f"- **{name}**：从前段兴趣到后段承接呈收窄，说明客户在推进过程中有流失。重点看 E 到 L、L 到 N 之间是否缺少试驾、报价或下一步动作。")
+                    elif delta > 0:
+                        lines.append(f"- **{name}**：后段承接人数增加，说明有客户被推进到更接近成交的阶段。需要确认这些客户是否已有明确跟进人和下一步计划。")
+                    else:
+                        lines.append(f"- **{name}**：各节点变化不大，适合重点复盘停留时间长、未推进的客户。")
+                else:
+                    lines.append(f"- **{name}**：当前走势{direction}，变化约 {pct:.1f}%。建议结合明细确认是正常业务节奏，还是某类客户/销售动作导致。")
             except Exception:
-                lines.append(f"- **{name}**：趋势需要更多连续维度或数值结果支撑。")
+                lines.append(f"- **{name}**：当前数据不适合判断趋势，建议继续看下钻明细。")
         else:
-            lines.append(f"- **{name}**：趋势样本不足，建议增加时间维度或扩大查询范围。")
+            lines.append(f"- **{name}**：当前更适合看结构和明细，不建议直接判断趋势。")
 
     lines.append("\n### 异常")
     found = False
@@ -7538,31 +8437,29 @@ def _dashboard_ai_local_interpretation(payload: dict[str, Any]) -> str:
         dimensions = widget.get("dimensions") or []
         rows = widget.get("rows") or []
         measure = measures[0] if measures else ""
-        dim = dimensions[0] if dimensions else ""
-        values = []
-        for row in rows:
-            try:
-                values.append((row.get(dim, "汇总"), float(str(row.get(measure, "")).replace(",", ""))))
-            except Exception:
-                pass
+        high, low, values = _rank(rows, measure, dimensions)
         nums = [v for _, v in values]
         if len(nums) >= 3:
             avg = sum(nums) / len(nums)
-            hi = max(values, key=lambda x: x[1])
-            lo = min(values, key=lambda x: x[1])
-            if avg and hi[1] > avg * 1.5:
-                lines.append(f"- **{name}**：{dim or '维度'}={hi[0]} 明显高于均值，可能是集中贡献点。")
+            if avg and high and high[1] > avg * 1.5:
+                if "异常" in name:
+                    lines.append(f"- **{name}**：「{high[0]}」问题最集中，建议店长优先打开名单，确认涉及哪些客户和销售专家。")
+                else:
+                    lines.append(f"- **{name}**：「{high[0]}」占比较高，说明这类客户或节点是当前经营重点，需要确认承接动作是否跟上。")
                 found = True
-            if avg and lo[1] < avg * 0.5:
-                lines.append(f"- **{name}**：{dim or '维度'}={lo[0]} 明显低于均值，建议排查低表现原因。")
+            if avg and low and low[1] < avg * 0.5:
+                if any(key in str(low[0]) for key in ("FC", "确认", "转化", "交付", "N Why Now", "L Why Li Auto")):
+                    lines.append(f"- **{name}**：「{low[0]}」偏弱，可能是客户临门推进不足，需要补齐试驾、报价、权益确认或成交下一步。")
+                else:
+                    lines.append(f"- **{name}**：「{low[0]}」偏低，建议下钻看是否存在客户未跟进、话术缺口或责任人不清。")
                 found = True
     if not found:
-        lines.append("- 暂未发现明显高低离群点，建议结合环比/同比继续观察。")
+        lines.append("- 暂未看到特别突出的断点，但仍建议关注 L/N 客户、FC 识别和电话质检低覆盖客户。")
 
     lines.append("\n### 建议")
-    lines.append("- 优先关注贡献最高和最低的维度成员，分别验证增长来源与短板原因。")
-    lines.append("- 对时间维度组件补充环比或同比口径，区分季节性波动与真实趋势变化。")
-    lines.append("- 对异常点继续下钻到更细维度，例如地域、渠道、仓库或商品，以定位可执行动作。")
+    lines.append("- 先看 L-意向、N-谈判和 FC 确认相关节点，优先处理最接近成交但推进慢的客户。")
+    lines.append("- 对异常节点直接下钻到客户名单，确认客户当前顾虑、负责销售专家、最近一次跟进和下一步计划。")
+    lines.append("- 把电话质检中的低分、低覆盖和缺失槽位同步给销售专家，第二天复盘这些客户是否有阶段推进。")
     return "\n".join(lines)
 
 
@@ -7579,9 +8476,11 @@ def _dashboard_ai_call_llm(payload: dict[str, Any]) -> str:
     model = cfg.get("model", "GPT5.5")
     is_anthropic = "anthropic" in base_url.lower()
     system = (
-        "你是一名资深数据分析专家。请基于 Dashboard 中每个组件的指标、维度、筛选条件和样本数据，"
-        "输出中文 Markdown。必须分为四段：现状、趋势、异常、建议。"
-        "不要复述技术字段名过多，优先使用业务名称；结论要谨慎，不能编造数据中不存在的事实。"
+        "你是一名门店经营分析顾问，读者是门店店长。请基于 Dashboard 中每个组件的指标、筛选条件和结果数据，"
+        "输出中文 Markdown，必须分为四段：现状、趋势、异常、建议。"
+        "表达要业务化，围绕客户处在哪个 CELN 阶段、哪里卡住、该看哪些客户名单、该让销售专家补什么动作。"
+        "不要使用样本、均值、维度成员、贡献点、置信区间、环比同比、字段名等技术表达；"
+        "不要复述技术字段名，不能编造数据中不存在的事实。"
     )
     user = json.dumps(payload, ensure_ascii=False)[:30000]
     if is_anthropic:
@@ -7605,7 +8504,12 @@ def _dashboard_ai_call_llm(payload: dict[str, Any]) -> str:
     if "choices" in data:
         return data["choices"][0]["message"]["content"]
     if "content" in data and data["content"]:
-        return data["content"][0].get("text", "")
+        text_blocks = [
+            item.get("text", "")
+            for item in data["content"]
+            if isinstance(item, dict) and item.get("type") == "text" and item.get("text")
+        ]
+        return "\n".join(text_blocks).strip()
     return str(data)
 
 

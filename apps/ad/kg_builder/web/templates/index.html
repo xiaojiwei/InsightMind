@@ -584,6 +584,18 @@
       min-height:210px;
       overflow:auto;
     }
+    .dashboard-widget-chart > .exec-report-shell,
+    .dashboard-widget-chart > .exec-report-shell > .exec-report-body {
+      width:100%;
+      max-width:none;
+      margin-left:0;
+      margin-right:0;
+      box-sizing:border-box;
+    }
+    .dashboard-widget-chart > .exec-report-shell .exec-report-section {
+      width:100%;
+      box-sizing:border-box;
+    }
     .dashboard-widget-chart .pivot-table {
       width:max-content;
       min-width:100%;
@@ -1041,6 +1053,14 @@
       border-color:#cbd2da #cbd2da #ffffff;
       color:#202832;
     }
+    .my-dashboard-summary {
+      min-height:42px;
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+      line-height:1.5;
+    }
     .progress {
       background:#d8dee5;
     }
@@ -1089,9 +1109,11 @@
     #insight-log .info { color:#5f7f9f !important; }
     .insight-flow-map {
       position:relative;
+      width:1260px;
       min-width:1260px;
       height:1700px;
       overflow:visible;
+      margin:0 auto;
       background:
         linear-gradient(90deg,rgba(203,210,218,.16) 1px,transparent 1px),
         linear-gradient(180deg,rgba(203,210,218,.16) 1px,transparent 1px);
@@ -1099,7 +1121,9 @@
     }
     .insight-flow-scroll {
       overflow:auto;
-      max-height:760px;
+      height:var(--insight-flow-scroll-height, clamp(520px, 82vh, 1280px));
+      min-height:360px;
+      max-height:1716px;
       padding:8px;
     }
     .insight-flow-svg {
@@ -2566,9 +2590,6 @@
                 <button id="smart-nlq-run-btn" class="btn btn-primary px-3" onclick="runSmartInsight(this)" style="min-width:96px">
                   <i class="bi bi-send me-1"></i>分析
                 </button>
-                <button class="btn btn-outline-success px-3" onclick="demoInsightActionLoop(this)" title="演示单据解释、改进建议、任务追盯和反馈闭环">
-                  <i class="bi bi-play-circle me-1"></i>演示闭环
-                </button>
                 <div id="smart-nlq-context-status" class="small text-muted mt-1" style="display:none"></div>
               </div>
               <div>
@@ -3407,6 +3428,60 @@
   </div>
 </div>
 
+<!-- Call quality report drill chooser -->
+<div class="modal fade" id="call-report-drill-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-cursor me-1 text-primary"></i>选择钻取方式</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="call-report-drill-context" class="small text-muted mb-3"></div>
+        <div class="d-grid gap-2 mb-3">
+          <button class="btn btn-outline-primary text-start" onclick="openCallReportDetailFromChooser()">
+            <i class="bi bi-list-ul me-1"></i> 明细钻取
+            <div class="small text-muted mt-1">查看当前指标单元格背后的通话质检记录。</div>
+          </button>
+          <button class="btn btn-outline-info text-start" onclick="openCallReportBusinessExplain()">
+            <i class="bi bi-lightbulb me-1"></i> 业务解释
+            <div class="small text-muted mt-1">汇总当前切片的异常信号、推荐维度和下一步建议。</div>
+          </button>
+        </div>
+        <div class="small fw-semibold mb-2"><i class="bi bi-diagram-3 me-1 text-success"></i>维度下钻路径</div>
+        <div id="call-report-drill-dimensions" class="d-grid gap-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CELN stage action chooser -->
+<div class="modal fade" id="celn-stage-action-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-cursor me-1 text-primary"></i>选择钻取方式</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="celn-stage-action-context" class="small text-muted mb-3"></div>
+        <div class="d-grid gap-2 mb-3">
+          <button class="btn btn-outline-primary text-start" onclick="openCelnStageListFromChooser()">
+            <i class="bi bi-people me-1"></i> 用户名单下钻
+            <div class="small text-muted mt-1">查看当前 CELN 层级背后的用户清单和用户详情。</div>
+          </button>
+          <button class="btn btn-outline-info text-start" onclick="openCelnStageBusinessExplainFromChooser()">
+            <i class="bi bi-lightbulb me-1"></i> 业务解释
+            <div class="small text-muted mt-1">解释当前层级的人数、阶段含义、图谱依赖和继续下钻路径。</div>
+          </button>
+        </div>
+        <div class="small fw-semibold mb-2"><i class="bi bi-diagram-3 me-1 text-success"></i>可继续下钻</div>
+        <div class="cell-insight-evidence"><div class="cell-insight-evidence-title">客户名单、阶段判断、证据、任务、转化事件</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Pivot filter modal -->
 <div class="modal fade" id="pivot-filter-modal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -4110,6 +4185,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
     btn.classList.add('btn-clicked');
     setTimeout(() => btn.classList.remove('btn-clicked'), 320);
   }, true);
+  window.addEventListener('resize', scheduleInsightFlowResize);
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1', false);
   updateActivePageTitle();
   document.querySelectorAll('#mainTabs .nav-link').forEach(tab => {
@@ -4281,6 +4357,142 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function techNoteReason(text) {
+  const value = String(text || '');
+  if (!value) return '';
+  if (value.includes('call_record_judgement_results')) return '这些电话质量、通过率、槽位覆盖等指标都以真实质检结果为准，避免使用 mock 电话数据。';
+  if (value.includes('Li-BasedOnEvidence') || value.includes('Li-Evidence') || value.includes('Li-TriggersStageChange')) return '用证据和阶段变化关系判断这次沟通是否推动了客户阶段前进，方便店长复盘关键动作。';
+  if (value.includes('Li-AssignedTo') || value.includes('Li-ProductExpert')) return '把跟进任务落到具体销售专家，方便定位谁负责、谁需要辅导。';
+  if (value.includes('Li-UsesScript') || value.includes('Li-UsesStrategy')) return '把缺失槽位关联到话术和策略，帮助店长判断是执行问题还是话术设计问题。';
+  if (value.includes('Li-ReviewedBy') || value.includes('Li-DailyReview')) return '把低质量通话沉淀到店长每日复盘，形成可跟进的管理动作。';
+  if (value.includes('Li-TracesTo') || value.includes('Li-ConversionEvent')) return '把沟通过程追溯到转化结果，验证电话质量是否真正带来经营改善。';
+  if (value.includes('Li-FollowUpTask') || value.includes('Li-FollowUpRecord')) return '用跟进任务和跟进记录串起电话后的下一步动作，判断沟通有没有闭环。';
+  if (value.includes('Li-StageDetermination')) return '用阶段判断链路解释客户为什么处于当前 CELN 阶段，便于下钻核验。';
+  if (value.includes('Li-HasTag') || value.includes('Li-TagAppliesToStage')) return '用标签解释客户分层原因，帮助店长理解客户处在该阶段的关键特征。';
+  if (value.includes('Li-FCIdentification') || value.includes('Li-FCRule')) return '用 FC 识别规则说明哪些客户需要优先推进，避免漏跟高价值机会。';
+  if (value.includes('ad.')) return '这是当前看板沉淀出的语义指标或维度，可用于筛选、下钻和复用分析。';
+  if (value.includes('本体节点') || value.includes('物理表')) return '说明这个业务节点背后关联到哪些本体关系和数据表，便于追溯数据来源。';
+  if (value.includes('节点已映射')) return '说明页面上的业务路径已经和图谱、数据表、语义查询打通，可以继续下钻。';
+  if (value.includes('core:') || value.includes('celn:') || value.includes('sales:') || value.includes('Li-')) return '这里展示的是业务图谱依赖关系，用于解释指标背后的业务链路。';
+  return '补充说明当前指标或节点的来源和使用口径。';
+}
+
+const GRAPH_TERM_CN = {
+  'core:Li-Store': '门店',
+  'core:Li-Customer': '用户',
+  'core:Li-CoversStore': '覆盖门店',
+  'celn:Li-BelongsToStore': '归属门店',
+  'sales:Li-InteractionEvent': '销售互动事件',
+  'celn:Li-CELNStage': 'CELN阶段',
+  'celn:Li-C-Consider': 'C-考虑阶段',
+  'celn:Li-E-Evaluate': 'E-评估阶段',
+  'celn:Li-L-Lead': 'L-意向阶段',
+  'celn:Li-N-Negotiate': 'N-谈判阶段',
+  'celn:Li-StageDetermination': '阶段判断',
+  'celn:Li-Evidence': '判断证据',
+  'celn:Li-Tag': '客户标签',
+  'celn:Li-FollowUpTask': '跟进任务',
+  'celn:Li-FollowUpRecord': '跟进记录',
+  'celn:Li-ConversionEvent': '转化事件',
+  'celn:Li-DailyReview': '每日复盘',
+  'celn:Li-DeterminesStage': '判断客户阶段',
+  'celn:Li-HasStage': '拥有客户阶段',
+  'celn:Li-BasedOnEvidence': '基于证据',
+  'celn:Li-HasTag': '拥有标签',
+  'celn:Li-TagAppliesToStage': '标签适用于阶段',
+  'celn:Li-AssignedTo': '分配给销售专家',
+  'celn:Li-ProductExpert': '销售专家',
+  'celn:Li-HasFollowUpRecord': '拥有跟进记录',
+  'celn:Li-TriggersStageChange': '触发阶段变化',
+  'celn:Li-TracesTo': '追溯到',
+  'celn:Li-LeadsToConversion': '带来转化',
+  'celn:Li-ReviewedBy': '由店长复盘',
+  'celn:Li-UsesScript': '使用话术',
+  'celn:Li-UsesStrategy': '使用策略',
+  'celn:Li-FCIdentification': 'FC识别',
+  'celn:Li-FCRule': 'FC识别规则',
+  'Li-FollowUpTask': '跟进任务',
+  'Li-FollowUpRecord': '跟进记录',
+  'Li-TriggersStageChange': '触发阶段变化',
+  'Li-DailyReview': '每日复盘',
+  'Li-UsesScript': '使用话术',
+  'Li-UsesStrategy': '使用策略',
+  'Li-ConversionEvent': '转化事件',
+  'celn_store': '门店表',
+  'celn_customer': '用户表',
+  'celn_stage': '阶段表',
+  'celn_stage_determination': '阶段判断表',
+  'celn_determination_evidence': '阶段判断证据关联表',
+  'celn_evidence': '证据表',
+  'celn_customer_tag': '用户标签表',
+  'celn_tag': '标签表',
+  'celn_follow_up_task': '跟进任务表',
+  'celn_follow_up_record': '跟进记录表',
+  'celn_conversion_event': '转化事件表',
+  'celn_conversion_trace': '转化追溯表',
+  'celn_daily_review': '每日复盘表',
+  'call_record_judgement_results': '电话质检结果表',
+};
+
+function graphTermCn(term) {
+  const value = String(term || '').trim();
+  if (!value || value === '-') return value || '-';
+  const cn = GRAPH_TERM_CN[value];
+  return cn ? `${cn}（${value}）` : value;
+}
+
+function graphTermText(value) {
+  const raw = String(value || '').trim();
+  if (!raw || raw === '-') return raw || '-';
+  return raw
+    .split(/(\s+\/\s+|\s+→\s+|\s*,\s*|\n)/)
+    .map(part => {
+      if (!part || /^(\s+\/\s+|\s+→\s+|\s*,\s*|\n)$/.test(part)) return part;
+      const labeled = part.match(/^([^：]+：)(.+)$/);
+      if (labeled) return `${labeled[1]}${graphTermCn(labeled[2].trim())}`;
+      return graphTermCn(part.trim());
+    })
+    .join('');
+}
+
+function graphDependencyText(data={}) {
+  return [
+    `本体节点：${graphTermText(data.node || '-')}`,
+    `关系：${graphTermText(data.relation || '-')}`,
+    `物理表：${graphTermText(data.table || '-')}`,
+  ].join('\n');
+}
+
+function techNoteHint(note, reasonOverride='') {
+  const text = String(note || '').trim();
+  if (!text) return '';
+  const reason = String(reasonOverride || '').trim() || techNoteReason(text);
+  const label = /[a-z]+:|call_record|ad\.|core:|celn:|sales:|Li-|本体节点|物理表/.test(text) ? '图谱依赖' : '备注';
+  const content = `使用原因：${reason}\n${label}：${graphTermText(text)}`;
+  return `<span class="tech-note-help" tabindex="0" data-tech-note="${escHtml(content)}" aria-label="${escHtml(content)}" onclick="toggleTechNote(event,this)" onkeydown="if(event.key==='Enter'||event.key===' '){toggleTechNote(event,this)}"><i class="bi bi-info-circle-fill" aria-hidden="true"></i></span>`;
+}
+
+function toggleTechNote(event, el) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  document.querySelectorAll('.tech-note-help.tech-note-open').forEach(node => {
+    if (node !== el) node.classList.remove('tech-note-open');
+  });
+  if (el) el.classList.toggle('tech-note-open');
+}
+
+document.addEventListener('click', event => {
+  if (event.target?.closest?.('.tech-note-help')) return;
+  document.querySelectorAll('.tech-note-help.tech-note-open').forEach(node => node.classList.remove('tech-note-open'));
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  document.querySelectorAll('.tech-note-help.tech-note-open').forEach(node => node.classList.remove('tech-note-open'));
+});
+
 // ── Ad-Hoc & Dashboard ─────────────────────────────────────────────────── //
 
 let _adhocMeta = {measures:[], dimensions:[]};
@@ -4325,6 +4537,9 @@ let _dashboardFilterExpanded = false;
 let _dashboardWidgetResults = {};
 let _dashboardAiRequestId = 0;
 let _dashboardAiTimer = null;
+let _callReportDrillContext = null;
+let _celnStoreInsightContext = null;
+let _celnStageActionContext = null;
 const DASHBOARD_DRAFT_KEY = 'ad_dashboard_draft_v1';
 let _dashboardState = {
   id: '',
@@ -4386,7 +4601,9 @@ function adhocDimensionCompatibleWithMeasure(dimensionMember, measureMeta) {
   const dim = adhocFindDimension(dimensionMember);
   if (!dim || !measureMeta) return false;
   const sourceCodes = new Set([dim.code, ...(dim.sourceCodes || [])].filter(Boolean));
-  return (measureMeta.dimensionCodes || []).some(code => sourceCodes.has(code));
+  if ((measureMeta.dimensionCodes || []).some(code => sourceCodes.has(code))) return true;
+  const dimTables = new Set(dim.tables || []);
+  return (measureMeta.tables || []).some(table => dimTables.has(table));
 }
 
 function adhocDimensionCompatibilityInfo(dimensionMember, measureMeta) {
@@ -4402,6 +4619,17 @@ function adhocDimensionCompatibilityInfo(dimensionMember, measureMeta) {
       evidencePath:evidence.evidencePath || '',
       ruleId:evidence.ruleId || '',
       confidence:evidence.confidence || '',
+    };
+  }
+  const dimTables = new Set(dim.tables || []);
+  const sharedTables = (measureMeta.tables || []).filter(table => dimTables.has(table));
+  if (sharedTables.length) {
+    return {
+      enabled:true,
+      reason:`与${measureMeta.title || measureMeta.name || '当前指标'}共享事实表，可作为当前切片或继续下钻维度`,
+      evidencePath:`共享事实表：${sharedTables.join('、')}`,
+      ruleId:'semantic.shared_fact_table',
+      confidence:'1.0',
     };
   }
   return {
@@ -5787,8 +6015,8 @@ function ensureAdhocAlertStyles() {
     .exec-report-reco{background:#fbfaf6;border:1px solid #e8dfd2;border-top:4px solid var(--exec-accent,#14806f);padding:12px;min-height:120px}
     .exec-report-reco b{display:block;color:#173d36;margin-bottom:8px}
     .exec-report-tag{display:inline-flex;align-items:center;gap:4px;border:1px solid rgba(20,128,111,.3);background:#eef8f4;color:#126255;padding:1px 7px;margin:0 5px 5px 0;font-size:11px}
-    .call-report-shell .exec-report-hero{background:linear-gradient(135deg,#083f38,#0e5a50);padding:30px 36px 26px}
-    .call-report-shell .exec-report-body{max-width:1180px}
+    .call-report-shell .exec-report-hero{background:linear-gradient(135deg,#083f38,#0e5a50);padding:30px clamp(20px,2.2vw,40px) 26px}
+    .call-report-shell .exec-report-body{max-width:none;width:100%;margin:0;box-sizing:border-box;padding:18px clamp(16px,2vw,36px) 28px}
     .call-report-summary-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;padding:12px}
     .call-report-kpi{background:#fff;border:1px solid #e8dfd2;border-top:3px solid var(--exec-accent,#14806f);padding:12px;min-height:92px}
     .call-report-kpi b{display:block;color:#776b5d;font-size:11px;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -5823,6 +6051,18 @@ function ensureAdhocAlertStyles() {
     .call-report-diff-good{color:#126255;background:#e9f7ef}
     .call-report-diff-bad{color:#9b2f2f;background:#ffe2e0}
     .call-report-diff-mid{color:#7d5a11;background:#fff4d8}
+    .call-report-drillable{cursor:pointer;position:relative;transition:box-shadow .16s ease,transform .16s ease,background-color .16s ease}
+    .call-report-drillable:hover{box-shadow:0 0 0 2px rgba(20,128,111,.22),0 2px 10px rgba(39,55,48,.08);transform:translateY(-1px)}
+    .call-report-drillable:hover::after{content:"选择下钻";position:absolute;right:8px;top:6px;font-size:10px;color:#126255;background:#eef8f4;border:1px solid #c8e3da;padding:1px 6px;z-index:2}
+    .call-report-table tr.call-report-drillable:hover td{background:#eef8f4!important}
+    .call-report-table tr.call-report-drillable:hover::after{top:3px}
+    .call-report-drill-result-table th{white-space:nowrap;background:#f4f7f5}
+    .call-report-drill-result-table td{vertical-align:middle}
+    .call-report-drill-value-bar{min-width:150px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+    .call-report-drill-value-bar span:first-child{height:8px;background:#e9e2d7;position:relative;overflow:hidden}
+    .call-report-drill-value-bar span:first-child::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--call-report-drill-pct,0%);background:#14806f}
+    .call-report-drill-value-bar.bad span:first-child::after{background:#c84b4b}
+    .call-report-drill-value-bar.warn span:first-child::after{background:#d99042}
     .call-report-compare-bars{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:0 12px 12px}
     .call-report-compare-bar-card{background:#fbfaf6;border:1px solid #e8dfd2;padding:10px}
     .call-report-compare-bar-card b{display:block;color:#173d36;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -5830,7 +6070,48 @@ function ensureAdhocAlertStyles() {
     .call-report-dual-fill{height:100%;background:#14806f}
     .call-report-dual-fill.tail{background:#c84b4b}
     .call-report-dual-label{display:flex;justify-content:space-between;color:#74695d;font-size:11px}
-    .celn-overview-shell .exec-report-hero{background:linear-gradient(135deg,#083f38,#174b43);padding:28px 34px 22px}
+    .call-ontology-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;padding:0 12px 12px}
+    .call-ontology-grid.compact{gap:8px;padding:0 10px 8px}
+    .call-ontology-card{background:#fbfaf6;border:1px solid #e8dfd2;border-top:4px solid var(--exec-accent,#14806f);padding:10px;min-height:118px;cursor:pointer;transition:box-shadow .16s ease,transform .16s ease}
+    .call-ontology-grid.compact .call-ontology-card{min-height:76px;padding:8px 9px;border-top-width:3px}
+    .call-ontology-card:hover{box-shadow:0 0 0 2px rgba(20,128,111,.18),0 4px 16px rgba(39,55,48,.09);transform:translateY(-1px)}
+    .call-ontology-card b{display:block;color:#173d36;margin-bottom:7px;font-size:12px}
+    .call-ontology-grid.compact .call-ontology-card b{margin-bottom:5px;font-size:11px}
+    .call-ontology-card strong{display:block;color:var(--exec-accent,#14806f);font-size:22px;line-height:1.05;margin-bottom:5px}
+    .call-ontology-grid.compact .call-ontology-card strong{font-size:20px;margin-bottom:3px}
+    .call-ontology-card span{display:block;color:#74695d;font-size:10px;line-height:1.35}
+    .call-ontology-chain{margin:0 12px 12px;border:1px solid #d8eadf;background:#eff8f1;border-left:4px solid #14806f;padding:10px 12px;color:#4f5e55}
+    .call-ontology-chain.compact{margin:0 10px 8px;padding:8px 10px}
+    .call-ontology-chain b{display:block;color:#173d36;margin-bottom:5px}
+    .call-ontology-chain.compact b{display:inline;margin-right:8px}
+    .call-ontology-chain p{margin:0;font-size:12px;line-height:1.5}
+    .call-ontology-chain.compact p{display:inline;font-size:11px}
+    .call-ontology-strip{display:flex;align-items:center;gap:6px;padding:0 10px 10px;overflow:hidden}
+    .call-ontology-strip span{display:inline-flex;align-items:center;gap:4px;background:#fffdf8;border:1px solid #dfd5c8;color:#526071;padding:3px 7px;font-size:11px;white-space:nowrap}
+    .call-ontology-strip i{color:#a08a66;font-size:11px}
+    .call-ontology-detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:0 12px 12px}
+    .call-ontology-detail-card{background:#fff;border:1px solid #e8dfd2;border-left:4px solid var(--exec-accent,#14806f);padding:12px;min-height:138px}
+    .call-ontology-detail-card b{display:block;color:#173d36;font-size:12px;margin-bottom:7px}
+    .call-ontology-detail-card strong{display:block;color:var(--exec-accent,#14806f);font-size:26px;line-height:1.05;margin-bottom:6px}
+    .call-ontology-detail-card p{margin:0 0 7px;color:#5f584f;font-size:12px;line-height:1.5}
+    .call-ontology-detail-card span{display:inline-flex;align-items:center;gap:4px;border:1px solid #d8eadf;background:#f5fbf8;color:#126255;padding:2px 7px;font-size:11px}
+    .call-ontology-playbook{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 12px 12px}
+    .call-ontology-step{background:#fbfaf6;border:1px solid #e8dfd2;border-top:3px solid var(--exec-accent,#14806f);padding:12px;min-height:134px}
+    .call-ontology-step b{display:block;color:#173d36;margin-bottom:8px}
+    .call-ontology-step ul{margin:0;padding-left:16px;color:#5f584f;font-size:12px;line-height:1.65}
+    .call-ontology-step li{margin:0 0 3px}
+    .tech-note-help{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;color:#5f7f9f!important;font-size:13px;line-height:1;cursor:help;margin-left:4px;vertical-align:-2px;position:relative;top:-1px;opacity:.86}
+    .tech-note-help:hover{color:#14806f!important;opacity:1}
+    .tech-note-help:focus-visible{outline:2px solid rgba(20,128,111,.28);outline-offset:2px;border-radius:50%}
+    .tech-note-help .bi{display:block;line-height:1}
+    .tech-note-help::before{content:"";display:none;position:absolute;left:50%;bottom:19px;transform:translateX(-50%);border:6px solid transparent;border-top-color:#173d36;z-index:3201}
+    .tech-note-help::after{content:attr(data-tech-note);display:none;position:absolute;left:50%;bottom:30px;transform:translateX(-50%);min-width:280px;max-width:min(520px,78vw);padding:10px 12px;border-radius:3px;background:#173d36;color:#fff;font-size:12px;font-weight:500;line-height:1.5;letter-spacing:0;white-space:pre-line;text-align:left;box-shadow:0 8px 24px rgba(20,31,38,.22);z-index:3200}
+    .tech-note-help:hover::before,.tech-note-help:hover::after,.tech-note-help:focus::before,.tech-note-help:focus::after,.tech-note-help.tech-note-open::before,.tech-note-help.tech-note-open::after{display:block}
+    .tech-note-help:focus{outline:2px solid rgba(20,128,111,.28);outline-offset:2px;border-radius:50%}
+    .celn-overview-shell .exec-report-hero{background:linear-gradient(135deg,#083f38,#174b43);padding:28px clamp(24px,2.4vw,46px) 22px}
+    .celn-overview-shell .exec-report-hero p{max-width:none}
+    .celn-overview-shell .exec-report-body{max-width:none;width:100%;margin:0;box-sizing:border-box;padding:18px clamp(16px,2vw,36px) 28px}
+    .celn-overview-shell .exec-report-section{width:100%;box-sizing:border-box}
     .celn-overview-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:12px;padding:12px}
     .celn-funnel-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
     .celn-stage-card{background:#fff;border:1px solid #e8dfd2;border-top:4px solid var(--exec-accent,#14806f);padding:12px;min-height:220px}
@@ -5846,14 +6127,99 @@ function ensureAdhocAlertStyles() {
     .celn-alert-card.critical{background:#fff1f0;border-color:#efb8b4;--exec-accent:#c84b4b}
     .celn-alert-card b{display:block;color:#173d36;margin-bottom:5px}
     .celn-alert-card p{margin:0;color:#65584a}
+    .celn-distribution-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:0 12px 12px;align-items:stretch}
+    .celn-stage-distribution-card{background:#fbfaf6;border:1px solid #e8dfd2;border-top:4px solid var(--exec-accent,#14806f);padding:12px;min-height:286px;cursor:pointer;position:relative;transition:box-shadow .16s ease,transform .16s ease;display:grid;grid-template-rows:20px 35px 18px 40px 64px 20px 34px 18px;row-gap:4px;align-content:start}
+    .celn-stage-distribution-card:hover{box-shadow:0 0 0 2px rgba(20,128,111,.18),0 4px 16px rgba(39,55,48,.09);transform:translateY(-1px)}
+    .celn-stage-distribution-card:hover::after{content:"业务解释";position:absolute;right:10px;top:8px;font-size:10px;color:#126255;background:#eef8f4;border:1px solid #c8e3da;padding:1px 6px}
+    .celn-stage-distribution-card b{display:flex;align-items:center;gap:6px;color:#173d36;font-size:13px;min-width:0}
+    .celn-stage-distribution-card b span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .celn-stage-distribution-card strong{display:flex;align-items:end;color:var(--exec-accent,#14806f);font-size:30px;line-height:1}
+    .celn-stage-distribution-card .celn-stage-ratio{color:#776b5d;font-size:12px;line-height:18px}
+    .celn-stage-distribution-card .celn-stage-focus{color:#65584a;font-size:11px;line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+    .celn-stage-ontology{color:#65584a;font-size:11px;line-height:18px;overflow:visible;position:relative;z-index:4;white-space:nowrap}
+    .celn-stage-trend{display:grid;grid-template-rows:18px 38px;gap:3px;min-width:0;background:#eef8f4;border:1px solid #b9d9cd;border-left:4px solid var(--exec-accent,#14806f);padding:5px 7px}
+    .celn-stage-trend-head{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#173d36;font-size:11px;font-weight:700;line-height:16px}
+    .celn-stage-trend-head span:first-child::before{content:"↗";display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;margin-right:4px;border-radius:50%;background:var(--exec-accent,#14806f);color:#fff;font-size:9px;vertical-align:1px}
+    .celn-stage-trend-head span:last-child{color:var(--exec-accent,#14806f);font-weight:800;white-space:nowrap}
+    .celn-stage-sparkline{width:100%;height:38px;display:block;overflow:visible}
+    .celn-stage-sparkline .spark-area{fill:var(--exec-accent,#14806f);opacity:.08}
+    .celn-stage-sparkline .spark-line{fill:none;stroke:var(--exec-accent,#14806f);stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
+    .celn-stage-sparkline .spark-dot{fill:#fbfaf6;stroke:var(--exec-accent,#14806f);stroke-width:1.6}
+    .celn-stage-sparkline .spark-dot-muted{fill:var(--exec-accent,#14806f);opacity:.42;stroke:none}
+    .celn-stage-mini{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:11px;color:#7d6a4a;min-width:0}
+    .celn-stage-mini span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .celn-stage-mini span:last-child{white-space:nowrap}
+    .celn-stage-confidence{text-align:right;min-width:78px;line-height:1.25;color:#665b50}
+    .celn-stage-confidence b{display:block;font-size:11px;color:#173d36;font-weight:700;white-space:nowrap;overflow:visible}
+    .celn-stage-confidence small{display:block;font-size:10px;color:#8a7d70;white-space:nowrap}
+    .celn-stage-confidence.good b{color:#126255}
+    .celn-stage-confidence.ok b{color:#7d5a11}
+    .celn-stage-confidence.bad b{color:#9b2f2f}
+    .celn-stage-confidence.none b{color:#8a7d70}
+    .celn-stage-metric-group{display:inline-flex!important;align-items:center;gap:4px;min-width:0;overflow:hidden}
+    .celn-stage-metric{display:inline-flex;align-items:center;gap:2px;border:0;background:transparent;color:#7d6a4a;padding:0;font:inherit;line-height:1.4;cursor:pointer;white-space:nowrap}
+    .celn-stage-metric:hover{color:#126255;text-decoration:underline;text-underline-offset:2px}
+    .celn-stage-metric:focus-visible{outline:2px solid rgba(20,128,111,.28);outline-offset:2px;border-radius:2px}
+    .celn-stage-metric-sep{color:#b5a692}
+    .celn-stage-change{display:inline-flex;align-items:center;gap:4px;border:1px solid #e3d7c9;background:#fff;padding:1px 6px}
+    .celn-stage-change.up{color:#126255;border-color:#b9d9cd}.celn-stage-change.down{color:#9b2f2f;border-color:#efb8b4}
+    .celn-agent-push{margin:0 12px 12px;border:1px solid #d8eadf;background:#eff8f1;border-left:4px solid var(--exec-accent,#14806f);padding:12px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+    .celn-agent-push.warning{background:#fff8ea;border-color:#eed6a6;--exec-accent:#d99042}.celn-agent-push.critical{background:#fff1f0;border-color:#efb8b4;--exec-accent:#c84b4b}
+    .celn-agent-push b{display:block;color:#173d36;margin-bottom:4px}.celn-agent-push p{margin:0;color:#65584a}
+    .celn-ontology-panel{margin:0 12px 12px;border:1px solid #e8dfd2;background:#fffdf8;padding:12px}
+    .celn-ontology-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+    .celn-ontology-head b{display:block;color:#173d36;font-size:13px;margin-bottom:4px}
+    .celn-ontology-head span{display:block;color:#74695d;font-size:11px}
+    .celn-ontology-path{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:8px;align-items:stretch}
+    .celn-ontology-node{border:1px solid #e5dbce;background:#fbfaf6;border-top:3px solid var(--exec-accent,#14806f);padding:10px;min-height:104px;position:relative;display:flex;flex-direction:column;cursor:pointer;transition:box-shadow .16s ease,transform .16s ease}
+    .celn-ontology-node:hover{box-shadow:0 0 0 2px rgba(20,128,111,.16),0 4px 14px rgba(39,55,48,.08);transform:translateY(-1px)}
+    .celn-ontology-node::after{content:"";position:absolute;right:-7px;top:50%;width:6px;border-top:1px solid #b9c9bf}
+    .celn-ontology-node:last-child::after{display:none}
+    .celn-ontology-node b{display:flex;align-items:center;gap:4px;color:#173d36;font-size:12px;margin-bottom:5px}
+    .celn-ontology-node span{display:block;color:#74695d;font-size:10px;line-height:1.35;margin-top:4px}
+    .celn-ontology-node strong{display:block;position:static;margin:auto auto 4px;color:var(--exec-accent,#14806f);font-size:22px;line-height:1.05;font-weight:800}
+    .celn-semantic-assets{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+    .celn-semantic-box{border:1px solid #d8eadf;background:#f5fbf8;padding:10px}
+    .celn-semantic-box b{display:block;color:#173d36;font-size:12px;margin-bottom:7px}
+    .celn-semantic-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #d8d5ca;background:#fffdf8;color:#526071;padding:3px 7px;margin:0 5px 5px 0;font-size:11px;white-space:nowrap}
+    .celn-review-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+    .celn-review-card{border-left:4px solid var(--exec-accent,#14806f);background:#eff8f1;padding:10px;color:#4f5e55}
+    .celn-review-card b{display:block;color:#173d36;margin-bottom:5px}
+    .celn-review-card p{margin:0 0 5px;font-size:12px;line-height:1.45}
+    .celn-tag-breakdown{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+    .celn-tag-breakdown span{display:inline-flex;align-items:center;gap:4px;border:1px solid #d8eadf;background:#f5fbf8;color:#126255;padding:2px 7px;font-size:11px}
+    .celn-customer-row{cursor:pointer}.celn-customer-row:hover td{background:#eef8f4!important}
+    .celn-profile-kv{display:grid;grid-template-columns:96px 1fr;gap:8px;padding:6px 0;border-bottom:1px solid #f0e9df;font-size:13px}
+    .celn-profile-kv span{color:#776b5d}.celn-profile-kv strong{color:#173d36}
     .celn-bridge-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:0 12px 12px}
     .celn-bridge-kpi{background:#fbfaf6;border:1px solid #e8dfd2;border-top:3px solid var(--exec-accent,#14806f);padding:10px;min-height:82px}
     .celn-bridge-kpi b{display:block;color:#776b5d;font-size:11px;margin-bottom:7px}
     .celn-bridge-kpi strong{display:block;color:var(--exec-accent,#14806f);font-size:20px;line-height:1.05}
     .celn-bridge-kpi span{display:block;color:#8a7d70;font-size:11px;margin-top:6px}
     .celn-action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:0 12px 12px}
-    @media (max-width: 1100px){.call-report-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.call-report-flow,.call-report-script-grid,.call-report-ranking,.call-report-action-grid,.call-report-compare-grid{grid-template-columns:1fr}}
-    @media (max-width: 1100px){.call-report-compare-bars,.celn-overview-grid,.celn-funnel-groups,.celn-bridge-grid,.celn-action-grid{grid-template-columns:1fr}}
+    .celn-compact-shell .exec-report-body{padding:10px;max-width:none}
+    .celn-compact-shell .exec-report-section{margin-top:0}
+    .celn-compact-intro{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;padding:9px 11px;background:#eff8f1;border-left:4px solid #14806f;color:#4f5e55}
+    .celn-compact-intro b{color:#173d36}
+    .celn-compact-board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:0 0 10px}
+    .celn-compact-group{background:#fff;border:1px solid #e8dfd2;border-top:4px solid var(--exec-accent,#14806f);min-width:0}
+    .celn-compact-group-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;border-bottom:1px solid #eee5da}
+    .celn-compact-group-head b{color:#173d36;font-size:13px}
+    .celn-compact-group-head span{font-size:11px;color:#766b5f}
+    .celn-compact-table{width:100%;border-collapse:separate;border-spacing:0;font-size:11px}
+    .celn-compact-table th{background:#f4f0e8;color:#526071;font-weight:700;padding:7px 8px;text-align:left;white-space:nowrap;border-bottom:1px solid #e8dfd2}
+    .celn-compact-table td{padding:7px 8px;border-bottom:1px solid #efe7dc;vertical-align:middle}
+    .celn-compact-table td:nth-child(2){text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:var(--exec-accent,#14806f)}
+    .celn-compact-table tr:last-child td{border-bottom:0}
+    .celn-compact-stage{display:block;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#20332f;font-weight:700}
+    .celn-compact-action{display:inline-flex;align-items:center;border:1px solid #c8e3da;background:#eef8f4;color:#126255;padding:1px 6px;font-size:10px;white-space:nowrap}
+    .celn-compact-action.warn{border-color:#efd3b6;background:#fff8ea;color:#9a6419}
+    .celn-compact-action.bad{border-color:#efb8b4;background:#fff1f0;color:#9b2f2f}
+    @media (max-width: 1500px) and (min-width: 1101px){.celn-overview-shell .celn-distribution-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.celn-overview-shell .celn-ontology-path{grid-template-columns:repeat(9,minmax(0,1fr))}}
+    @media (max-width: 900px){.celn-overview-shell .celn-distribution-grid{grid-template-columns:1fr}}
+    @media (max-width: 1100px){.call-report-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.call-report-flow,.call-report-script-grid,.call-report-ranking,.call-report-action-grid,.call-report-compare-grid,.call-ontology-grid,.call-ontology-detail-grid,.call-ontology-playbook{grid-template-columns:1fr}}
+    @media (max-width: 1100px){.call-report-compare-bars,.celn-overview-grid,.celn-funnel-groups,.celn-bridge-grid,.celn-action-grid,.celn-distribution-grid,.celn-ontology-path,.celn-review-grid,.celn-semantic-assets,.celn-compact-board{grid-template-columns:1fr}.celn-ontology-node::after{display:none}}
+    @media (max-width: 1100px) and (min-width: 901px){.celn-overview-shell .celn-distribution-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.celn-overview-shell .celn-bridge-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.celn-overview-shell .celn-ontology-path{grid-template-columns:repeat(3,minmax(0,1fr))}}
     @media (max-width: 1100px){.exec-report-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exec-report-two-col,.exec-report-insight-list,.exec-report-reco-grid{grid-template-columns:1fr}.exec-report-mini-grid{grid-template-columns:1fr}}
     @media (max-width: 1100px){.kg-attribution-body{grid-template-columns:1fr}.kg-attribution-chain{overflow-x:auto}.kg-attribution-node{min-width:150px}}
     @keyframes ad-alert-loading-pulse{0%,100%{opacity:.42;box-shadow:none}45%{opacity:1;box-shadow:0 0 0 2px rgba(217,144,66,.16)}}
@@ -6547,6 +6913,423 @@ function callReportCoverage(value) {
   return `${(n * 100).toFixed(1)}%`;
 }
 
+function callReportDimensionFilter(member, values, operator='equals') {
+  const list = Array.isArray(values) ? values : [values];
+  const clean = list.filter(value => value !== undefined && value !== null && String(value) !== '').map(String);
+  if (!member || !clean.length) return null;
+  return {kind:'dimension', member, operator, values:clean};
+}
+
+function callReportMergedFilters(baseFilters, extraFilters=[]) {
+  return [
+    ...((baseFilters || []).map(filter => ({...filter, values:[...(filter.values || [])]}))),
+    ...((extraFilters || []).filter(Boolean).map(filter => ({...filter, values:[...(filter.values || [])]}))),
+  ];
+}
+
+function callReportDecodePayload(payload, fallback) {
+  try {
+    return JSON.parse(decodeURIComponent(String(payload || '')));
+  } catch(e) {
+    try {
+      return JSON.parse(String(payload || ''));
+    } catch(inner) {
+      return fallback;
+    }
+  }
+}
+
+function callReportContextText(ctx={}) {
+  const metric = ctx.metricLabel || adhocMemberLabel(ctx.measure || 'ad.quality_record_count');
+  const row = ctx.rowLabel || '全部';
+  const column = ctx.columnLabel || '全部';
+  return `${metric} · 行: ${row} · 列: ${column}`;
+}
+
+function callReportFilterSummary(filters=[]) {
+  return (filters || []).filter(filter => filter?.member && (filter.values || []).length).map(filter => {
+    const label = adhocMemberLabel(filter.member);
+    const values = (filter.values || []).slice(0, 3).join('、');
+    const suffix = (filter.values || []).length > 3 ? '等' : '';
+    return `${label} ${filter.operator || 'in'} ${values}${suffix}`;
+  }).join('；');
+}
+
+function callReportPreferredDrillDimensions(ctx={}) {
+  return [
+    {member:'ad.sales_expert', score:96, reason:'按销售专家定位辅导对象和通话质量差异'},
+    {member:'ad.intent', score:94, reason:'按客户意图拆解沟通场景，定位话术和槽位问题来源'},
+    {member:'ad.quality_issue_category', score:92, reason:'按问题分类聚合异常，适合安排复盘动作'},
+    {member:'ad.quality_score_level', score:88, reason:'按质量分层观察优秀、良好、合格和未通过结构'},
+    {member:'ad.quality_rule', score:86, reason:'按质检规则定位缺失槽位和规则命中来源'},
+    {member:'ad.call_flow_total', score:84, reason:'按电话流向总入口拆解通话来源路径'},
+    {member:'ad.quality_pass', score:82, reason:'按通过/未通过区分质量达标情况'},
+    {member:'ad.store_city', score:76, reason:'按城市对比区域门店质量表现'},
+    {member:'ad.store_manager', score:74, reason:'按店长视角对比管理责任单元'},
+    {member:'ad.store', score:72, reason:'按门店定位经营单元差异'},
+    {member:'ad.date_day', score:58, reason:'按日期观察质检指标的短期波动'},
+  ];
+}
+
+function callReportDimensionSame(a, b) {
+  if (!a || !b) return false;
+  return adhocSimpleMemberKey(a) === adhocSimpleMemberKey(b);
+}
+
+function callReportFilterDimensionMembers(filters=[]) {
+  return (filters || [])
+    .filter(filter => !filter?.kind || filter.kind === 'dimension')
+    .map(filter => filter?.member)
+    .filter(Boolean);
+}
+
+function callReportUniqueDimensionMembers(members=[]) {
+  const result = new Map();
+  (members || []).filter(Boolean).forEach(member => {
+    const dim = adhocFindDimension(member);
+    if (!dim) return;
+    const name = dim.name || member;
+    const key = adhocSimpleMemberKey(name);
+    if (!result.has(key)) result.set(key, name);
+  });
+  return Array.from(result.values());
+}
+
+function callReportMeasureCompatibilityForDimensions(measureMember, dimensionMembers=[]) {
+  const measureMeta = adhocFindMeasure(measureMember);
+  if (!measureMeta) return {enabled:false, reason:'指标不存在'};
+  const bad = callReportUniqueDimensionMembers(dimensionMembers)
+    .map(member => {
+      const dim = adhocFindDimension(member);
+      return {member, dim, info:adhocDimensionCompatibilityInfo(member, measureMeta)};
+    })
+    .filter(item => !item.info.enabled);
+  if (!bad.length) return {enabled:true, reason:''};
+  const labels = bad.slice(0, 3).map(item => item.dim?.title || item.member).join('、');
+  return {
+    enabled:false,
+    reason:`与当前上下文维度不兼容：${labels}${bad.length > 3 ? '等' : ''}`,
+    badDimensions: bad,
+  };
+}
+
+function callReportDrillCandidates(ctx={}) {
+  const measure = ctx.measure || 'ad.quality_record_count';
+  const measureMeta = adhocFindMeasure(measure);
+  if (!measureMeta) return [];
+  const currentMembers = new Set([ctx.currentMember, ...(ctx.contextMembers || [])].filter(Boolean).map(adhocSimpleMemberKey));
+  const filteredMembers = new Set((ctx.filters || []).map(filter => filter?.member).filter(Boolean).map(adhocSimpleMemberKey));
+  const baseDimensionMembers = callReportFilterDimensionMembers(ctx.filters || []);
+  const candidates = new Map();
+  const addCandidate = (member, score, reason) => {
+    const dim = adhocFindDimension(member);
+    if (!dim) return;
+    const key = dim.name || member;
+    const simple = adhocSimpleMemberKey(key);
+    if (currentMembers.has(simple)) return;
+    const info = callReportMeasureCompatibilityForDimensions(measure, [...baseDimensionMembers, dim.name || member]);
+    if (!info.enabled) return;
+    const filteredPenalty = filteredMembers.has(simple) ? 12 : 0;
+    const finalScore = Math.max(1, Math.min(99, Math.round(Number(score || 70) - filteredPenalty)));
+    const existing = candidates.get(key);
+    if (!existing || existing.score < finalScore) {
+      candidates.set(key, {dim, score:finalScore, reason:reason || info.reason || '适合继续拆解当前指标表现'});
+    }
+  };
+  callReportPreferredDrillDimensions(ctx).forEach(item => addCandidate(item.member, item.score, item.reason));
+  adhocRecommendedDimensions(40, [measure], Array.from(currentMembers)).forEach(({dim, recommendation}) => {
+    addCandidate(dim.name, recommendation?.score || 70, recommendation?.reason || '知识图谱推荐的兼容维度');
+  });
+  return Array.from(candidates.values())
+    .sort((a, b) => b.score - a.score || String(a.dim.title || a.dim.name).localeCompare(String(b.dim.title || b.dim.name), 'zh-Hans-CN'))
+    .slice(0, 10);
+}
+
+async function callReportBackendDrillCandidates(ctx={}) {
+  const r = await fetch('/api/ad/v1/drill-dimensions', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      measure: ctx.measure || 'ad.quality_record_count',
+      filters: ctx.filters || [],
+      currentMember: ctx.currentMember || '',
+      contextMembers: ctx.contextMembers || [],
+      selectedDimensions: [
+        ...(ctx.selectedDimensions || []),
+        ...callReportFilterDimensionMembers(ctx.filters || []),
+      ],
+      limit: 10,
+    })
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || '业务图谱下钻维度查询失败');
+  if (d.error) {
+    return {items:[], warning:d.error, source:d.source || 'business_kg'};
+  }
+  const items = (d.items || []).map(item => {
+    const dim = adhocFindDimension(item.member) || adhocFindDimension(item.code);
+    if (!dim) return null;
+    return {
+      dim,
+      score: Number(item.score || 70),
+      reason: item.reason || item.evidencePath || '业务图谱推荐的兼容维度',
+      evidencePath: item.evidencePath || '',
+      ruleId: item.ruleId || '',
+      source: item.source || d.source || 'business_kg',
+      tables: item.tables || [],
+    };
+  }).filter(Boolean);
+  return {items, warning:'', source:d.source || 'business_kg'};
+}
+
+async function openCallReportDrillChooser(measure, filtersPayload='[]', contextPayload='%7B%7D') {
+  const filters = callReportDecodePayload(filtersPayload, []);
+  const context = callReportDecodePayload(contextPayload, {});
+  try {
+    await loadAdhocMeta();
+  } catch(e) {
+    showToast(e.message || '语义字段加载失败', 'error');
+  }
+  const targetMeasure = measure || 'ad.quality_record_count';
+  const ctx = {
+    ...context,
+    measure: targetMeasure,
+    filters,
+    metricLabel: context.metricLabel || adhocMemberLabel(targetMeasure),
+  };
+  let backendWarning = '';
+  try {
+    const backend = await callReportBackendDrillCandidates(ctx);
+    ctx.candidates = backend.items;
+    ctx.candidateSource = backend.source;
+    backendWarning = backend.warning || '';
+  } catch(e) {
+    ctx.candidates = callReportDrillCandidates(ctx);
+    ctx.candidateSource = 'frontend_fallback';
+    backendWarning = `业务图谱接口暂不可用，已使用本地兜底规则：${e.message || e}`;
+  }
+  _callReportDrillContext = ctx;
+  const contextEl = document.getElementById('call-report-drill-context');
+  if (contextEl) {
+    const filterText = callReportFilterSummary(filters || []);
+    const sourceBadge = ctx.candidateSource === 'da_graph'
+      ? '<span class="badge bg-success-subtle text-success border border-success-subtle">DA业务图谱接口推荐</span>'
+      : (ctx.candidateSource === 'business_kg'
+        ? '<span class="badge bg-success-subtle text-success border border-success-subtle">业务图谱目录推荐</span>'
+        : '<span class="badge bg-warning-subtle text-warning border border-warning-subtle">本地兜底推荐</span>');
+    contextEl.innerHTML = `
+      <div>${escHtml(callReportContextText(ctx))}</div>
+      ${filterText ? `<div class="mt-1">继承筛选：${escHtml(filterText)}</div>` : ''}
+      <div class="mt-1">${sourceBadge}</div>
+      ${backendWarning ? `<div class="mt-2 alert alert-warning py-1 px-2 mb-0">${escHtml(backendWarning)}</div>` : ''}
+    `;
+  }
+  const out = document.getElementById('call-report-drill-dimensions');
+  if (out) {
+    out.innerHTML = ctx.candidates.length ? ctx.candidates.map(item => `
+      <button class="btn btn-sm btn-outline-success text-start" title="${escHtml(item.reason)}" onclick="applyCallReportDimensionDrill('${_escJs(item.dim.name || item.dim.code)}')">
+        <div class="d-flex align-items-center gap-2">
+          <span class="fw-semibold flex-fill"><i class="bi bi-arrow-down-right-circle me-1"></i>${escHtml(item.dim.title || item.dim.name)}</span>
+          <span class="badge bg-success-subtle text-success border border-success-subtle">${escHtml(item.score)}% 推荐</span>
+        </div>
+        <div class="small text-muted text-truncate">${escHtml(item.reason)}</div>
+        ${item.evidencePath ? `<div class="small text-muted text-truncate">${escHtml(item.evidencePath)}</div>` : ''}
+        <div class="small text-muted text-truncate">${escHtml(item.dim.code || item.dim.name)}</div>
+      </button>
+    `).join('') : '<div class="text-muted small">当前指标切片没有可继续下钻的维度。</div>';
+  }
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('call-report-drill-modal')).show();
+}
+
+function callReportDrillAttrs(measure, filters, context={}) {
+  const filterPayload = encodeURIComponent(JSON.stringify(filters || []));
+  const contextPayload = encodeURIComponent(JSON.stringify(context || {}));
+  return `role="button" tabindex="0" title="选择下钻方式" onclick="openCallReportDrillChooser('${_escJs(measure || 'ad.quality_record_count')}', '${filterPayload}', '${contextPayload}')"`;
+}
+
+async function openCallReportDetailFromChooser() {
+  const ctx = _callReportDrillContext;
+  if (!ctx) return;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('call-report-drill-modal')).hide();
+  await openAdhocDetail(ctx.measure || 'ad.quality_record_count', ctx.filters || [], {
+    value:'报告明细钻取',
+    filters:ctx.filters || [],
+    docMeasureCode: ctx.measure || 'ad.quality_record_count',
+    docTargetId:'call-quality-report',
+  });
+}
+
+function openCallReportBusinessExplain() {
+  const ctx = _callReportDrillContext;
+  if (!ctx) return;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('call-report-drill-modal')).hide();
+  const drawerEl = document.getElementById('cell-insight-drawer');
+  const body = document.getElementById('cell-insight-body');
+  const contextEl = document.getElementById('cell-insight-context');
+  if (contextEl) contextEl.textContent = callReportContextText(ctx);
+  const filterText = callReportFilterSummary(ctx.filters || []) || '无额外筛选';
+  const candidates = ctx.candidates || callReportDrillCandidates(ctx);
+  if (body) {
+    body.innerHTML = `
+      <div class="cell-insight-card cell-insight-summary mb-3">
+        <div class="cell-insight-card-title"><i class="bi bi-lightbulb me-1"></i>电话质检业务解释</div>
+        <div style="font-size:13px;line-height:1.7">
+          当前单元格用于观察${escHtml(ctx.metricLabel || adhocMemberLabel(ctx.measure))}，已继承看板日期、门店以及当前点击点位的筛选条件。建议优先做维度下钻，先定位问题集中在哪类销售专家、客户意图或问题分类，再决定是否查看通话明细。
+        </div>
+      </div>
+      <div class="cell-insight-card mb-3">
+        <div class="cell-insight-card-title">当前上下文</div>
+        <div class="cell-insight-kv"><span>指标</span><strong>${escHtml(ctx.metricLabel || adhocMemberLabel(ctx.measure))}</strong></div>
+        <div class="cell-insight-kv"><span>筛选</span><strong>${escHtml(filterText)}</strong></div>
+      </div>
+      <div class="cell-insight-card">
+        <div class="cell-insight-card-title">推荐下钻</div>
+        <div class="d-grid gap-2">
+          ${candidates.slice(0, 5).map(item => `<button class="btn btn-sm btn-outline-success text-start" onclick="applyCallReportDimensionDrill('${_escJs(item.dim.name || item.dim.code)}')">
+            <div class="d-flex align-items-center gap-2">
+              <span class="fw-semibold flex-fill"><i class="bi bi-arrow-down-right-circle me-1"></i>${escHtml(item.dim.title || item.dim.name)}</span>
+              <span class="badge bg-success-subtle text-success border border-success-subtle">${escHtml(item.score)}% 推荐</span>
+            </div>
+            <div class="small text-muted text-truncate">${escHtml(item.reason || '')}</div>
+          </button>`).join('') || '<div class="text-muted small">暂无推荐维度。</div>'}
+        </div>
+      </div>`;
+  }
+  bootstrap.Offcanvas.getOrCreateInstance(drawerEl).show();
+}
+
+function callReportMeasureCompatibleWithDimension(measureMember, dimensionMember) {
+  const measureMeta = adhocFindMeasure(measureMember);
+  const dim = adhocFindDimension(dimensionMember);
+  if (!measureMeta || !dim) return false;
+  return adhocDimensionCompatibilityInfo(dim.name || dimensionMember, measureMeta).enabled;
+}
+
+function callReportDrillMeasures(primaryMeasure, dimensionMember=null, extraDimensionMembers=[]) {
+  const measures = [
+    primaryMeasure || 'ad.quality_record_count',
+    'ad.quality_record_count',
+    'ad.avg_call_quality_score',
+    'ad.avg_slot_coverage_rate',
+    'ad.low_quality_call_count',
+    'ad.low_coverage_call_count',
+    'ad.missing_slot_count',
+  ];
+  const existing = [...new Set(measures)].filter(member => adhocFindMeasure(member));
+  if (!dimensionMember) return existing;
+  const requiredMembers = callReportUniqueDimensionMembers([dimensionMember, ...(extraDimensionMembers || [])]);
+  return existing.filter(member => callReportMeasureCompatibilityForDimensions(member, requiredMembers).enabled);
+}
+
+function callReportFormatMeasureValue(member, value) {
+  if (String(member).includes('coverage_rate')) return callReportCoverage(value);
+  if (String(member).includes('score')) return callReportNum(value, 1);
+  return callReportNum(value);
+}
+
+function callReportMeasureTone(member, value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  if (String(member).includes('avg_call_quality_score')) return n <= 50 ? 'bad' : n < 60 ? 'warn' : '';
+  if (String(member).includes('coverage_rate')) return n < .5 ? 'bad' : n < .6 ? 'warn' : '';
+  if (String(member).includes('low_quality') || String(member).includes('low_coverage') || String(member).includes('missing_slot')) return n >= 5 ? 'bad' : n >= 2 ? 'warn' : '';
+  return '';
+}
+
+function renderCallReportDimensionDrillResult(ctx, dim, rows, measures) {
+  const out = document.getElementById('pivot-drill-result');
+  const primary = measures[0] || ctx.measure || 'ad.quality_record_count';
+  const maxPrimary = Math.max(1, ...rows.map(row => Math.abs(execReportValue(row, primary))));
+  const dimName = dim.name || dim.code;
+  const title = dim.title || dim.name || dim.code;
+  const table = rows.length ? `<table class="table table-sm table-hover mb-0 call-report-drill-result-table">
+    <thead><tr>
+      <th>${escHtml(title)}</th>
+      ${measures.map(member => `<th class="text-end">${escHtml(adhocMemberLabel(member))}</th>`).join('')}
+    </tr></thead>
+    <tbody>${rows.map(row => {
+      const value = row[dimName] ?? '-';
+      const rowFilters = callReportMergedFilters(ctx.filters || [], [callReportDimensionFilter(dimName, value)]);
+      const primaryValue = execReportValue(row, primary);
+      const pct = Math.max(4, Math.min(100, Math.abs(primaryValue) / maxPrimary * 100));
+      const tone = callReportMeasureTone(primary, primaryValue);
+      const rowCtx = {
+        rowLabel:value,
+        columnLabel:'全部',
+        currentMember:dimName,
+        contextMembers:[...(ctx.contextMembers || []), dimName],
+        metricLabel:ctx.metricLabel || adhocMemberLabel(primary),
+      };
+      return `<tr class="call-report-drillable" ${callReportDrillAttrs(primary, rowFilters, rowCtx)}>
+        <td class="fw-semibold">${escHtml(value)}</td>
+        ${measures.map((member, idx) => {
+          const metricValue = row[member];
+          if (idx === 0) {
+            return `<td class="text-end"><div class="call-report-drill-value-bar ${tone}" style="--call-report-drill-pct:${pct.toFixed(1)}%"><span></span><span>${escHtml(callReportFormatMeasureValue(member, metricValue))}</span></div></td>`;
+          }
+          return `<td class="text-end">${escHtml(callReportFormatMeasureValue(member, metricValue))}</td>`;
+        }).join('')}
+      </tr>`;
+    }).join('')}</tbody>
+  </table>` : '<div class="text-muted text-center py-5">当前维度没有可展示的聚合结果</div>';
+  out.innerHTML = table;
+}
+
+async function applyCallReportDimensionDrill(member) {
+  const ctx = _callReportDrillContext;
+  if (!ctx) return;
+  const dim = adhocFindDimension(member);
+  if (!dim) return showToast('未找到下钻维度', 'warning');
+  const primaryMeasure = ctx.measure || 'ad.quality_record_count';
+  const requiredDimensionMembers = callReportUniqueDimensionMembers([
+    ...callReportFilterDimensionMembers(ctx.filters || []),
+    dim.name || member,
+  ]);
+  const compatibility = callReportMeasureCompatibilityForDimensions(primaryMeasure, requiredDimensionMembers);
+  if (!compatibility.enabled) {
+    showToast(`不能按 ${dim.title || dim.name} 下钻：${compatibility.reason}`, 'warning');
+    return;
+  }
+  const measures = callReportDrillMeasures(primaryMeasure, dim.name || member, callReportFilterDimensionMembers(ctx.filters || []));
+  if (!measures.length) {
+    showToast(`当前下钻维度与可展示指标没有共用事实表`, 'warning');
+    return;
+  }
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('call-report-drill-modal')).hide();
+  const drawer = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('pivot-drill-drawer'));
+  const titleEl = document.getElementById('pivot-drill-title');
+  if (titleEl) titleEl.innerHTML = `<i class="bi bi-diagram-3 me-1 text-success"></i>维度下钻：按 ${escHtml(dim.title || dim.name)}`;
+  document.getElementById('pivot-drill-context').textContent =
+    `${callReportContextText(ctx)} · 下钻维度：${dim.title || dim.name}`;
+  const pager = document.getElementById('pivot-drill-pager-actions');
+  if (pager) pager.classList.add('d-none');
+  document.getElementById('pivot-drill-page').textContent = '维度下钻结果';
+  const out = document.getElementById('pivot-drill-result');
+  out.innerHTML = '<div class="text-muted text-center py-5"><span class="spinner-border spinner-border-sm me-1"></span>正在按维度聚合...</div>';
+  drawer.show();
+  try {
+    const primary = measures.includes(primaryMeasure) ? primaryMeasure : measures[0];
+    const sortAsc = String(primary).includes('avg_call_quality_score');
+    const rows = await execReportLoad({
+      measures,
+      dimensions:[dim.name || member],
+      filters:ctx.filters || [],
+      order:{[primary]: sortAsc ? 'asc' : 'desc'},
+      limit:200,
+    });
+    const sortedRows = [...rows].sort((a, b) => sortAsc
+      ? execReportValue(a, primary) - execReportValue(b, primary)
+      : execReportValue(b, primary) - execReportValue(a, primary));
+    renderCallReportDimensionDrillResult(ctx, dim, sortedRows, measures);
+    document.getElementById('pivot-drill-page').textContent =
+      `维度下钻结果 · ${dim.title || dim.name} ${sortedRows.length} 项 · 点击行可继续下钻`;
+    showToast(`已按 ${dim.title || dim.name} 下钻`, 'info');
+  } catch(e) {
+    out.innerHTML = `<div class="alert alert-danger m-3">${escHtml(e.message || e)}</div>`;
+    showToast(e.message || String(e), 'error');
+  }
+}
+
 function callReportMetricCell(value, type='count') {
   const n = Number(value);
   const cls = type === 'score'
@@ -6596,7 +7379,18 @@ function callReportBarList(rows, labelKey, valueKey, options={}) {
     const cls = options.bad && value >= Number(options.bad) ? ' bad' : options.warn && value >= Number(options.warn) ? ' warn' : '';
     const label = String(row[labelKey] ?? '-');
     const valueText = options.coverage ? callReportCoverage(value) : options.score ? callReportNum(value) : callReportNum(value);
-    return `<div class="exec-report-bar-row">
+    const drillFilter = options.drillMember ? callReportDimensionFilter(options.drillMember, row[labelKey]) : null;
+    const drillFilters = callReportMergedFilters(options.drillBaseFilters || [], drillFilter ? [drillFilter] : []);
+    const drillMeasure = options.drillMeasure || 'ad.quality_record_count';
+    const drillCtx = {
+      metricLabel: adhocMemberLabel(drillMeasure),
+      rowLabel: label,
+      columnLabel: '全部',
+      currentMember: options.drillMember || '',
+      contextMembers: options.drillMember ? [options.drillMember] : [],
+    };
+    const drillAttrs = options.drillMember ? callReportDrillAttrs(drillMeasure, drillFilters, drillCtx) : '';
+    return `<div class="exec-report-bar-row ${options.drillMember ? 'call-report-drillable' : ''}" ${drillAttrs}>
       <div class="exec-report-bar-label" title="${escHtml(label)}">${escHtml(label)}</div>
       <div class="exec-report-track"><div class="exec-report-fill${cls}" style="width:${pct.toFixed(1)}%"></div></div>
       <div class="exec-report-bar-value">${escHtml(valueText)}</div>
@@ -6613,22 +7407,30 @@ function callReportQualityLevelOrder(label) {
   return 9;
 }
 
-function callReportExpertHeatmap(expertRows) {
+function callReportExpertHeatmap(expertRows, baseFilters=[]) {
   const rows = [...(expertRows || [])].sort((a, b) =>
     execReportValue(b, 'ad.low_quality_call_count') - execReportValue(a, 'ad.low_quality_call_count')
     || execReportValue(b, 'ad.low_coverage_call_count') - execReportValue(a, 'ad.low_coverage_call_count')
     || execReportValue(b, 'ad.quality_record_count') - execReportValue(a, 'ad.quality_record_count')
   );
   const body = rows.map((row, idx) => {
+    const expert = row['ad.sales_expert'] || '';
+    const rowFilters = callReportMergedFilters(baseFilters, [callReportDimensionFilter('ad.sales_expert', expert)]);
     const total = execReportValue(row, 'ad.quality_record_count');
     const pass = Math.max(0, total - execReportValue(row, 'ad.low_quality_call_count'));
     const passRate = total ? pass / total * 100 : 0;
     const risk = execReportValue(row, 'ad.low_quality_call_count') >= 3 || execReportValue(row, 'ad.avg_call_quality_score') <= 50
       ? '重点复盘'
       : execReportValue(row, 'ad.low_coverage_call_count') >= 3 ? '补齐槽位' : '保持跟进';
-    return `<tr>
+    return `<tr class="call-report-drillable" ${callReportDrillAttrs('ad.quality_record_count', rowFilters, {
+      metricLabel:'质检通话数',
+      rowLabel:expert || '-',
+      columnLabel:'全部',
+      currentMember:'ad.sales_expert',
+      contextMembers:['ad.sales_expert'],
+    })}>
       <td>${idx + 1}</td>
-      <td>${escHtml(row['ad.sales_expert'] || '-')}</td>
+      <td>${escHtml(expert || '-')}</td>
       ${callReportMetricCell(total)}
       ${callReportMetricCell(passRate, 'percent')}
       ${callReportMetricCell(row['ad.avg_call_quality_score'], 'score')}
@@ -6645,7 +7447,7 @@ function callReportExpertHeatmap(expertRows) {
   </table>`;
 }
 
-function callReportIssueCards(issueRows) {
+function callReportIssueCards(issueRows, baseFilters=[]) {
   const rows = [...(issueRows || [])].sort((a, b) => execReportValue(b, 'ad.quality_record_count') - execReportValue(a, 'ad.quality_record_count')).slice(0, 4);
   return rows.map(row => {
     const issue = row['ad.quality_issue_category'] || '待识别问题';
@@ -6653,7 +7455,17 @@ function callReportIssueCards(issueRows) {
     const count = execReportValue(row, 'ad.quality_record_count');
     const coverage = Number(row['ad.avg_slot_coverage_rate'] || 0);
     const accent = String(level).includes('未通过') ? '#c84b4b' : coverage < .55 ? '#d99042' : '#14806f';
-    return `<div class="exec-report-insight" style="--exec-accent:${accent}">
+    const drillFilters = callReportMergedFilters(baseFilters, [
+      callReportDimensionFilter('ad.quality_score_level', level),
+      callReportDimensionFilter('ad.quality_issue_category', issue),
+    ]);
+    return `<div class="exec-report-insight call-report-drillable" style="--exec-accent:${accent}" ${callReportDrillAttrs('ad.quality_record_count', drillFilters, {
+      metricLabel:'质检通话数',
+      rowLabel:`${level} · ${issue}`,
+      columnLabel:'全部',
+      currentMember:'ad.quality_issue_category',
+      contextMembers:['ad.quality_score_level','ad.quality_issue_category'],
+    })}>
       <b>${escHtml(issue)}</b>
       <p>${escHtml(level)} · ${escHtml(callReportNum(count))} 通；平均质量分 ${escHtml(callReportNum(row['ad.avg_call_quality_score']))}，槽位覆盖率 ${escHtml(callReportCoverage(coverage))}。</p>
     </div>`;
@@ -6682,7 +7494,7 @@ function callReportExpertCohortSummary(rows) {
   };
 }
 
-function callReportHeadTailComparison(expertRows) {
+function callReportHeadTailComparison(expertRows, baseFilters=[]) {
   const ranked = [...(expertRows || [])]
     .filter(row => row['ad.sales_expert'])
     .sort((a, b) =>
@@ -6735,9 +7547,11 @@ function callReportHeadTailComparison(expertRows) {
       <div class="call-report-dual-track"><div class="call-report-dual-fill tail" style="width:${Math.max(4, Math.abs(item.tail) / max * 100).toFixed(1)}%"></div></div>
     </div>`;
   }).join('');
+  const headFilters = callReportMergedFilters(baseFilters, [callReportDimensionFilter('ad.sales_expert', head.names, 'in')]);
+  const tailFilters = callReportMergedFilters(baseFilters, [callReportDimensionFilter('ad.sales_expert', tail.names, 'in')]);
   return `<div class="call-report-compare-grid">
-    <div class="call-report-cohort" style="--exec-accent:#14806f"><b>头部专家</b><strong>${escHtml(callReportNum(head.avgScore, 1))} 分</strong><span>${escHtml(head.names.join('、') || '-')} · 平均覆盖率 ${escHtml(callReportRate(head.avgCoverage * 100, 1))}</span></div>
-    <div class="call-report-cohort" style="--exec-accent:#c84b4b"><b>尾部专家</b><strong>${escHtml(callReportNum(tail.avgScore, 1))} 分</strong><span>${escHtml(tail.names.join('、') || '-')} · 平均覆盖率 ${escHtml(callReportRate(tail.avgCoverage * 100, 1))}</span></div>
+    <div class="call-report-cohort call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.quality_record_count', headFilters, {metricLabel:'质检通话数', rowLabel:'头部专家', columnLabel:'全部', currentMember:'ad.sales_expert', contextMembers:['ad.sales_expert']})}><b>头部专家</b><strong>${escHtml(callReportNum(head.avgScore, 1))} 分</strong><span>${escHtml(head.names.join('、') || '-')} · 平均覆盖率 ${escHtml(callReportRate(head.avgCoverage * 100, 1))}</span></div>
+    <div class="call-report-cohort call-report-drillable" style="--exec-accent:#c84b4b" ${callReportDrillAttrs('ad.quality_record_count', tailFilters, {metricLabel:'质检通话数', rowLabel:'尾部专家', columnLabel:'全部', currentMember:'ad.sales_expert', contextMembers:['ad.sales_expert']})}><b>尾部专家</b><strong>${escHtml(callReportNum(tail.avgScore, 1))} 分</strong><span>${escHtml(tail.names.join('、') || '-')} · 平均覆盖率 ${escHtml(callReportRate(tail.avgCoverage * 100, 1))}</span></div>
   </div>
   <div class="call-report-compare-bars">${barRows}</div>
   <div class="call-report-compare-wrap">
@@ -6832,6 +7646,879 @@ function celnOverviewAlertCards(rows) {
   }).join('')}</div>`;
 }
 
+function celnCompactRowValue(row) {
+  const value = execReportValue(row, 'ad.celn_funnel_count');
+  if (value) return value;
+  const fallbackMembers = ['ad.celn_stage_user_count', 'ad.celn_follow_up_node_count', 'ad.celn_conversion_node_count', 'ad.celn_ln_user_count'];
+  for (const member of fallbackMembers) {
+    const nextValue = execReportValue(row, member);
+    if (nextValue) return nextValue;
+  }
+  return 0;
+}
+
+function celnCompactAction(row, idx, items) {
+  const alerts = row.__alerts || [];
+  const level = Math.max(0, ...alerts.map(item => Number(item.level || 0)));
+  const stage = String(row['ad.celn_funnel_stage'] || '');
+  const value = celnCompactRowValue(row);
+  if (level >= 3) return {text:'重点复盘', cls:'bad'};
+  if (level > 0) return {text:'关注异常', cls:'warn'};
+  if (/^(C|E|L|N)\s/.test(stage)) return {text:'查看名单', cls:''};
+  if (/FC|跟进|确认|用户池/.test(stage)) return {text:'看承接', cls:''};
+  if (/锁单|大定|交付|转化/.test(stage)) return {text:'追转化', cls:''};
+  if (idx > 0) {
+    const prev = celnCompactRowValue(items[idx - 1]);
+    if (prev >= 20 && value / prev < 0.35) return {text:'承接偏低', cls:'warn'};
+  }
+  return {text:'继续下钻', cls:''};
+}
+
+function celnCompactGroupHtml(group, items, idx, baseFilters=[]) {
+  const accents = ['#14806f', '#5f7f9f', '#d99042'];
+  const total = items.reduce((sum, row) => sum + celnCompactRowValue(row), 0);
+  const rowsHtml = items.map((row, rowIdx) => {
+    const stage = row['ad.celn_funnel_stage'] || '-';
+    const value = celnCompactRowValue(row);
+    const action = celnCompactAction(row, rowIdx, items);
+    const rowFilters = callReportMergedFilters(baseFilters, [
+      callReportDimensionFilter('ad.celn_funnel_group', group),
+      callReportDimensionFilter('ad.celn_funnel_stage', stage)
+    ]);
+    return `<tr class="call-report-drillable" ${callReportDrillAttrs('ad.celn_funnel_count', rowFilters, {metricLabel:'CELN漏斗计数', rowLabel:stage, columnLabel:group, currentMember:'ad.celn_funnel_stage', contextMembers:['ad.celn_funnel_group','ad.celn_funnel_stage']})}>
+      <td><span class="celn-compact-stage" title="${escHtml(stage)}">${escHtml(stage)}</span></td>
+      <td>${escHtml(callReportNum(value))}</td>
+      <td>${escHtml(group.includes('阶段') ? '用户分层' : group.includes('成交') ? '成交结果' : '跟进承接')}</td>
+      <td><span class="celn-compact-action ${escHtml(action.cls)}">${escHtml(action.text)}</span></td>
+    </tr>`;
+  }).join('');
+  return `<div class="celn-compact-group" style="--exec-accent:${accents[idx % accents.length]}">
+    <div class="celn-compact-group-head"><b>${escHtml(group)}</b><span>合计 ${escHtml(callReportNum(total))}</span></div>
+    <table class="celn-compact-table">
+      <thead><tr><th>阶段/节点</th><th>数量</th><th>业务含义</th><th>动作</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  </div>`;
+}
+
+async function renderCelnFunnelCompactWidget(targetId, spec={}, widget={}) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  target.innerHTML = `<div class="exec-report-shell d-flex align-items-center justify-content-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>正在生成 CELN 分组透视...</div>`;
+  const filters = celnOverviewFilters(spec);
+  const store = (filters.find(item => item.member === 'ad.store')?.valueLabels && Object.values(filters.find(item => item.member === 'ad.store').valueLabels)[0])
+    || (filters.find(item => item.member === 'ad.store')?.values || [])[0]
+    || '当前门店';
+  const day = (filters.find(item => item.member === 'ad.date_day')?.values || [])[0] || '当前日期';
+  const measures = spec.query?.measures?.length ? spec.query.measures : ['ad.celn_funnel_count','ad.celn_stage_user_count','ad.celn_follow_up_node_count','ad.celn_conversion_node_count','ad.celn_ln_user_count'];
+  try {
+    const rows = await execReportLoad({
+      measures,
+      dimensions:['ad.celn_funnel_group','ad.celn_funnel_stage'],
+      filters,
+      order:{'ad.celn_funnel_group':'asc','ad.celn_funnel_stage':'asc'},
+      limit:1000
+    });
+    const groups = celnOverviewGroupedRows(rows);
+    target.innerHTML = `<div class="exec-report-shell celn-compact-shell">
+      <div class="exec-report-body">
+        <div class="celn-compact-intro">
+          <div><b>门店 CELN 漏斗透视</b>：按“阶段推进、经营闭环、成交结果”拆分，避免横向 79 列挤压。</div>
+          <div class="text-nowrap text-muted">${escHtml(day)} · ${escHtml(store)}</div>
+        </div>
+        <div class="celn-compact-board">
+          ${groups.map(([group, items], idx) => celnCompactGroupHtml(group, items, idx, callReportMergedFilters(filters))).join('') || '<div class="text-muted p-3">暂无 CELN 漏斗数据。</div>'}
+        </div>
+      </div>
+    </div>`;
+    _dashboardWidgetResults[widget?.id || targetId] = {
+      rows,
+      query:{measures, dimensions:['ad.celn_funnel_group','ad.celn_funnel_stage'], filters},
+      name:widget.name || spec.name || '门店CELN漏斗透视表'
+    };
+  } catch(e) {
+    target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
+  }
+}
+
+async function celnLoadStoreInsight(day, store) {
+  const r = await fetch('/api/da-tms/celn/store-insight', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({date:day, store})
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || 'CELN门店分布加载失败');
+  return d;
+}
+
+function celnStageAccent(stageCode) {
+  return ({C:'#14806f', E:'#caa12a', L:'#d99042', N:'#c84b4b'})[stageCode] || '#14806f';
+}
+
+function celnStageSemanticCode(stageCode) {
+  const code = String(stageCode || '').toUpperCase();
+  return ({C:'01_C', E:'02_E', L:'03_L', N:'04_N'})[code] || code;
+}
+
+function celnStageReason(row={}) {
+  const code = String(row.stageCode || '').toUpperCase();
+  const name = row.stageName || row.stageCode || '当前阶段';
+  const count = callReportNum(row.userCount || 0);
+  const ratio = callReportRate(Number(row.ratio || 0) * 100, 1);
+  const base = `${code || name} 阶段当前有 ${count} 个用户，占当前门店 ${ratio}。`;
+  const detail = {
+    C: 'C 是考虑阶段，用来识别正在关注和比较车型的潜在客户；店长需要看这层用户池是否足够大，以及是否正在被有效推进到评估阶段。',
+    E: 'E 是评估阶段，用来观察已进入方案、价格、金融、试驾等深入比较的用户；店长需要重点看顾虑点和跟进质量，避免用户停滞。',
+    L: 'L 是锁单/成交承接阶段，用来观察接近成交或已形成明确成交动作的用户；店长需要看跟进任务、阶段证据和转化追溯是否完整。',
+    N: 'N 是 Why Now 当前动机阶段，用来识别有近期购车触发因素的用户；店长需要优先关注这层用户的及时跟进和机会变化。',
+  }[code] || `${name} 是 CELN 经营漏斗中的一个业务阶段，用于解释当前用户处在哪个经营环节，以及后续应该如何跟进。`;
+  const focus = row.theme || row.focus ? `当前看板给出的经营关注点是：${[row.theme, row.focus].filter(Boolean).join(' · ')}。` : '';
+  return `${base}${detail}${focus}`;
+}
+
+function celnTrendSparkline(trend=[], accent='#14806f') {
+  const rows = Array.isArray(trend) ? trend : [];
+  const points = rows.slice(-7).map(item => ({
+    date: String(item?.date || ''),
+    value: Number(item?.value || 0)
+  }));
+  if (!points.length) {
+    return `<svg class="celn-stage-sparkline" viewBox="0 0 180 34" preserveAspectRatio="none" aria-hidden="true">
+      <line x1="0" y1="24" x2="180" y2="24" stroke="${escHtml(accent)}" stroke-width="2" opacity=".28"></line>
+    </svg>`;
+  }
+  const values = points.map(item => item.value);
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  const span = Math.max(1, maxVal - minVal);
+  const width = 180;
+  const height = 34;
+  const padX = 4;
+  const padY = 5;
+  const usableW = width - padX * 2;
+  const usableH = height - padY * 2;
+  const coords = points.map((item, idx) => {
+    const x = points.length === 1 ? width / 2 : padX + (usableW * idx) / (points.length - 1);
+    const y = padY + usableH - ((item.value - minVal) / span) * usableH;
+    return {x, y, value:item.value, date:item.date};
+  });
+  const line = coords.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const area = `${padX},${height - padY} ${line} ${width - padX},${height - padY}`;
+  const last = coords[coords.length - 1] || {x:width / 2, y:height / 2};
+  const dots = coords.map((p, idx) => {
+    const cls = idx === coords.length - 1 ? 'spark-dot' : 'spark-dot-muted';
+    const radius = idx === coords.length - 1 ? 3 : 2.2;
+    return `<circle class="${cls}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${radius}"></circle>`;
+  }).join('');
+  return `<svg class="celn-stage-sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-label="近七日波动曲线">
+    <polyline class="spark-area" points="${escHtml(area)}"></polyline>
+    <polyline class="spark-line" points="${escHtml(line)}"></polyline>
+    ${dots || `<circle class="spark-dot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="3"></circle>`}
+  </svg>`;
+}
+
+function celnStageMetricNode(row={}, type='determination', filters=[]) {
+  const stageCode = String(row.stageCode || '').toUpperCase();
+  const stageName = row.stageName || stageCode || '当前阶段';
+  const stageFilter = stageCode ? [callReportDimensionFilter('ad.celn_stage_code', celnStageSemanticCode(stageCode))] : [];
+  const mergedFilters = callReportMergedFilters(filters || [], stageFilter);
+  const stagePrefix = celnStageDisplayText({stageCode, stageName});
+  const common = {
+    stageCode,
+    stageName,
+    filters: mergedFilters,
+  };
+  const map = {
+    determination: {
+      label: '阶段判断',
+      count: Number(row.determinationCount || 0),
+      node: 'celn:Li-StageDetermination',
+      relation: 'celn:Li-DeterminesStage / celn:Li-HasStage',
+      relationLabel: '阶段判断关系',
+      table: 'celn_stage_determination',
+      reason: `${stagePrefix} 的阶段判断用于说明用户为什么被归到这一层，店长可用它核对分层是否可信。`,
+      recommended: ['按客户查看阶段判断明细', '按销售专家检查判断来源', '继续下钻判断证据和阶段变化'],
+    },
+    evidence: {
+      label: '阶段证据',
+      count: Number(row.evidenceCount || 0),
+      node: 'celn:Li-Evidence',
+      relation: 'celn:Li-BasedOnEvidence',
+      relationLabel: '证据支撑关系',
+      table: 'celn_evidence / celn_determination_evidence',
+      reason: `${stagePrefix} 的证据用于支撑阶段判断，帮助店长看到分层背后的标签、沟通和行为依据。`,
+      recommended: ['下钻证据类型和证据值', '查看证据关联的客户名单', '核验阶段判断是否缺少关键依据'],
+    },
+    task: {
+      label: '跟进任务',
+      count: Number(row.nextTaskCount || 0),
+      node: 'celn:Li-FollowUpTask',
+      relation: 'celn:Li-AssignedTo / celn:Li-HasFollowUpRecord',
+      relationLabel: '任务承接关系',
+      table: 'celn_follow_up_task',
+      reason: `${stagePrefix} 的跟进任务用于承接业务关系，帮助店长确认这层用户有没有分配给销售专家继续推进。`,
+      recommended: ['下钻销售专家和任务状态', '查看逾期或未完成任务', '对任务少但用户多的阶段补派跟进'],
+    },
+    conversion: {
+      label: '转化事件',
+      count: Number(row.conversionCount || 0),
+      node: 'celn:Li-ConversionEvent',
+      relation: 'celn:Li-TracesTo / celn:Li-LeadsToConversion',
+      relationLabel: '转化追溯关系',
+      table: 'celn_conversion_event / celn_conversion_trace',
+      reason: `${stagePrefix} 的转化事件用于验证这一层用户是否形成订金、锁单、交付等经营结果。`,
+      recommended: ['追踪转化来源和承接记录', '下钻客户与销售专家', '对高意向但转化为 0 的阶段安排复盘'],
+    },
+  };
+  return {...common, ...(map[type] || map.determination)};
+}
+
+function celnStageDisplayText(data={}) {
+  const code = String(data.stageCode || '').toUpperCase();
+  const name = String(data.stageName || '').trim();
+  if (!code) return name || '';
+  if (!name || name === code) return code;
+  if (name === code || name.startsWith(`${code}-`) || name.startsWith(`${code} `)) return name;
+  return `${code}-${name}`;
+}
+
+function celnStageMetricButton(row, type, text, filters=[]) {
+  const payload = celnGraphNodePayload(celnStageMetricNode(row, type, filters));
+  return `<button type="button" class="celn-stage-metric" onclick="openCelnStageMetricDrill(event,'${payload}')">${escHtml(text)}</button>`;
+}
+
+function celnStageBusinessNode(row={}, filters=[]) {
+  const stageCode = String(row.stageCode || '').toUpperCase();
+  const stageName = row.stageName || stageCode || '当前阶段';
+  const stageText = celnStageDisplayText({stageCode, stageName});
+  const stageFilter = stageCode ? [callReportDimensionFilter('ad.celn_stage_code', celnStageSemanticCode(stageCode))] : [];
+  return {
+    label: 'CELN阶段',
+    count: Number(row.userCount || 0),
+    node: 'celn:Li-CELNStage',
+    relation: 'celn:Li-DeterminesStage / celn:Li-HasStage',
+    relationLabel: '用户分层关系',
+    table: 'celn_stage / celn_stage_determination',
+    stageCode,
+    stageName,
+    reason: `${stageText} 是当前门店用户经营漏斗的一层，店长通过它查看该层用户规模、阶段原因、跟进任务和转化承接。`,
+    recommended: ['查看该层用户名单和用户详情', '下钻阶段判断与证据', '继续查看跟进任务和转化事件'],
+    filters: callReportMergedFilters(filters || [], stageFilter),
+  };
+}
+
+function celnStageOntologyDependency(row={}) {
+  const stageCode = String(row.stageCode || '').toUpperCase();
+  const stageText = celnStageDisplayText(row);
+  const individual = row.ontologyIndividual || {
+    C: 'celn:Li-C-Consider',
+    E: 'celn:Li-E-Evaluate',
+    L: 'celn:Li-L-Lead',
+    N: 'celn:Li-N-Negotiate',
+  }[stageCode] || '-';
+  return [
+    `阶段个体：${graphTermText(individual)}`,
+    `本体节点：${graphTermText(row.ontologyClass || 'celn:Li-CELNStage')}`,
+    `关系：${graphTermText('celn:Li-DeterminesStage / celn:Li-HasStage')}`,
+    `物理表：${graphTermText('celn_stage / celn_stage_determination')}`,
+    `业务含义：${stageText || '当前阶段'} 由阶段判断和证据链支撑，用于解释用户为什么归属当前 CELN 层级。`,
+  ].join('\n');
+}
+
+function openCelnStageMetricDrill(event, payload) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  openCelnGraphNodeDrill(payload);
+}
+
+function celnStageActionData(stageCode) {
+  const ctx = _celnStoreInsightContext || {};
+  const stage = String(stageCode || '').toUpperCase();
+  const row = (ctx.distribution || []).find(item => String(item.stageCode || '').toUpperCase() === stage) || {stageCode:stage};
+  const filters = callReportMergedFilters(_dashboardState?.globalFilters || []);
+  return {
+    stageCode: stage,
+    stageRow: row,
+    filters,
+    payload: celnGraphNodePayload(celnStageBusinessNode(row, filters)),
+  };
+}
+
+function openCelnStageBusinessExplain(event, stageCode) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const ctx = celnStageActionData(stageCode);
+  _celnStageActionContext = ctx;
+  openCelnGraphNodeDrill(ctx.payload);
+}
+
+function celnStageConfidenceSummary(row={}) {
+  if (!(Number(row.determinationCount || 0) > 0) || row.avgConfidence == null) {
+    return {
+      cls: 'none',
+      label: '无数据',
+      detail: '暂无判断依据',
+      title: '当天没有阶段判断记录，暂不评价可信程度',
+    };
+  }
+  const pct = Number(row.avgConfidence || 0) * 100;
+  if (pct >= 85) {
+    return {
+      cls: 'good',
+      label: '优秀',
+      detail: '依据很充分',
+      title: `阶段判断平均置信度 ${callReportRate(pct, 0)}，判断依据很充分`,
+    };
+  }
+  if (pct >= 70) {
+    return {
+      cls: 'good',
+      label: '良好',
+      detail: '依据较充分',
+      title: `阶段判断平均置信度 ${callReportRate(pct, 0)}，可以作为经营复盘参考`,
+    };
+  }
+  if (pct >= 55) {
+    return {
+      cls: 'ok',
+      label: '可参考',
+      detail: '建议复核',
+      title: `阶段判断平均置信度 ${callReportRate(pct, 0)}，建议结合客户明细复核`,
+    };
+  }
+  return {
+    cls: 'bad',
+    label: '不可信',
+    detail: '需要复核',
+    title: `阶段判断平均置信度 ${callReportRate(pct, 0)}，依据偏弱，需要复核`,
+  };
+}
+
+function celnDistributionHtml(insight, baseDrillFilters=[]) {
+  const rows = insight?.distribution || [];
+  if (!rows.length) return '<div class="text-muted p-3">暂无当前门店 C/E/L/N 用户分布。</div>';
+  return `<div class="celn-distribution-grid">${rows.map(row => {
+    const change = Number(row.change || 0);
+    const changeCls = change > 0 ? 'up' : change < 0 ? 'down' : '';
+    const changeText = change > 0 ? `+${callReportNum(change)}` : callReportNum(change);
+    const trend = Array.isArray(row.recentTrend) ? row.recentTrend : [];
+    const trendValues = trend.map(item => Number(item?.value || 0));
+    const trendTotal = trendValues.reduce((sum, value) => sum + value, 0);
+    const trendDeltaText = trendTotal > 0 ? `+${callReportNum(trendTotal)}` : callReportNum(trendTotal);
+    const accent = celnStageAccent(row.stageCode);
+    const confidence = celnStageConfidenceSummary(row);
+    return `<div class="celn-stage-distribution-card" style="--exec-accent:${celnStageAccent(row.stageCode)}" onclick="openCelnStageBusinessExplain(event,'${_escJs(row.stageCode)}')">
+      <b><span>${escHtml(row.stageCode)}</span><span>${escHtml(row.stageName || '')}</span></b>
+      <strong>${escHtml(callReportNum(row.userCount || 0))}</strong>
+      <div class="celn-stage-ratio">占当前门店 ${escHtml(callReportRate(Number(row.ratio || 0) * 100, 1))}</div>
+      <div class="celn-stage-focus">${escHtml(row.theme || '')} · ${escHtml(row.focus || '')}</div>
+      <div class="celn-stage-trend">
+        <div class="celn-stage-trend-head"><span>近7日净变动</span><span>合计 ${escHtml(trendDeltaText)}</span></div>
+        ${celnTrendSparkline(trend, accent)}
+      </div>
+      <div class="celn-stage-mini">
+        <span class="celn-stage-metric-group">
+          ${celnStageMetricButton(row, 'determination', `判断 ${callReportNum(row.determinationCount || 0)}`, baseDrillFilters)}
+          <span class="celn-stage-metric-sep">·</span>
+          ${celnStageMetricButton(row, 'evidence', `证据 ${callReportNum(row.evidenceCount || 0)}`, baseDrillFilters)}
+        </span>
+        <span class="celn-stage-change ${changeCls}">日变动 ${escHtml(changeText)}</span>
+      </div>
+      <div class="celn-stage-mini">
+        <span class="celn-stage-metric-group">
+          ${celnStageMetricButton(row, 'task', `任务 ${callReportNum(row.nextTaskCount || 0)}`, baseDrillFilters)}
+          <span class="celn-stage-metric-sep">·</span>
+          ${celnStageMetricButton(row, 'conversion', `转化 ${callReportNum(row.conversionCount || 0)}`, baseDrillFilters)}
+        </span>
+        <div class="celn-stage-confidence ${escHtml(confidence.cls)}" title="${escHtml(confidence.title)}">
+          <b>判断依据：${escHtml(confidence.label)}</b>
+          <small>${escHtml(confidence.detail)}</small>
+        </div>
+      </div>
+      <div class="celn-stage-ontology">本体映射 ${techNoteHint(celnStageOntologyDependency(row), celnStageReason(row))}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function celnBusinessGraphHtml(insight, baseDrillFilters=[]) {
+  const graph = insight?.businessGraph || {};
+  const path = graph.path || [];
+  if (!path.length) return '';
+  const tags = graph.tagBreakdown || [];
+  const reviews = graph.dailyReviews || [];
+  const managers = graph.storeManagers || [];
+  return `<div class="celn-ontology-panel">
+    <div class="celn-ontology-head">
+      <div>
+        <b><i class="bi bi-diagram-3 me-1"></i>${escHtml(graph.ontology || 'CELN业务图谱')}</b>
+        <span>${escHtml(graph.coreQuestion || '')}</span>
+        <span>店长视角：${managers.length ? escHtml(managers.join('、')) : '当前门店店长'} · 用户分层、跟进闭环、转化追溯和每日复盘统一到这条链路。</span>
+      </div>
+      <div class="text-end small text-muted">业务路径 → 可下钻数据 ${techNoteHint('节点已映射到业务本体、物理表和语义查询维度；悬停每个节点可查看技术映射。')}</div>
+    </div>
+    <div class="celn-ontology-path">${path.map((node, idx) => {
+      const payload = celnGraphNodePayload(node, baseDrillFilters);
+      return `<div class="celn-ontology-node" role="button" tabindex="0" onclick="openCelnGraphNodeDrill('${payload}')" onkeydown="if(event.key==='Enter'||event.key===' '){openCelnGraphNodeDrill('${payload}')}" style="--exec-accent:${['#14806f','#5f7f9f','#d99042','#c84b4b','#7d6a4a'][idx % 5]}">
+      <b>${escHtml(node.label || '-')}${techNoteHint(graphDependencyText(node), `${node.label || '当前节点'}用于承接${node.relationLabel || '业务关系'}，点击后可追溯到对应本体关系和数据表。`)}</b>
+      <strong>${escHtml(callReportNum(node.count || 0))}</strong>
+    </div>`;
+    }).join('')}</div>
+    ${celnSemanticAssetsHtml()}
+    ${tags.length ? `<div class="celn-tag-breakdown">${tags.map(tag => `<span>${escHtml(tag.tag_type || 'TAG')} ${escHtml(callReportNum(tag.tag_count || 0))}</span>`).join('')}</div>` : ''}
+    ${reviews.length ? `<div class="celn-review-grid">${reviews.slice(0, 2).map(item => `<div class="celn-review-card" style="--exec-accent:#14806f">
+      <b>每日复盘 · ${escHtml(item.review_date || '')}</b>
+      <p>${escHtml(item.review_conclusion || '')}</p>
+      <p class="text-muted">${escHtml(item.strategy_adjustment || '')}</p>
+    </div>`).join('')}</div>` : ''}
+  </div>`;
+}
+
+function celnSemanticAssetsHtml() {
+  const measures = [
+    ['CELN阶段用户数', 'ad.celn_stage_user_count'],
+    ['L/N用户数', 'ad.celn_ln_user_count'],
+    ['经营闭环承接数', 'ad.celn_follow_up_node_count'],
+    ['成交结果承接数', 'ad.celn_conversion_node_count'],
+    ['跟进记录数', 'ad.follow_up_record_count'],
+    ['阶段变化次数', 'ad.stage_change_count'],
+    ['必答/覆盖槽位', 'ad.required_slot_count / ad.covered_slot_count'],
+  ];
+  const dimensions = [
+    ['门店', 'ad.store'],
+    ['日期', 'ad.date_day'],
+    ['CELN阶段', 'ad.celn_funnel_stage'],
+    ['阶段编码/顺序', 'ad.celn_stage_code / ad.celn_stage_order'],
+    ['销售专家', 'ad.sales_expert'],
+    ['客户', 'ad.customer_name'],
+    ['阶段前后', 'ad.stage_before → ad.stage_after'],
+    ['质检问题', 'ad.quality_question'],
+    ['期望动作', 'ad.expected_next_action'],
+  ];
+  const chip = item => `<span class="celn-semantic-chip"><span>${escHtml(item[0])}</span>${techNoteHint(item[1])}</span>`;
+  return `<div class="celn-semantic-assets">
+    <div class="celn-semantic-box"><b><i class="bi bi-activity me-1"></i>已沉淀为指标</b>${measures.map(chip).join('')}</div>
+    <div class="celn-semantic-box"><b><i class="bi bi-columns-gap me-1"></i>已沉淀为维度</b>${dimensions.map(chip).join('')}</div>
+  </div>`;
+}
+
+function celnBusinessGraphPathCount(insight, label) {
+  const node = ((insight?.businessGraph || {}).path || []).find(item => item.label === label);
+  return Number(node?.count || 0);
+}
+
+function celnGraphNodePayload(node={}, filters=[]) {
+  return encodeURIComponent(JSON.stringify({
+    label: node.label || '-',
+    count: Number(node.count || 0),
+    node: node.node || '-',
+    relation: node.relation || '-',
+    relationLabel: node.relationLabel || '业务关系',
+    table: node.table || '-',
+    stageCode: node.stageCode || '',
+    stageName: node.stageName || '',
+    reason: node.reason || '',
+    recommended: Array.isArray(node.recommended) ? node.recommended : [],
+    filters: (Array.isArray(filters) && filters.length) ? filters : (node.filters || []),
+  })).replace(/'/g, '%27');
+}
+
+function celnGraphNodeDrillSpec(data={}) {
+  const label = data.label || '';
+  const map = {
+    '门店': {measure:'ad.celn_follow_up_node_count', currentMember:'ad.store', contextMembers:['ad.store']},
+    '用户': {measure:'ad.celn_stage_user_count', currentMember:'ad.customer_name', contextMembers:['ad.customer_name']},
+    'CELN阶段': {measure:'ad.celn_stage_user_count', currentMember:'ad.celn_stage_code', contextMembers:['ad.celn_stage_code','ad.celn_stage_order']},
+    '阶段判断': {measure:'ad.celn_follow_up_node_count', currentMember:'ad.customer_name', contextMembers:['ad.customer_name','ad.celn_stage_code','ad.sales_expert']},
+    '阶段证据': {measure:'ad.celn_follow_up_node_count', currentMember:'ad.customer_name', contextMembers:['ad.customer_name','ad.quality_question','ad.celn_stage_code']},
+    '判断证据': {measure:'ad.celn_follow_up_node_count', currentMember:'ad.quality_question', contextMembers:['ad.quality_question']},
+    '标签': {measure:'ad.celn_follow_up_node_count', currentMember:'ad.celn_funnel_group', contextMembers:['ad.celn_funnel_group']},
+    '跟进任务': {measure:'ad.celn_follow_up_node_count', currentMember:'ad.sales_expert', contextMembers:['ad.sales_expert']},
+    '跟进记录': {measure:'ad.follow_up_record_count', currentMember:'ad.stage_after', contextMembers:['ad.stage_before','ad.stage_after']},
+    '转化事件': {measure:'ad.celn_conversion_node_count', currentMember:'ad.celn_funnel_stage', contextMembers:['ad.celn_funnel_stage']},
+    '每日复盘': {measure:'ad.celn_follow_up_node_count', currentMember:'ad.expected_next_action', contextMembers:['ad.expected_next_action']},
+  };
+  return map[label] || {measure:'ad.celn_follow_up_node_count', currentMember:'ad.celn_funnel_stage', contextMembers:['ad.celn_funnel_stage']};
+}
+
+async function openCelnGraphNodeDrillChooser(payload) {
+  const data = callReportDecodePayload(payload, {});
+  const spec = celnGraphNodeDrillSpec(data);
+  const filters = Array.isArray(data.filters) && data.filters.length
+    ? data.filters
+    : callReportMergedFilters(_dashboardState?.globalFilters || []);
+  bootstrap.Offcanvas.getInstance(document.getElementById('cell-insight-drawer'))?.hide();
+  await openCallReportDrillChooser(spec.measure, encodeURIComponent(JSON.stringify(filters)), encodeURIComponent(JSON.stringify({
+    metricLabel: `CELN业务图谱节点 · ${data.label || '-'}`,
+    rowLabel: data.label || '当前节点',
+    columnLabel: '图谱上下文',
+    currentMember: spec.currentMember,
+    contextMembers: spec.contextMembers || [],
+  })));
+}
+
+function openCelnGraphNodeDrill(payload) {
+  const data = callReportDecodePayload(payload, {});
+  const drawer = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('cell-insight-drawer'));
+  const body = document.getElementById('cell-insight-body');
+  const ctxEl = document.getElementById('cell-insight-context');
+  const dependency = graphDependencyText(data);
+  const recommended = [...new Set([
+    ...(Array.isArray(data.recommended) ? data.recommended : []),
+    data.label === '阶段判断' ? '按客户查看阶段判断明细' : '',
+    data.label === '阶段证据' ? '下钻证据类型和关联客户' : '',
+    data.label === '用户' ? '按 CELN 阶段查看用户名单' : '',
+    data.label === 'CELN阶段' ? '按阶段拆分用户分布和变动' : '',
+    data.label === '跟进任务' ? '下钻销售专家和任务状态' : '',
+    data.label === '跟进记录' ? '下钻阶段变化和跟进结果' : '',
+    data.label === '转化事件' ? '追踪转化来源和承接记录' : '',
+    data.label === '每日复盘' ? '查看店长复盘动作和待办闭环' : '',
+  ].filter(Boolean))];
+  const stageContext = celnStageDisplayText(data);
+  ctxEl.textContent = `CELN业务图谱节点 · ${data.label || '-'}${stageContext ? ` · ${stageContext}` : ''}`;
+  body.innerHTML = `
+    <div class="cell-insight-card cell-insight-summary mb-3">
+      <div class="cell-insight-card-title"><i class="bi bi-diagram-3 me-1"></i>${escHtml(data.label || '-')}</div>
+      <div class="cell-insight-kv"><span>当前数量</span><strong>${escHtml(callReportNum(data.count || 0))}</strong></div>
+      ${stageContext ? `<div class="cell-insight-kv"><span>当前阶段</span><strong>${escHtml(stageContext)}</strong></div>` : ''}
+      <div class="cell-insight-kv"><span>业务关系</span><strong>${escHtml(data.relationLabel || '-')}</strong></div>
+    </div>
+    <div class="cell-insight-card mb-3">
+      <div class="cell-insight-card-title">为什么看这个节点</div>
+      <div class="small text-muted">${escHtml(data.reason || `${data.label || '当前节点'}用于承接${data.relationLabel || '业务关系'}，帮助店长从经营结果追溯到用户、阶段、任务、记录和复盘动作。`)}</div>
+    </div>
+    <div class="cell-insight-card mb-3">
+      <div class="cell-insight-card-title">图谱依赖</div>
+      <pre class="small mb-0" style="white-space:pre-wrap;color:#435365;background:#f8fafc;border:1px solid #e5ebf1;padding:8px">${escHtml(dependency)}</pre>
+    </div>
+    <div class="cell-insight-card">
+      <div class="cell-insight-card-title">可继续下钻</div>
+      <button class="btn btn-sm btn-outline-primary w-100 text-start mb-2" onclick="openCelnGraphNodeDrillChooser('${payload}')">
+        <i class="bi bi-cursor me-1"></i>选择钻取方式
+        <div class="small text-muted mt-1">继承当前日期、门店等上下文筛选，再推荐可继续下钻的维度。</div>
+      </button>
+      ${(recommended.length ? recommended : ['查看该节点关联的明细记录、客户名单或上游/下游节点。']).map(item => `<div class="cell-insight-evidence"><div class="cell-insight-evidence-title">${escHtml(item)}</div></div>`).join('')}
+    </div>`;
+  drawer.show();
+}
+
+function openCelnStageActionChooser(event, stageCode) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const ctx = _celnStoreInsightContext || {};
+  const data = celnStageActionData(stageCode);
+  const row = data.stageRow || {};
+  const store = ctx.store || '当前门店';
+  const day = ctx.snapshotDate || ctx.date || '';
+  _celnStageActionContext = data;
+  const contextEl = document.getElementById('celn-stage-action-context');
+  if (contextEl) contextEl.textContent = `${day} · ${store} · ${celnStageDisplayText(row)}`;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('celn-stage-action-modal')).show();
+}
+
+function openCelnStageListFromChooser() {
+  const ctx = _celnStageActionContext || {};
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('celn-stage-action-modal')).hide();
+  openCelnStageCustomers(ctx.stageCode || '');
+}
+
+function openCelnStageBusinessExplainFromChooser() {
+  const ctx = _celnStageActionContext || {};
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('celn-stage-action-modal')).hide();
+  openCelnGraphNodeDrill(ctx.payload || celnGraphNodePayload(celnStageBusinessNode(ctx.stageRow || {}, ctx.filters || [])));
+}
+
+function callQualityOntologyPathStrip() {
+  const nodes = [
+    ['质检结果', 'call_record_judgement_results'],
+    ['销售专家', 'celn:Li-ProductExpert'],
+    ['话术槽位', 'celn:Li-UsesScript / Li-UsesStrategy'],
+    ['阶段证据', 'celn:Li-BasedOnEvidence'],
+    ['每日复盘', 'celn:Li-DailyReview'],
+    ['转化追溯', 'celn:Li-ConversionEvent'],
+  ];
+  return `<div class="call-ontology-strip">${nodes.map((node, idx) => `${idx ? '<i class="bi bi-chevron-right"></i>' : ''}<span>${escHtml(node[0])} ${techNoteHint(node[1], `${node[0]}是电话质检映射到经营闭环时使用的业务图谱节点。`)}</span>`).join('')}</div>`;
+}
+
+function callQualityOntologyExpandedHtml(metrics={}, insight={}, baseDrillFilters=[]) {
+  const change = Number(metrics.ln?.change || 0);
+  const changeText = change > 0 ? `+${callReportNum(change)}` : callReportNum(change);
+  const total = Number(metrics.total || 0);
+  const lowQualityRate = total ? Number(metrics.lowQuality || 0) / total * 100 : 0;
+  const lowCoverageRate = total ? Number(metrics.lowCoverage || 0) / total * 100 : 0;
+  return `
+    <div class="call-ontology-detail-grid">
+      <div class="call-ontology-detail-card call-report-drillable" style="--exec-accent:#c84b4b" ${callReportDrillAttrs('ad.low_quality_call_count', baseDrillFilters, {metricLabel:'低质量复盘', rowLabel:'全部', columnLabel:'业务图谱'})}>
+        <b>低质量通话进入复盘池</b>
+        <strong>${escHtml(callReportNum(metrics.lowQuality || 0))}</strong>
+        <p>占质检通话 ${escHtml(callReportRate(lowQualityRate, 1))}，优先定位销售专家、客户意图和质检规则。</p>
+        <span>店长回听入口</span>
+      </div>
+      <div class="call-ontology-detail-card call-report-drillable" style="--exec-accent:#d99042" ${callReportDrillAttrs('ad.low_coverage_call_count', baseDrillFilters, {metricLabel:'低覆盖通话', rowLabel:'全部', columnLabel:'业务图谱'})}>
+        <b>低覆盖解释话术缺口</b>
+        <strong>${escHtml(callReportNum(metrics.lowCoverage || 0))}</strong>
+        <p>缺失槽位 ${escHtml(callReportNum(metrics.missing || 0))} 个，占质检通话 ${escHtml(callReportRate(lowCoverageRate, 1))}。</p>
+        <span>槽位训练入口</span>
+      </div>
+      <div class="call-ontology-detail-card call-report-drillable" style="--exec-accent:#7d6a4a" ${callReportDrillAttrs('ad.stage_change_count', baseDrillFilters, {metricLabel:'阶段变更证据', rowLabel:'全部', columnLabel:'业务图谱'})}>
+        <b>阶段证据承接跟进结果</b>
+        <strong>${escHtml(callReportNum(metrics.evidenceCount || 0))}</strong>
+        <p>${escHtml(callReportNum(metrics.flowCount || 0))} 条跟进记录用于解释客户为什么进入当前 CELN 阶段。</p>
+        <span>证据链下钻</span>
+      </div>
+      <div class="call-ontology-detail-card call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.celn_conversion_node_count', baseDrillFilters, {metricLabel:'转化追溯', rowLabel:'全部', columnLabel:'业务图谱'})}>
+        <b>转化与复盘形成闭环</b>
+        <strong>${escHtml(callReportNum(metrics.conversionCount || 0))}</strong>
+        <p>L/N 净变化 ${escHtml(changeText)}，每日复盘 ${escHtml(callReportNum(metrics.reviewCount || 0))} 条。</p>
+        <span>次日验证入口</span>
+      </div>
+    </div>
+    <div class="call-ontology-playbook">
+      <div class="call-ontology-step" style="--exec-accent:#c84b4b">
+        <b>1. 触发信号</b>
+        <ul>
+          <li>质量分 <= 50 进入低质量复盘。</li>
+          <li>关键槽位缺失进入话术训练。</li>
+          <li>L/N 阶段未推进进入经营跟踪。</li>
+        </ul>
+      </div>
+      <div class="call-ontology-step" style="--exec-accent:#5f7f9f">
+        <b>2. 定位路径</b>
+        <ul>
+          <li>先按销售专家看责任人。</li>
+          <li>再按客户意图看沟通场景。</li>
+          <li>最后按质检规则回到具体问题。</li>
+        </ul>
+      </div>
+      <div class="call-ontology-step" style="--exec-accent:#d99042">
+        <b>3. 店长动作</b>
+        <ul>
+          <li>抽取低分通话逐通回听。</li>
+          <li>补齐预算、车型、时点、下一步。</li>
+          <li>把问题写入每日复盘清单。</li>
+        </ul>
+      </div>
+      <div class="call-ontology-step" style="--exec-accent:#14806f">
+        <b>4. 次日验证</b>
+        <ul>
+          <li>看低覆盖和未通过是否下降。</li>
+          <li>看 L/N 客户是否有阶段变更。</li>
+          <li>看复盘动作是否追溯到转化。</li>
+        </ul>
+      </div>
+    </div>
+    ${celnBusinessGraphHtml(insight, baseDrillFilters)}`;
+}
+
+function callQualityOntologyHtml(insight, summary={}, baseDrillFilters=[], options={}) {
+  const total = execReportValue(summary, 'ad.quality_record_count');
+  const lowQuality = execReportValue(summary, 'ad.low_quality_call_count');
+  const lowCoverage = execReportValue(summary, 'ad.low_coverage_call_count');
+  const missing = execReportValue(summary, 'ad.missing_slot_count');
+  const flowCount = celnBusinessGraphPathCount(insight, '跟进记录');
+  const evidenceCount = celnBusinessGraphPathCount(insight, '判断证据');
+  const taskCount = celnBusinessGraphPathCount(insight, '跟进任务');
+  const conversionCount = celnBusinessGraphPathCount(insight, '转化事件');
+  const reviewCount = celnBusinessGraphPathCount(insight, '每日复盘');
+  const ln = insight?.ln || {};
+  const compact = !!options.compact;
+  return `<div class="call-ontology-chain${compact ? ' compact' : ''}">
+    <b><i class="bi bi-diagram-3 me-1"></i>电话质检已按 CELN 业务图谱解释</b>
+    <p>${compact
+      ? `质检结果 → 销售专家 → 话术槽位 → 阶段证据 → 每日复盘/转化，用来解释电话质量如何影响跟进闭环 ${techNoteHint('call_record_judgement_results → celn:Li-FollowUpRecord → celn:Li-DailyReview', '这是店长复盘电话质量时最短、最常用的业务链路。')}`
+      : `电话质检记录来自统一质检结果表 ${techNoteHint('call_record_judgement_results')}，在业务语义上落到销售互动与跟进记录 ${techNoteHint('sales:Li-InteractionEvent / celn:Li-FollowUpRecord')}；店长从销售专家、客户意图、问题分类和质检规则下钻，本质是在检查跟进闭环 ${techNoteHint('Li-FollowUpTask → Li-FollowUpRecord → Li-TriggersStageChange → Li-DailyReview')}。`}</p>
+  </div>
+  <div class="call-ontology-grid${compact ? ' compact' : ''}">
+    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.quality_record_count', baseDrillFilters, {metricLabel:'质检通话', rowLabel:'全部', columnLabel:'业务图谱'})}><b>质检通话</b><strong>${escHtml(callReportNum(total))}</strong><span>电话事实口径 ${techNoteHint('call_record_judgement_results\nceln:Li-FollowUpRecord')}</span></div>
+    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#5f7f9f" ${callReportDrillAttrs('ad.celn_follow_up_node_count', baseDrillFilters, {metricLabel:'销售专家执行', rowLabel:'全部', columnLabel:'业务图谱'})}><b>销售专家执行</b><strong>${escHtml(callReportNum(taskCount))}</strong><span>任务分配给产品专家 ${techNoteHint('celn:Li-AssignedTo\nceln:Li-ProductExpert')}</span></div>
+    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#d99042" ${callReportDrillAttrs('ad.missing_slot_count', baseDrillFilters, {metricLabel:'话术/策略缺口', rowLabel:'全部', columnLabel:'业务图谱'})}><b>话术/策略缺口</b><strong>${escHtml(callReportNum(missing))}</strong><span>${escHtml(callReportNum(lowCoverage))} 通低覆盖 ${techNoteHint('celn:Li-UsesScript\nceln:Li-UsesStrategy')}</span></div>
+    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#c84b4b" ${callReportDrillAttrs('ad.low_quality_call_count', baseDrillFilters, {metricLabel:'低质量复盘', rowLabel:'全部', columnLabel:'业务图谱'})}><b>低质量复盘</b><strong>${escHtml(callReportNum(lowQuality))}</strong><span>进入店长复盘清单 ${techNoteHint('celn:Li-ReviewedBy\nceln:Li-DailyReview')}</span></div>
+    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#7d6a4a" ${callReportDrillAttrs('ad.stage_change_count', baseDrillFilters, {metricLabel:'阶段变更证据', rowLabel:'全部', columnLabel:'业务图谱'})}><b>阶段变更证据</b><strong>${escHtml(callReportNum(evidenceCount))}</strong><span>${escHtml(callReportNum(flowCount))} 条跟进记录触发阶段观察 ${techNoteHint('celn:Li-BasedOnEvidence\nceln:Li-TriggersStageChange')}</span></div>
+    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.celn_conversion_node_count', baseDrillFilters, {metricLabel:'转化追溯', rowLabel:'全部', columnLabel:'业务图谱'})}><b>转化追溯</b><strong>${escHtml(callReportNum(conversionCount))}</strong><span>L/N净变化 ${escHtml(Number(ln.change || 0) > 0 ? `+${callReportNum(ln.change)}` : callReportNum(ln.change || 0))} · 复盘 ${escHtml(callReportNum(reviewCount))} ${techNoteHint('celn:Li-TracesTo\nceln:Li-ConversionEvent')}</span></div>
+  </div>
+  ${compact ? callQualityOntologyPathStrip() : callQualityOntologyExpandedHtml({
+    total, lowQuality, lowCoverage, missing, flowCount, evidenceCount, taskCount, conversionCount, reviewCount, ln
+  }, insight, baseDrillFilters)}`;
+}
+
+async function renderCallQualityKgContextWidget(targetId, spec={}, widget={}) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  ensureAdhocAlertStyles();
+  target.innerHTML = `<div class="exec-report-shell d-flex align-items-center justify-content-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>正在生成电话质检业务图谱映射...</div>`;
+  const filters = callReportFilters(spec);
+  const store = (filters.find(item => item.member === 'ad.store')?.valueLabels && Object.values(filters.find(item => item.member === 'ad.store').valueLabels)[0])
+    || (filters.find(item => item.member === 'ad.store')?.values || [])[0]
+    || '当前门店';
+  const day = (filters.find(item => item.member === 'ad.date_day')?.values || [])[0] || '当前日期';
+  try {
+    const [summaryRows, celnInsight] = await Promise.all([
+      execReportLoad({measures:['ad.quality_record_count','ad.low_quality_call_count','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:[], filters, limit:1000}),
+      celnLoadStoreInsight(day, store)
+    ]);
+    const summary = summaryRows[0] || {};
+    const compact = spec.view?.encoding?.compact !== false;
+    target.innerHTML = `<div class="exec-report-shell call-report-shell">
+      <div class="exec-report-body">
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>${escHtml(spec.view?.encoding?.reportTitle || '电话质检业务图谱映射')}</span><span class="exec-report-section-note">${escHtml(day)} · ${escHtml(store)}</span></div>
+          ${callQualityOntologyHtml(celnInsight, summary, callReportMergedFilters(filters), {compact})}
+        </section>
+      </div>
+    </div>`;
+    _dashboardWidgetResults[widget?.id || targetId] = {
+      rows:[summary],
+      query:{measures:['ad.quality_record_count','ad.low_quality_call_count','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:[], filters},
+      name:widget.name || spec.name || '电话质检业务图谱映射'
+    };
+  } catch(e) {
+    target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
+  }
+}
+
+function celnAgentPushHtml(insight) {
+  const push = insight?.agentPush || {};
+  const ln = insight?.ln || {};
+  const severity = push.severity || 'notice';
+  const change = Number(ln.change || 0);
+  const changeText = change > 0 ? `+${callReportNum(change)}` : callReportNum(change);
+  return `<div class="celn-agent-push ${escHtml(severity)}">
+    <div>
+      <b><i class="bi bi-robot me-1"></i>${escHtml(push.title || 'Agent每日CELN变化推送')}</b>
+      <p>${escHtml(push.message || '')}</p>
+      <p class="small text-muted mt-1">${escHtml(push.schedule || '')}</p>
+    </div>
+    <div class="text-end">
+      <div class="small text-muted">L/N净变化</div>
+      <div style="font-size:24px;font-weight:800;color:var(--exec-accent,#14806f)">${escHtml(changeText)}</div>
+    </div>
+  </div>`;
+}
+
+function celnFormatTime(value) {
+  if (!value) return '-';
+  return String(value).replace('T', ' ').slice(0, 19);
+}
+
+async function openCelnStageCustomers(stageCode) {
+  const ctx = _celnStoreInsightContext || {};
+  const store = ctx.store || '理想汽车滨州赛博汽车园零售中心';
+  const stage = String(stageCode || '').toUpperCase();
+  const stageRow = (ctx.distribution || []).find(item => item.stageCode === stage) || {};
+  const titleEl = document.getElementById('pivot-drill-title');
+  if (titleEl) titleEl.innerHTML = `<i class="bi bi-people me-1 text-success"></i>${escHtml(stage || '全部')}层用户名单`;
+  document.getElementById('pivot-drill-context').textContent =
+    `${ctx.snapshotDate || ctx.date || ''} · ${store} · ${stageRow.stageName || stage}`;
+  const pager = document.getElementById('pivot-drill-pager-actions');
+  if (pager) pager.classList.add('d-none');
+  document.getElementById('pivot-drill-page').textContent = '点击用户行查看详情';
+  const out = document.getElementById('pivot-drill-result');
+  out.innerHTML = '<div class="text-muted text-center py-5"><span class="spinner-border spinner-border-sm me-1"></span>正在加载用户名单...</div>';
+  bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('pivot-drill-drawer')).show();
+  try {
+    const url = `/api/da-tms/celn/customers?store=${encodeURIComponent(store)}&stage=${encodeURIComponent(stage)}&limit=120`;
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '用户名单加载失败');
+    const rows = d.records || [];
+    out.innerHTML = rows.length ? `<table class="table table-sm table-hover mb-0">
+      <thead class="table-light"><tr>
+        <th>客户</th><th>阶段</th><th>来源</th><th>意向车型</th><th>FC</th><th>销售专家</th><th>跟进次数</th><th>最近跟进</th><th>更新时间</th>
+      </tr></thead>
+      <tbody>${rows.map(row => `<tr class="celn-customer-row" onclick="openCelnCustomerDetail(${Number(row.id) || 0})">
+        <td><div class="fw-semibold">${escHtml(row.customer_name || '-')}</div><div class="small text-muted">${escHtml(row.customer_code || '')}</div></td>
+        <td>${escHtml(row.stage_name || row.stage_code || '-')}</td>
+        <td>${escHtml(row.source_type || '-')}</td>
+        <td>${escHtml(row.intended_model || '-')}</td>
+        <td>${Number(row.is_fc_candidate) ? '<span class="badge bg-warning text-dark">FC候选</span>' : '<span class="text-muted">-</span>'}</td>
+        <td>${escHtml(row.assigned_expert || '-')}</td>
+        <td class="text-end">${escHtml(callReportNum(row.follow_up_count || 0))}</td>
+        <td>${escHtml(celnFormatTime(row.last_follow_up_time))}</td>
+        <td>${escHtml(celnFormatTime(row.updated_at))}</td>
+      </tr>`).join('')}</tbody>
+    </table>` : '<div class="text-muted text-center py-5">当前阶段没有用户。</div>';
+    document.getElementById('pivot-drill-page').textContent =
+      `${stageRow.stageName || stage} · 已显示 ${rows.length} 个用户 · 点击行查看详情`;
+  } catch(e) {
+    out.innerHTML = `<div class="alert alert-danger m-3">${escHtml(e.message || e)}</div>`;
+  }
+}
+
+async function openCelnCustomerDetail(customerId) {
+  if (!customerId) return;
+  const drawer = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('cell-insight-drawer'));
+  const body = document.getElementById('cell-insight-body');
+  const ctxEl = document.getElementById('cell-insight-context');
+  if (body) body.innerHTML = '<div class="text-muted text-center py-5"><span class="spinner-border spinner-border-sm me-1"></span>正在加载用户详情...</div>';
+  drawer.show();
+  try {
+    const r = await fetch(`/api/da-tms/celn/customer/${encodeURIComponent(customerId)}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '用户详情加载失败');
+    const c = d.customer || {};
+    if (ctxEl) ctxEl.textContent = `${c.store_name || ''} · ${c.stage_name || c.current_stage_code || ''}`;
+    body.innerHTML = `
+      <div class="cell-insight-card cell-insight-summary mb-3">
+        <div class="cell-insight-card-title"><i class="bi bi-person-vcard me-1"></i>${escHtml(c.customer_name || '-')}</div>
+        <div class="small text-muted">${escHtml(c.customer_code || '')} · ${escHtml(c.city || '-')} · ${escHtml(c.intended_model || '-')}</div>
+      </div>
+      <div class="cell-insight-card mb-3">
+        <div class="cell-insight-card-title">用户画像</div>
+        <div class="celn-profile-kv"><span>当前阶段</span><strong>${escHtml(c.stage_name || c.current_stage_code || '-')}</strong></div>
+        <div class="celn-profile-kv"><span>来源</span><strong>${escHtml(c.source_type || '-')}</strong></div>
+        <div class="celn-profile-kv"><span>FC候选</span><strong>${Number(c.is_fc_candidate) ? '是' : '否'}</strong></div>
+        <div class="celn-profile-kv"><span>首次到访</span><strong>${escHtml(celnFormatTime(c.first_visit_time))}</strong></div>
+        <div class="celn-profile-kv"><span>最近更新</span><strong>${escHtml(celnFormatTime(c.updated_at))}</strong></div>
+      </div>
+      <div class="cell-insight-card mb-3">
+        <div class="cell-insight-card-title">阶段判断与证据</div>
+        ${(d.determinations || []).length ? (d.determinations || []).map(item => `<div class="cell-insight-doc small">
+          <div class="fw-semibold">${escHtml(item.stage_name || item.determined_stage_code || '-')} · 置信度 ${escHtml(callReportRate(Number(item.confidence_score || 0) * 100, 0))} · ${escHtml(item.judged_by_type || '-')}</div>
+          <div class="text-muted">${escHtml(celnFormatTime(item.determination_time))} · ${Number(item.is_reviewable) ? '可复核' : '无需复核'}</div>
+          <div class="mt-1">${escHtml(item.evidence_summary || item.remark || '暂无证据说明')}</div>
+          <div class="text-muted mt-1">判断证据链 ${techNoteHint('celn:Li-StageDetermination → celn:Li-BasedOnEvidence → celn:Li-Evidence')}</div>
+        </div>`).join('') : '<div class="text-muted small">暂无阶段判断证据</div>'}
+      </div>
+      <div class="cell-insight-card mb-3">
+        <div class="cell-insight-card-title">用户标签</div>
+        ${(d.tags || []).length ? `<div class="d-flex flex-wrap gap-2">${(d.tags || []).map(tag => `<span class="badge bg-light text-dark border">${escHtml(tag.tag_name || tag.tag_code || '')}</span>`).join('')}</div>` : '<div class="text-muted small">暂无标签</div>'}
+        <div class="text-muted small mt-2">标签关系 ${techNoteHint('celn:Li-HasTag / celn:Li-TagAppliesToStage')}</div>
+      </div>
+      <div class="cell-insight-card mb-3">
+        <div class="cell-insight-card-title">跟进任务</div>
+        ${(d.tasks || []).length ? (d.tasks || []).map(task => `<div class="cell-insight-doc small">
+          <div class="fw-semibold">${escHtml(task.task_status || '-')} · ${escHtml(task.expert_name || '-')}</div>
+          <div class="text-muted">计划 ${escHtml(celnFormatTime(task.next_plan_time))} · 优先级 ${escHtml(task.priority ?? '-')} · ${escHtml(task.source_type || '')}</div>
+          <div class="text-muted mt-1">任务承接关系 ${techNoteHint('celn:Li-FollowUpTask → celn:Li-AssignedTo → celn:Li-ProductExpert')}</div>
+        </div>`).join('') : '<div class="text-muted small">暂无任务</div>'}
+      </div>
+      <div class="cell-insight-card">
+        <div class="cell-insight-card-title">最近跟进记录</div>
+        ${(d.followups || []).length ? (d.followups || []).map(item => `<div class="cell-insight-doc small">
+          <div class="fw-semibold">${escHtml(item.expert_name || '-')} · ${escHtml(item.follow_up_method || '-')} · ${escHtml(item.stage_before || '-')}&rarr;${escHtml(item.stage_after || '-')}</div>
+          <div class="text-muted">${escHtml(celnFormatTime(item.ended_at || item.started_at))} · ${escHtml(item.follow_up_result || '')}</div>
+          <div class="text-muted mt-1">阶段变化关系 ${techNoteHint('celn:Li-FollowUpRecord → celn:Li-TriggersStageChange')}</div>
+        </div>`).join('') : '<div class="text-muted small">暂无跟进记录</div>'}
+      </div>
+      <div class="cell-insight-card mt-3">
+        <div class="cell-insight-card-title">FC识别与转化承接</div>
+        ${(d.fcIdentifications || []).length ? (d.fcIdentifications || []).map(item => `<div class="cell-insight-doc small">
+          <div class="fw-semibold">${escHtml(item.rule_name || 'FC规则')} · ${escHtml(item.fc_status || '-')}</div>
+          <div class="text-muted">${escHtml(celnFormatTime(item.identification_time))} · ${escHtml(item.remark || '')}</div>
+          <div class="text-muted mt-1">FC识别关系 ${techNoteHint('celn:Li-FCIdentification → celn:Li-IdentifiedByRule → celn:Li-FCRule')}</div>
+        </div>`).join('') : '<div class="text-muted small">暂无FC识别记录</div>'}
+      </div>`;
+  } catch(e) {
+    if (body) body.innerHTML = `<div class="alert alert-danger">${escHtml(e.message || e)}</div>`;
+  }
+}
+
 async function renderCelnFunnelOverviewWidget(targetId, spec={}, widget={}) {
   const target = document.getElementById(targetId);
   if (!target) return;
@@ -6842,10 +8529,13 @@ async function renderCelnFunnelOverviewWidget(targetId, spec={}, widget={}) {
     || '当前门店';
   const day = (filters.find(item => item.member === 'ad.date_day')?.values || [])[0] || '当前日期';
   try {
-    const [celnRows, callRows] = await Promise.all([
-      execReportLoad({measures:['ad.celn_funnel_count'], dimensions:['ad.celn_funnel_group','ad.celn_funnel_stage'], filters, order:{'ad.celn_funnel_group':'asc'}, limit:1000}),
-      execReportLoad({measures:['ad.quality_record_count','ad.pass_call_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:[], filters, limit:1000})
+    const celnMeasures = ['ad.celn_funnel_count','ad.celn_stage_user_count','ad.celn_follow_up_node_count','ad.celn_conversion_node_count','ad.celn_ln_user_count'];
+    const [celnRows, callRows, celnInsight] = await Promise.all([
+      execReportLoad({measures:celnMeasures, dimensions:['ad.celn_funnel_group','ad.celn_funnel_stage'], filters, order:{'ad.celn_funnel_group':'asc'}, limit:1000}),
+      execReportLoad({measures:['ad.quality_record_count','ad.pass_call_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:[], filters, limit:1000}),
+      celnLoadStoreInsight(day, store)
     ]);
+    _celnStoreInsightContext = celnInsight;
     const call = callRows[0] || {};
     const totalUsers = celnRows.find(row => row['ad.celn_funnel_stage'] === '用户池总量') || {};
     const nNow = celnRows.find(row => row['ad.celn_funnel_stage'] === 'N Why Now') || {};
@@ -6859,30 +8549,36 @@ async function renderCelnFunnelOverviewWidget(targetId, spec={}, widget={}) {
       <div class="exec-report-hero">
         <div class="exec-report-hero-kicker"><i class="bi bi-diagram-3"></i> CELN · 门店用户经营漏斗</div>
         <h2>${escHtml(spec.view?.encoding?.reportTitle || 'CELN门店用户经营总览')}</h2>
-        <p>${escHtml(day)} · ${escHtml(store)}。从用户盘点、CELN阶段推进、跟进闭环、FC承接到成交结果，定位需要店长介入的经营断点。</p>
+        <p>${escHtml(day)} · ${escHtml(store)}。可回答“当前门店 CELN 分布是什么情况”，并支持点击 C/E/L/N 每层查看业务解释，再继续下钻用户名单和用户详情。</p>
       </div>
       <div class="exec-report-body">
         <section class="exec-report-section">
-          <div class="exec-report-section-title"><span>一、门店漏斗核心指标</span><span class="exec-report-section-note">统一默认日期与门店</span></div>
+          <div class="exec-report-section-title"><span>一、当前门店 C/E/L/N 用户分布</span><span class="exec-report-section-note">${escHtml(celnInsight.snapshotDate || day)} · 点击卡片查看业务解释</span></div>
+          ${celnDistributionHtml(celnInsight, callReportMergedFilters(filters))}
+          ${celnAgentPushHtml(celnInsight)}
+          ${celnBusinessGraphHtml(celnInsight, callReportMergedFilters(filters))}
+        </section>
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>二、门店漏斗核心指标</span><span class="exec-report-section-note">统一默认日期与门店</span></div>
           <div class="celn-bridge-grid">
-            <div class="celn-bridge-kpi" style="--exec-accent:#14806f"><b>用户池总量</b><strong>${escHtml(callReportNum(execReportValue(totalUsers, 'ad.celn_funnel_count')))}</strong><span>经营闭环入口</span></div>
-            <div class="celn-bridge-kpi" style="--exec-accent:#5f7f9f"><b>N Why Now</b><strong>${escHtml(callReportNum(execReportValue(nNow, 'ad.celn_funnel_count')))}</strong><span>高时效购车理由</span></div>
-            <div class="celn-bridge-kpi" style="--exec-accent:#d99042"><b>当日FC识别</b><strong>${escHtml(callReportNum(execReportValue(fc, 'ad.celn_funnel_count')))}</strong><span>候选到FC断点</span></div>
-            <div class="celn-bridge-kpi" style="--exec-accent:#c84b4b"><b>FC确认/转化</b><strong>${escHtml(callReportNum(execReportValue(confirm, 'ad.celn_funnel_count')))}</strong><span>经营承接结果</span></div>
-            <div class="celn-bridge-kpi" style="--exec-accent:#7d6a4a"><b>交付</b><strong>${escHtml(callReportNum(execReportValue(delivery, 'ad.celn_funnel_count')))}</strong><span>成交闭环末端</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#14806f"><b>用户池总量</b><strong>${escHtml(callReportNum(execReportValue(totalUsers, 'ad.celn_follow_up_node_count') || execReportValue(totalUsers, 'ad.celn_funnel_count')))}</strong><span>指标口径 ${techNoteHint('ad.celn_follow_up_node_count')}</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#5f7f9f"><b>N Why Now</b><strong>${escHtml(callReportNum(execReportValue(nNow, 'ad.celn_stage_user_count')))}</strong><span>指标口径 ${techNoteHint('ad.celn_stage_user_count')}</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#d99042"><b>当日FC识别</b><strong>${escHtml(callReportNum(execReportValue(fc, 'ad.celn_follow_up_node_count')))}</strong><span>指标口径 ${techNoteHint('ad.celn_follow_up_node_count')}</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#c84b4b"><b>FC确认/转化</b><strong>${escHtml(callReportNum(execReportValue(confirm, 'ad.celn_follow_up_node_count')))}</strong><span>经营承接结果</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#7d6a4a"><b>交付</b><strong>${escHtml(callReportNum(execReportValue(delivery, 'ad.celn_conversion_node_count')))}</strong><span>指标口径 ${techNoteHint('ad.celn_conversion_node_count')}</span></div>
           </div>
         </section>
         <section class="exec-report-section">
-          <div class="exec-report-section-title"><span>二、CELN漏斗与异常节点</span><span class="exec-report-section-note">红色/橙色为需要店长复盘的节点</span></div>
+          <div class="exec-report-section-title"><span>三、CELN漏斗与异常节点</span><span class="exec-report-section-note">红色/橙色为需要店长复盘的节点</span></div>
           <div class="celn-overview-grid">
             <div>${celnOverviewFunnelHtml(celnRows)}</div>
             <div><div class="exec-report-card-title">异常节点卡片</div>${celnOverviewAlertCards(celnRows)}</div>
           </div>
         </section>
         <section class="exec-report-section">
-          <div class="exec-report-section-title"><span>三、电话质检联动</span><span class="exec-report-section-note">电话质量解释经营承接是否有效</span></div>
+          <div class="exec-report-section-title"><span>四、电话质检联动</span><span class="exec-report-section-note">电话质量解释经营承接是否有效</span></div>
           <div class="celn-bridge-grid">
-            <div class="celn-bridge-kpi" style="--exec-accent:#14806f"><b>质检通话</b><strong>${escHtml(callReportNum(callTotal))}</strong><span>来自 call_record_judgement_results</span></div>
+            <div class="celn-bridge-kpi" style="--exec-accent:#14806f"><b>质检通话</b><strong>${escHtml(callReportNum(callTotal))}</strong><span>统一质检结果表 ${techNoteHint('call_record_judgement_results')}</span></div>
             <div class="celn-bridge-kpi" style="--exec-accent:#5f7f9f"><b>通过率</b><strong>${escHtml(callReportRate(passRate))}</strong><span>质量分 > 50</span></div>
             <div class="celn-bridge-kpi" style="--exec-accent:#d99042"><b>平均质量分</b><strong>${escHtml(callReportNum(execReportValue(call, 'ad.avg_call_quality_score')))}</strong><span>低分影响承接效率</span></div>
             <div class="celn-bridge-kpi" style="--exec-accent:#d99042"><b>低覆盖通话</b><strong>${escHtml(callReportNum(execReportValue(call, 'ad.low_coverage_call_count')))}</strong><span>关键槽位未覆盖</span></div>
@@ -6898,7 +8594,7 @@ async function renderCelnFunnelOverviewWidget(targetId, spec={}, widget={}) {
     </div>`;
     _dashboardWidgetResults[widget?.id || targetId] = {
       rows:celnRows,
-      query:{measures:['ad.celn_funnel_count'], dimensions:['ad.celn_funnel_group','ad.celn_funnel_stage'], filters},
+      query:{measures:celnMeasures, dimensions:['ad.celn_funnel_group','ad.celn_funnel_stage'], filters},
       name:widget.name || spec.name || 'CELN门店用户经营总览'
     };
   } catch(e) {
@@ -6926,13 +8622,15 @@ async function renderCallQualityReportWidget(targetId, spec={}, widget={}) {
     'ad.missing_slot_count'
   ];
   try {
-    const [summaryRows, expertRows, issueRows, levelRows, intentRows, ruleRows] = await Promise.all([
+    const baseDrillFilters = callReportMergedFilters(filters);
+    const [summaryRows, expertRows, issueRows, levelRows, intentRows, ruleRows, celnInsight] = await Promise.all([
       execReportLoad({measures:baseMeasures, dimensions:[], filters, limit:1000}),
       execReportLoad({measures:['ad.quality_record_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_quality_call_count','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:['ad.sales_expert'], filters, order:{'ad.low_quality_call_count':'desc'}, limit:30}),
       execReportLoad({measures:['ad.quality_record_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_quality_call_count','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:['ad.quality_score_level','ad.quality_issue_category'], filters, order:{'ad.quality_record_count':'desc'}, limit:50}),
       execReportLoad({measures:['ad.quality_record_count'], dimensions:['ad.quality_score_level'], filters, order:{'ad.quality_record_count':'desc'}, limit:20}),
       execReportLoad({measures:['ad.quality_record_count','ad.avg_slot_coverage_rate','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:['ad.intent'], filters, order:{'ad.low_coverage_call_count':'desc'}, limit:12}),
-      execReportLoad({measures:['ad.quality_record_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:['ad.quality_rule'], filters, order:{'ad.low_coverage_call_count':'desc'}, limit:10})
+      execReportLoad({measures:['ad.quality_record_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_coverage_call_count','ad.missing_slot_count'], dimensions:['ad.quality_rule'], filters, order:{'ad.low_coverage_call_count':'desc'}, limit:10}),
+      celnLoadStoreInsight(day, store)
     ]);
     const summary = summaryRows[0] || {};
     const total = execReportValue(summary, 'ad.quality_record_count');
@@ -6952,7 +8650,14 @@ async function renderCallQualityReportWidget(targetId, spec={}, widget={}) {
       const label = row['ad.quality_score_level'] || '-';
       const value = execReportValue(row, 'ad.quality_record_count');
       const cls = String(label).includes('未通过') ? ' bad' : String(label).includes('合格') ? ' warn' : '';
-      return `<div class="call-report-funnel-row">
+      const drillFilters = callReportMergedFilters(baseDrillFilters, [callReportDimensionFilter('ad.quality_score_level', label)]);
+      return `<div class="call-report-funnel-row call-report-drillable" ${callReportDrillAttrs('ad.quality_record_count', drillFilters, {
+        metricLabel:'质检通话数',
+        rowLabel:label,
+        columnLabel:'全部',
+        currentMember:'ad.quality_score_level',
+        contextMembers:['ad.quality_score_level'],
+      })}>
         <div class="exec-report-bar-label">${escHtml(label)}</div>
         <div class="call-report-track"><div class="call-report-fill${cls}" style="width:${Math.max(5, value / maxLevel * 100).toFixed(1)}%"></div></div>
         <div class="exec-report-bar-value">${escHtml(callReportNum(value))} 通</div>
@@ -6962,7 +8667,8 @@ async function renderCallQualityReportWidget(targetId, spec={}, widget={}) {
     const worstExpert = [...expertRows].sort((a, b) => execReportValue(a, 'ad.avg_call_quality_score') - execReportValue(b, 'ad.avg_call_quality_score'))[0] || {};
     const worstIntent = [...intentRows].sort((a, b) => execReportValue(b, 'ad.low_coverage_call_count') - execReportValue(a, 'ad.low_coverage_call_count'))[0] || {};
     const reportTitle = spec.view?.encoding?.reportTitle || `${store}电话质检分析报告`;
-    const reportSubtitle = spec.view?.encoding?.reportSubtitle || `基于 call_record_judgement_results 生成，筛选日期 ${day}，聚焦店长对销售专家通话质量、槽位覆盖和问题归因的日常管理。`;
+    const rawReportSubtitle = spec.view?.encoding?.reportSubtitle || `基于统一质检结果生成，筛选日期 ${day}，聚焦店长对销售专家通话质量、槽位覆盖和问题归因的日常管理。`;
+    const reportSubtitle = String(rawReportSubtitle).replace(/call_record_judgement_results/g, '统一质检结果');
     target.innerHTML = `<div class="exec-report-shell call-report-shell">
       <div class="exec-report-hero">
         <div class="exec-report-hero-kicker"><i class="bi bi-telephone-outbound"></i> 门店店长 · 电话质检报告</div>
@@ -6973,52 +8679,57 @@ async function renderCallQualityReportWidget(targetId, spec={}, widget={}) {
         <section class="exec-report-section">
           <div class="exec-report-section-title"><span>一、全局指标摘要</span><span class="exec-report-section-note">${escHtml(day)} · ${escHtml(store)}</span></div>
           <div class="call-report-summary-grid">
-            <div class="call-report-kpi" style="--exec-accent:#14806f"><b>质检通话总数</b><strong>${escHtml(callReportNum(total))}</strong><span>全部来自 call_record_judgement_results</span></div>
-            <div class="call-report-kpi" style="--exec-accent:#14806f"><b>质检通过通话</b><strong>${escHtml(callReportNum(pass))}</strong><span>质量分 > 50</span></div>
-            <div class="call-report-kpi" style="--exec-accent:#5f7f9f"><b>通过率</b><strong>${escHtml(callReportRate(passRate))}</strong><span>通过 / 质检通话</span></div>
-            <div class="call-report-kpi" style="--exec-accent:#d99042"><b>平均电话质量分</b><strong>${escHtml(callReportNum(avgScore))}</strong><span>低于 60 触发复盘</span></div>
-            <div class="call-report-kpi" style="--exec-accent:#14806f"><b>关键信息覆盖率</b><strong>${escHtml(callReportCoverage(coverage))}</strong><span>必答槽位平均覆盖</span></div>
-            <div class="call-report-kpi" style="--exec-accent:#c84b4b"><b>低质量通话</b><strong>${escHtml(callReportNum(lowQuality))}</strong><span>${escHtml(callReportRate(failRate))} 未通过</span></div>
-            <div class="call-report-kpi" style="--exec-accent:#d99042"><b>低覆盖通话</b><strong>${escHtml(callReportNum(lowCoverage))}</strong><span>${escHtml(callReportRate(lowCoverageRate))} 低覆盖</span></div>
-            <div class="call-report-kpi" style="--exec-accent:#7d6a4a"><b>缺失关键槽位</b><strong>${escHtml(callReportNum(missing))}</strong><span>复盘话术素材入口</span></div>
+            <div class="call-report-kpi call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.quality_record_count', baseDrillFilters, {metricLabel:'质检通话总数', rowLabel:'全部', columnLabel:'全部'})}><b>质检通话总数</b><strong>${escHtml(callReportNum(total))}</strong><span>统一质检结果表 ${techNoteHint('call_record_judgement_results')}</span></div>
+            <div class="call-report-kpi call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.quality_record_count', callReportMergedFilters(baseDrillFilters, [callReportDimensionFilter('ad.quality_pass', '通过')]), {metricLabel:'质检通过通话', rowLabel:'通过', columnLabel:'全部', currentMember:'ad.quality_pass', contextMembers:['ad.quality_pass']})}><b>质检通过通话</b><strong>${escHtml(callReportNum(pass))}</strong><span>质量分 > 50</span></div>
+            <div class="call-report-kpi call-report-drillable" style="--exec-accent:#5f7f9f" ${callReportDrillAttrs('ad.quality_record_count', callReportMergedFilters(baseDrillFilters, [callReportDimensionFilter('ad.quality_pass', '通过')]), {metricLabel:'通过率', rowLabel:'通过', columnLabel:'全部', currentMember:'ad.quality_pass', contextMembers:['ad.quality_pass']})}><b>通过率</b><strong>${escHtml(callReportRate(passRate))}</strong><span>通过 / 质检通话</span></div>
+            <div class="call-report-kpi call-report-drillable" style="--exec-accent:#d99042" ${callReportDrillAttrs('ad.avg_call_quality_score', baseDrillFilters, {metricLabel:'平均电话质量分', rowLabel:'全部', columnLabel:'全部'})}><b>平均电话质量分</b><strong>${escHtml(callReportNum(avgScore))}</strong><span>低于 60 触发复盘</span></div>
+            <div class="call-report-kpi call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.avg_slot_coverage_rate', baseDrillFilters, {metricLabel:'关键信息覆盖率', rowLabel:'全部', columnLabel:'全部'})}><b>关键信息覆盖率</b><strong>${escHtml(callReportCoverage(coverage))}</strong><span>必答槽位平均覆盖</span></div>
+            <div class="call-report-kpi call-report-drillable" style="--exec-accent:#c84b4b" ${callReportDrillAttrs('ad.quality_record_count', callReportMergedFilters(baseDrillFilters, [callReportDimensionFilter('ad.quality_pass', '未通过')]), {metricLabel:'低质量通话', rowLabel:'未通过', columnLabel:'全部', currentMember:'ad.quality_pass', contextMembers:['ad.quality_pass']})}><b>低质量通话</b><strong>${escHtml(callReportNum(lowQuality))}</strong><span>${escHtml(callReportRate(failRate))} 未通过</span></div>
+            <div class="call-report-kpi call-report-drillable" style="--exec-accent:#d99042" ${callReportDrillAttrs('ad.low_coverage_call_count', baseDrillFilters, {metricLabel:'低覆盖通话', rowLabel:'全部', columnLabel:'全部'})}><b>低覆盖通话</b><strong>${escHtml(callReportNum(lowCoverage))}</strong><span>${escHtml(callReportRate(lowCoverageRate))} 低覆盖</span></div>
+            <div class="call-report-kpi call-report-drillable" style="--exec-accent:#7d6a4a" ${callReportDrillAttrs('ad.missing_slot_count', baseDrillFilters, {metricLabel:'缺失关键槽位', rowLabel:'全部', columnLabel:'全部'})}><b>缺失关键槽位</b><strong>${escHtml(callReportNum(missing))}</strong><span>复盘话术素材入口</span></div>
           </div>
-          <div class="exec-report-hint">口径说明：电话沟通、质检通话、通过/未通过、质量分、槽位覆盖和缺失槽位均以 call_record_judgement_results 为准；质量分 &gt; 50 计为通过，质量分 &lt;= 50 计为未通过，低覆盖用于提示关键槽位覆盖不足。</div>
+          <div class="exec-report-hint">口径说明：电话沟通、质检通话、通过/未通过、质量分、槽位覆盖和缺失槽位均以统一质检结果为准 ${techNoteHint('call_record_judgement_results')}；质量分 &gt; 50 计为通过，质量分 &lt;= 50 计为未通过，低覆盖用于提示关键槽位覆盖不足。</div>
         </section>
 
         <section class="exec-report-section">
-          <div class="exec-report-section-title"><span>二、通话质量分层与问题拆解</span><span class="exec-report-section-note">从全部电话沟通拆到质量分值和问题分类</span></div>
+          <div class="exec-report-section-title"><span>二、业务图谱映射与经营闭环</span><span class="exec-report-section-note">电话质检结果对齐 CELN 用户分层与跟进闭环本体</span></div>
+          ${callQualityOntologyHtml(celnInsight, summary, callReportMergedFilters(filters))}
+        </section>
+
+        <section class="exec-report-section">
+          <div class="exec-report-section-title"><span>三、通话质量分层与问题拆解</span><span class="exec-report-section-note">从全部电话沟通拆到质量分值和问题分类</span></div>
           <div class="call-report-flow">
             <div class="exec-report-card"><div class="exec-report-card-title">质量分层漏斗</div>${levelHtml || '<div class="text-muted">暂无分层数据</div>'}</div>
-            <div class="exec-report-card"><div class="exec-report-card-title">主要问题分类</div>${callReportBarList(issueSummaryRows, 'ad.quality_issue_category', 'ad.quality_record_count', {warn:6, bad:12}) || '<div class="text-muted">暂无问题分类</div>'}</div>
+            <div class="exec-report-card"><div class="exec-report-card-title">主要问题分类</div>${callReportBarList(issueSummaryRows, 'ad.quality_issue_category', 'ad.quality_record_count', {warn:6, bad:12, drillBaseFilters:baseDrillFilters, drillMember:'ad.quality_issue_category', drillMeasure:'ad.quality_record_count'}) || '<div class="text-muted">暂无问题分类</div>'}</div>
           </div>
           <div class="exec-report-hint">当前最大问题为 ${escHtml(topIssue['ad.quality_issue_category'] || '-')}，涉及 ${escHtml(callReportNum(topIssue['ad.quality_record_count'] || 0))} 通；店长可优先按问题分类下钻到销售专家和客户意图。</div>
         </section>
 
         <section class="exec-report-section">
-          <div class="exec-report-section-title"><span>三、销售专家质量热力明细</span><span class="exec-report-section-note">颜色直接标出低分、低覆盖和高缺失</span></div>
-          <div class="exec-report-heatmap-wrap">${callReportExpertHeatmap(expertRows)}</div>
+          <div class="exec-report-section-title"><span>四、销售专家质量热力明细</span><span class="exec-report-section-note">颜色直接标出低分、低覆盖和高缺失</span></div>
+          <div class="exec-report-heatmap-wrap">${callReportExpertHeatmap(expertRows, baseDrillFilters)}</div>
         </section>
 
         <section class="exec-report-section">
-          <div class="exec-report-section-title"><span>四、头部 vs 尾部专家 - 过程维度对比</span><span class="exec-report-section-note">按平均质量分排序，各取前/后约 25%</span></div>
+          <div class="exec-report-section-title"><span>五、头部 vs 尾部专家 - 过程维度对比</span><span class="exec-report-section-note">按平均质量分排序，各取前/后约 25%</span></div>
           <div class="exec-report-hint">用销售专家平均质量分切分头部/尾部样本，对比通话数、质量分、槽位覆盖、低质量率、低覆盖率和单通缺失槽位，验证过程行为与业务结果的关联性。</div>
-          ${callReportHeadTailComparison(expertRows)}
+          ${callReportHeadTailComparison(expertRows, baseDrillFilters)}
         </section>
 
         <section class="exec-report-section">
-          <div class="exec-report-section-title"><span>五、关键问题定位</span><span class="exec-report-section-note">质量分层、问题分类、客户意图三条线索</span></div>
+          <div class="exec-report-section-title"><span>六、关键问题定位</span><span class="exec-report-section-note">质量分层、问题分类、客户意图三条线索</span></div>
           <div class="exec-report-insight-list">
-            ${callReportIssueCards(issueRows)}
+            ${callReportIssueCards(issueRows, baseDrillFilters)}
           </div>
           <div class="call-report-ranking">
-            <div class="exec-report-card"><div class="exec-report-card-title">低覆盖客户意图 Top</div>${callReportBarList(intentRows, 'ad.intent', 'ad.low_coverage_call_count', {warn:2, bad:4})}</div>
-            <div class="exec-report-card"><div class="exec-report-card-title">质检规则缺失槽位 Top</div>${callReportBarList(ruleRows, 'ad.quality_rule', 'ad.missing_slot_count', {warn:8, bad:16})}</div>
-            <div class="exec-report-card"><div class="exec-report-card-title">低分销售专家 Top</div>${callReportBarList([...expertRows].sort((a, b) => execReportValue(a, 'ad.avg_call_quality_score') - execReportValue(b, 'ad.avg_call_quality_score')).slice(0, 7), 'ad.sales_expert', 'ad.avg_call_quality_score', {score:true})}</div>
+            <div class="exec-report-card"><div class="exec-report-card-title">低覆盖客户意图 Top</div>${callReportBarList(intentRows, 'ad.intent', 'ad.low_coverage_call_count', {warn:2, bad:4, drillBaseFilters:baseDrillFilters, drillMember:'ad.intent', drillMeasure:'ad.low_coverage_call_count'})}</div>
+            <div class="exec-report-card"><div class="exec-report-card-title">质检规则缺失槽位 Top</div>${callReportBarList(ruleRows, 'ad.quality_rule', 'ad.missing_slot_count', {warn:8, bad:16, drillBaseFilters:baseDrillFilters, drillMember:'ad.quality_rule', drillMeasure:'ad.missing_slot_count'})}</div>
+            <div class="exec-report-card"><div class="exec-report-card-title">低分销售专家 Top</div>${callReportBarList([...expertRows].sort((a, b) => execReportValue(a, 'ad.avg_call_quality_score') - execReportValue(b, 'ad.avg_call_quality_score')).slice(0, 7), 'ad.sales_expert', 'ad.avg_call_quality_score', {score:true, drillBaseFilters:baseDrillFilters, drillMember:'ad.sales_expert', drillMeasure:'ad.avg_call_quality_score'})}</div>
           </div>
         </section>
 
         <section class="exec-report-section">
-          <div class="exec-report-section-title"><span>六、话术诊断与改进建议</span><span class="exec-report-section-note">按店长复盘动作组织</span></div>
+          <div class="exec-report-section-title"><span>七、话术诊断与改进建议</span><span class="exec-report-section-note">按店长复盘动作组织</span></div>
           <div class="call-report-script-grid">
             <div class="call-report-script" style="--exec-accent:#c84b4b"><b>优先复盘对象</b><p>${escHtml(worstExpert['ad.sales_expert'] || '-')} 平均质量分 ${escHtml(callReportNum(worstExpert['ad.avg_call_quality_score'] || 0))}，低质量通话 ${escHtml(callReportNum(worstExpert['ad.low_quality_call_count'] || 0))} 通。</p><span class="call-report-pill">逐通回听</span><span class="call-report-pill">明确问题分类</span></div>
             <div class="call-report-script" style="--exec-accent:#d99042"><b>槽位覆盖短板</b><p>${escHtml(worstIntent['ad.intent'] || '-')} 低覆盖通话 ${escHtml(callReportNum(worstIntent['ad.low_coverage_call_count'] || 0))} 通，缺失槽位 ${escHtml(callReportNum(worstIntent['ad.missing_slot_count'] || 0))} 个。</p><span class="call-report-pill">补齐必答项</span><span class="call-report-pill">标准话术卡</span></div>
@@ -7028,7 +8739,7 @@ async function renderCallQualityReportWidget(targetId, spec={}, widget={}) {
         </section>
 
         <section class="exec-report-section">
-          <div class="exec-report-section-title"><span>七、下一步行动清单</span><span class="exec-report-section-note">可直接用于演示说明</span></div>
+          <div class="exec-report-section-title"><span>八、下一步行动清单</span><span class="exec-report-section-note">可直接用于演示说明</span></div>
           <div class="call-report-action-grid">
             <div class="exec-report-reco" style="--exec-accent:#c84b4b"><b>1. 低分通话复盘</b><div>先处理质量分 <= 50 的 ${escHtml(callReportNum(lowQuality))} 通，逐通确认失败原因。</div></div>
             <div class="exec-report-reco" style="--exec-accent:#d99042"><b>2. 槽位训练</b><div>围绕 ${escHtml(worstIntent['ad.intent'] || '低覆盖意图')} 建立必答信息清单。</div></div>
@@ -7055,6 +8766,14 @@ async function renderExecutiveReportWidget(targetId, spec={}, widget={}) {
   const reportTemplate = (spec.view?.encoding || {}).reportTemplate;
   if (reportTemplate === 'call_quality_report') {
     await renderCallQualityReportWidget(targetId, spec, widget);
+    return;
+  }
+  if (reportTemplate === 'call_quality_ontology_context') {
+    await renderCallQualityKgContextWidget(targetId, spec, widget);
+    return;
+  }
+  if (reportTemplate === 'celn_funnel_compact') {
+    await renderCelnFunnelCompactWidget(targetId, spec, widget);
     return;
   }
   if (reportTemplate === 'celn_funnel_overview') {
@@ -9241,7 +10960,7 @@ function renderMyDashboardCard(item) {
             </div>
             ${active ? '<span class="badge bg-primary">当前</span>' : ''}
           </div>
-          <div class="small text-muted mb-3" style="min-height:34px">${escHtml(summary)}</div>
+          <div class="small text-muted mb-3 my-dashboard-summary" title="${escHtml(summary)}">${escHtml(summary)}</div>
           <div class="d-flex flex-wrap gap-2 mb-3">
             <span class="badge bg-light text-dark border">${widgetCount} 个组件</span>
             <span class="badge bg-light text-dark border">${filterCount} 个公共筛选</span>
@@ -9920,6 +11639,68 @@ async function dashboardAddWidget(adhocId) {
   renderDashboardCanvas();
 }
 
+function dashboardWidgetGraphDependencyHint(widget={}) {
+  const spec = widget.spec || {};
+  const id = widget.adhocId || spec.id || '';
+  const dashboardId = _dashboardState?.id || '';
+  const key = String(id);
+  const defaults = {
+    da_tms_store_day_expert_quality_pivot: {
+      reason: '这张透视表用于店长按销售专家定位通话质量问题，所有电话质量指标必须回到真实质检结果和销售专家维度。',
+      deps: 'call_record_judgement_results\nad.sales_expert\nad.quality_record_count / ad.avg_call_quality_score / ad.avg_slot_coverage_rate / ad.low_quality_call_count / ad.low_coverage_call_count / ad.missing_slot_count\nceln:Li-FollowUpRecord → celn:Li-AssignedTo → celn:Li-ProductExpert'
+    },
+    da_tms_call_quality_ontology_context: {
+      reason: '这块把电话质检指标翻译成 CELN 经营闭环，说明电话质量如何影响跟进、阶段变化、复盘和转化。',
+      deps: 'call_record_judgement_results\nsales:Li-InteractionEvent / celn:Li-FollowUpRecord\nceln:Li-AssignedTo / celn:Li-UsesScript / celn:Li-BasedOnEvidence / celn:Li-TriggersStageChange / celn:Li-ReviewedBy / celn:Li-TracesTo'
+    },
+    da_tms_call_quality_flow_sankey: {
+      reason: '桑基图用于把全部质检通话从入口拆到质量分层和问题分类，帮助店长看清问题主要流向。',
+      deps: 'call_record_judgement_results\nad.call_flow_total\nad.quality_score_level\nad.quality_issue_category\nad.quality_record_count'
+    },
+    da_tms_quality_score_by_expert_bar: {
+      reason: '排行图用于快速找出低分销售专家，决定谁需要优先回听、辅导和复盘。',
+      deps: 'call_record_judgement_results\nad.sales_expert\nad.avg_call_quality_score\nceln:Li-ProductExpert'
+    },
+    da_tms_slot_coverage_by_intent_bar: {
+      reason: '按客户意图看槽位覆盖，能判断某类沟通场景是否存在固定话术缺口。',
+      deps: 'call_record_judgement_results\nad.intent\nad.avg_slot_coverage_rate / ad.missing_slot_count\nceln:Li-UsesScript / celn:Li-UsesStrategy'
+    },
+    da_tms_low_coverage_heatmap: {
+      reason: '热力图用于交叉定位销售专家和问题类型，快速发现低覆盖集中在哪些人、哪些沟通环节。',
+      deps: 'call_record_judgement_results\nad.sales_expert\nad.quality_issue_category\nad.low_coverage_call_count / ad.missing_slot_count'
+    },
+    da_tms_quality_worklist_table: {
+      reason: '明细表用于从汇总指标下钻到客户意图和问题清单，支撑店长逐条安排复盘动作。',
+      deps: 'call_record_judgement_results\nad.sales_expert / ad.intent / ad.quality_issue_category\nad.avg_call_quality_score / ad.avg_slot_coverage_rate / ad.missing_slot_count\nceln:Li-FollowUpRecord'
+    },
+    da_tms_celn_store_overview: {
+      reason: '总览用于回答当前门店 CELN 分布、漏斗断点和电话质检联动，帮助店长判断经营优先级。',
+      deps: 'core:Li-Store\ncore:Li-Customer\nceln:Li-CELNStage / celn:Li-StageDetermination / celn:Li-FollowUpTask / celn:Li-FollowUpRecord / celn:Li-ConversionEvent / celn:Li-DailyReview\nad.celn_stage_user_count / ad.celn_ln_user_count / ad.celn_follow_up_node_count / ad.celn_conversion_node_count'
+    },
+    da_tms_celn_store_flow_sankey: {
+      reason: '桑基图用于把门店用户从 CELN 阶段推进拆到经营闭环节点，观察用户在哪一步流失或停滞。',
+      deps: 'core:Li-Customer\nceln:Li-CELNStage\nceln:Li-FollowUpTask → celn:Li-FollowUpRecord → celn:Li-TriggersStageChange\nad.celn_funnel_group / ad.celn_funnel_stage / ad.celn_funnel_count'
+    },
+    da_tms_celn_funnel_pivot: {
+      reason: '透视表用于按门店漏斗阶段和分组核对数量，便于从总览继续拆到阶段明细。',
+      deps: 'core:Li-Store\nceln:Li-CELNStage\nad.celn_funnel_group / ad.celn_funnel_stage\nad.celn_funnel_count / ad.celn_stage_user_count / ad.celn_ln_user_count'
+    },
+    da_tms_celn_funnel_detail_table: {
+      reason: '明细表用于定位异常漏斗节点和建议动作，支撑店长下钻到客户名单和跟进详情。',
+      deps: 'core:Li-Customer\nceln:Li-StageDetermination / celn:Li-Evidence / celn:Li-HasTag / celn:Li-FollowUpTask / celn:Li-DailyReview\nad.customer_name / ad.celn_stage_code / ad.quality_question / ad.expected_next_action'
+    },
+  };
+  const info = defaults[key];
+  if (!info) {
+    if (!dashboardId.includes('da_tms')) return '';
+    const measures = (spec.query?.measures || []).slice(0, 6).join(' / ');
+    const dims = (spec.query?.dimensions || []).slice(0, 6).join(' / ');
+    const deps = [measures && `指标：${measures}`, dims && `维度：${dims}`].filter(Boolean).join('\n');
+    return deps ? techNoteHint(deps, '该组件基于业务图谱沉淀的指标和维度生成，可用于继续筛选、钻取和复盘。') : '';
+  }
+  return techNoteHint(info.deps, info.reason);
+}
+
 function renderDashboardCanvas() {
   const canvas = document.getElementById('dashboard-canvas');
   if (!canvas) return;
@@ -9965,7 +11746,9 @@ function renderDashboardCanvas() {
     item.innerHTML = `<div class="${contentClass}">
       <div class="dashboard-widget">
         <div class="dashboard-widget-header">
-          <span class="fw-semibold text-truncate">${escHtml(widget.name)}</span>
+          <span class="fw-semibold d-inline-flex align-items-center" style="min-width:0;max-width:100%">
+            <span class="text-truncate" style="min-width:0">${escHtml(widget.name)}</span>${dashboardWidgetGraphDependencyHint(widget)}
+          </span>
           <div class="d-flex gap-1 dashboard-widget-actions">
             ${editControls}
             <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="dashboardOpenWidgetAiInsight('${escHtml(widget.id)}')" title="AI 解读"><i class="bi bi-stars"></i></button>
@@ -12475,15 +14258,17 @@ async function loadNlqSuggestions(file='') {
     }
     const categories = d.categories || [];
     const questions = d.questions || [];
-    if (!categories.length && !questions.length) {
-      boxes.forEach(x => x.el.innerHTML = '<span class="small text-muted">暂无演示提示词</span>');
-      return;
-    }
-    boxes.forEach(x => x.el.innerHTML = renderNlqSuggestionGroups(categories, questions, x.target));
-  } catch(e) {
-    boxes.forEach(x => x.el.innerHTML = '<span class="small text-muted">演示提示词生成失败</span>');
-  }
-}
+	    if (!categories.length && !questions.length) {
+	      boxes.forEach(x => x.el.innerHTML = '<span class="small text-muted">暂无演示提示词</span>');
+	      return;
+	    }
+	    boxes.forEach(x => x.el.innerHTML = renderNlqSuggestionGroups(categories, questions, x.target));
+	  } catch(e) {
+	    boxes.forEach(x => x.el.innerHTML = '<span class="small text-muted">演示提示词生成失败</span>');
+	  } finally {
+	    scheduleInsightFlowResize();
+	  }
+	}
 
 function renderNlqSuggestionGroups(categories, questions, target='nlq') {
   const groups = categories.length
@@ -12536,7 +14321,7 @@ function _smartInsightDecision(question) {
   const asksCompareTrend = /趋势|走势|对比|比较|环比|同比|上期|本期|同期|差异|差距|连续|最近.*变化|近.*变化|增幅|降幅/.test(q);
   const asksMetricDimAnalysis = /指标分析|维度分析|按.+分析|从.+维度|哪个维度|哪些维度|维度.*影响|维度.*贡献|指标.*变化|指标.*波动/.test(q);
   const asksRelationship = /相关|关系|显著|是否也|好方法|降价|促销.*好|折扣类|折扣.*订单|跨维度|图谱跳跃/.test(q);
-  const asksGraphOnly = /图谱|血缘|关系|来源|口径|定义|有哪些维度|可用维度|能按哪些/.test(q);
+  const asksGraphOnly = /图谱|血缘|关系|来源|口径|定义|有哪些维度|有哪些.*维度|哪些.*维度|可用维度|可分析维度|分析维度|能按哪些/.test(q);
   const simpleQuery = /^(查|查询|查看|展示|列出|给我|看一下|统计|汇总|计算|多少|总额|平均|数量|明细)/.test(q);
   const explicitLight = /只查|只要|不用分析|无需分析|不做分析|仅查询|仅明细|返回明细/.test(q);
   const asksProblemOrders = /(有问题|问题|异常|风险|预警|告警).*(订单|单据)|(订单|单据).*(有问题|问题|异常|风险|预警|告警)|单据追踪|问题订单|异常订单/.test(q);
@@ -13045,6 +14830,7 @@ async function runNlqInterpret(resultId, btn) {
   const out = document.getElementById(`nlq-interpret-${resultId}`);
   if (!payload || !out) return showToast('没有可解读的数据结果', 'warning');
   btnLoading(btn, '解读中…');
+  runInsightFlowStep('AC');
   out.innerHTML = `<div class="card"><div class="card-body py-3 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>行业数据分析专家正在解读当前结果…</div></div>`;
   try {
     const r = await fetch('/api/nlq/interpret', {
@@ -13055,6 +14841,7 @@ async function runNlqInterpret(resultId, btn) {
     const d = await r.json();
     if (!r.ok || !d.ok) {
       out.innerHTML = `<div class="alert alert-warning mb-0">${_escHtml(d.error || '数据解读失败')}</div>`;
+      setInsightFlowStep('AC', 'error');
       return;
     }
     const html = window.marked ? marked.parse(d.interpretation || '') : _escHtml(d.interpretation || '').replace(/\n/g, '<br>');
@@ -13069,8 +14856,11 @@ async function runNlqInterpret(resultId, btn) {
       <div class="card-header py-2"><i class="bi bi-chat-square-text me-1"></i>数据解读${d.provider === 'deepseek' ? '<span class="badge bg-light text-dark border ms-2">DeepSeek</span>' : ''}</div>
       <div class="card-body markdown-body" style="font-size:13px;line-height:1.75">${providerWarn}${outputWarn}${html}</div>
     </div>`;
+    completeInsightFlowStep('AC');
+    completeInsightFlowStep('AD');
   } catch(e) {
     out.innerHTML = `<div class="alert alert-danger mb-0">数据解读请求失败：${_escHtml(e.message || e)}</div>`;
+    setInsightFlowStep('AC', 'error');
   } finally {
     btnRestore(btn);
   }
@@ -16429,6 +18219,33 @@ const _INSIGHT_FLOW_EDGES = [
   ['AA','AC','可选'], ['AC','AD','Evidence 绑定'],
 ];
 
+let _insightFlowResizeFrame = 0;
+
+function resizeInsightFlowScroll() {
+  const pane = document.getElementById('tab-insight');
+  if (pane && !pane.classList.contains('active') && !pane.classList.contains('show')) return;
+  const scroll = document.querySelector('#insight-flow-card .insight-flow-scroll');
+  if (!scroll) return;
+  const rect = scroll.getBoundingClientRect();
+  if (!rect.top) return;
+  const bottomGap = 16;
+  const fullMapHeight = 1716;
+  const minHeight = window.innerHeight < 760 ? 340 : 520;
+  const availableHeight = Math.floor(window.innerHeight - rect.top - bottomGap);
+  const viewportHeight = Math.floor(window.innerHeight * 0.88);
+  const preferredHeight = Math.max(availableHeight, viewportHeight);
+  const height = Math.max(minHeight, Math.min(fullMapHeight, preferredHeight));
+  scroll.style.setProperty('--insight-flow-scroll-height', `${height}px`);
+}
+
+function scheduleInsightFlowResize() {
+  if (_insightFlowResizeFrame) cancelAnimationFrame(_insightFlowResizeFrame);
+  _insightFlowResizeFrame = requestAnimationFrame(() => {
+    _insightFlowResizeFrame = 0;
+    resizeInsightFlowScroll();
+  });
+}
+
 function _insightAnalysisMode(conversation) {
   return String(conversation?.context?.analysisMode || '').trim();
 }
@@ -16447,7 +18264,7 @@ function _inferInsightBranch(question='', conversation={}) {
   if (_isSpecificDocumentLookupQuestion(q)) return 'E';
   if (_isExactAttributeLookupQuestion(q)) return 'D';
   if (mode === 'document_trace' || /(有问题|问题|异常|风险|预警|告警).*(订单|单据)|(订单|单据).*(有问题|问题|异常|风险|预警|告警)|单据追踪|问题订单|异常订单/.test(q)) return 'E';
-  if (/图谱|血缘|关系|来源|口径|定义|有哪些维度|可用维度|能按哪些/.test(q) && !/为什么|原因|归因|趋势|贡献|异常|波动/.test(q)) return 'G';
+  if (/图谱|血缘|关系|来源|口径|定义|有哪些维度|有哪些.*维度|哪些.*维度|可用维度|可分析维度|分析维度|能按哪些/.test(q) && !/为什么|原因|归因|趋势|贡献|异常|波动/.test(q)) return 'G';
   if (mode || /为什么|为何|原因|归因|根因|趋势|走势|贡献|贡献度|下钻|波动|变化|同比|环比|分析|洞察|Insight/i.test(q)) return 'F';
   return 'D';
 }
@@ -16467,7 +18284,7 @@ function _isSpecificDocumentLookupQuestion(question='') {
 function _isExactAttributeLookupQuestion(question='') {
   const q = String(question || '').trim();
   if (!q) return false;
-  const value = '[A-Za-z0-9_.\\-]{2,}';
+  const value = '[^,，;；。！？\\n\\r]{1,80}';
   const field = '[\\u4e00-\\u9fa5A-Za-z_][\\u4e00-\\u9fa5A-Za-z0-9_\\-]{0,40}';
   const tableField = new RegExp(`${field}\\s*[-－—]\\s*${field}\\s*(?:[:：=]|为|是)\\s*[\"'“”]?${value}[\"'“”]?`);
   const fieldValue = new RegExp(`^(?:查|查询|查看|检索|搜索)?\\s*${field}\\s*(?:[:：=]|为|是)\\s*[\"'“”]?${value}[\"'“”]?$`);
@@ -16479,6 +18296,7 @@ function initInsightFlow(mode='standard') {
   _insightFlowState = {};
   _insightFlowSteps().forEach(step => { _insightFlowState[step.id] = 'idle'; });
   renderInsightFlow();
+  scheduleInsightFlowResize();
 }
 
 function renderInsightFlow() {
@@ -16567,8 +18385,8 @@ function _insightFlowTargetIds(id) {
     done: ['AD'],
     cell_context: ['E'],
     doc_evidence: ['P','Q','T'],
-    kg: ['H','I','J'],
-    answer: ['Y','Z','AA','AC','AD'],
+    kg: mode === 'document_trace' ? [] : ['H','I','J'],
+    answer: mode === 'document_trace' ? ['Y','Z','AA'] : ['Y','Z','AA','AC','AD'],
     reject: ['R'],
     clarify: ['S'],
     no_data: ['AB'],
@@ -16976,7 +18794,6 @@ function _prepareInsightAnalysisPanels(conversation) {
     completeInsightFlowStep('precheck');
     completeInsightFlowStep('cell_context');
     completeInsightFlowStep('doc_evidence');
-    completeInsightFlowStep('kg');
     if (conversation.context?.cellInsight?.summary || conversation.context?.cellInsight?.anomaly) {
       completeInsightFlowStep('answer');
     }
