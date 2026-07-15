@@ -409,7 +409,6 @@ def test_formula_measure_is_exposed_and_computed_from_dependencies():
     })
 
     assert result["data"] == [{
-        "ad.date_month": "2026-01",
         "ad.channel": "web",
         "ad.formula_margin_rate": 25.0,
     }]

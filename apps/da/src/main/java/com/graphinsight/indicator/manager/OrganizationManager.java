@@ -119,7 +119,7 @@ public class OrganizationManager {
             if (target != null) {
                 LinkedList<Organization> superiorOrg = listSuperiorOrg(target, organizations);
                 if (CollectionUtils.isNotEmpty(superiorOrg)) {
-                    if (!Objects.equals(EmployeeType.LIXIANG.getValue(), employee.getEmployeeType())) {
+                    if (!Objects.equals(EmployeeType.INTERNAL.getValue(), employee.getEmployeeType())) {
                         Organization first = superiorOrg.get(0);
                         first.setOrgName("运营架构");
                     }
@@ -172,7 +172,7 @@ public class OrganizationManager {
         if (null == rootObj) {
 
             List<Organization> organizations = organizationService.list(Wrappers.<Organization>lambdaQuery().eq(Organization::getOrgType, organizationType.getValue()));
-            Organization rootOrg = organizations.stream().filter(o -> Objects.equals(o.getParentCode(), IndicatorConstant.OPERATE_LIXIANG_DEPT_ID)).findFirst().orElse(null);
+            Organization rootOrg = organizations.stream().filter(o -> Objects.equals(o.getParentCode(), IndicatorConstant.OPERATE_ROOT_DEPT_ID)).findFirst().orElse(null);
             if (rootOrg == null) {
                 return root;
             }
@@ -455,7 +455,7 @@ public class OrganizationManager {
         List<Organization> orgs;
         if (Objects.equals(parentCode, IndicatorConstant.TOP_DEPT_ID.toString())) {
             orgs = organizationService.list(Wrappers.<Organization>lambdaQuery()
-                    .eq(Organization::getParentCode, IndicatorConstant.OPERATE_LIXIANG_DEPT_ID));
+                    .eq(Organization::getParentCode, IndicatorConstant.OPERATE_ROOT_DEPT_ID));
         } else {
             orgs = organizationService.list(Wrappers.<Organization>lambdaQuery()
                     .eq(Organization::getParentCode, parentCode));

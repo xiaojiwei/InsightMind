@@ -235,11 +235,11 @@ logs/da.log
 
 ---
 
-## 默认演示环境：TPC-DS
+## 默认演示环境：通话质检与监控预警
 
-InsightMind 以 **TPC-DS**（零售决策支持基准）作为开箱即用的演示案例。仓库已经内置一套可直接恢复的默认资产：
+InsightMind 内置一套可直接恢复的通话质检演示案例。所有客户 ID、员工、门店、ASR 文本和质检结果均为程序生成的合成数据，不包含真实业务内容。演示品牌统一使用“小鹏汽车”，仓库已经内置：
 
-- 数据库脚本：`apps/ad/tpcds_schema.sql`、`apps/ad/tpcds_data.py`、`apps/da/schema.sql`
+- 数据库脚本：`apps/ad/demo_call_sop_data.py`、`apps/ad/tpcds_schema.sql`、`apps/ad/tpcds_data.py`、`apps/da/schema.sql`
 - 数据源知识图谱：`demo/default/ad/output/kg_tpcds.ttl`
 - 业务知识图谱：`demo/default/ad/output/business_kg/indicator-data.ttl`
 - 已保存 Ad-Hoc 组件：`demo/default/ad/output/adhoc/*.json`
@@ -250,7 +250,7 @@ InsightMind 以 **TPC-DS**（零售决策支持基准）作为开箱即用的演
 - **数据图谱**：TPC-DS 表、字段、主外键和关系网络。
 - **业务图谱**：预置指标、维度、数仓表和指标应用关系。
 - **Ad-Hoc 组件**：已经保存好的 KPI、趋势图、城市分布等组件。
-- **Dashboard**：默认销售分析看板 `dash_web_sales_overview`。
+- **Dashboard**：SOP 诊断、逐通质检工作台和监控预警三张完整看板。
 
 如果只启动 AD、不初始化数据库，也能看到图谱和 dashboard 配置；但 dashboard 要真正查询出数据，需要先初始化本地 MySQL 演示库。
 
@@ -265,7 +265,10 @@ AD 启动时会在运行目录缺失这些文件时自动恢复默认案例。�
 默认使用本地 MySQL `root/root`，创建并写入：
 
 - `tpcds`：TPC-DS 演示业务库，约 5,000+ 行确定性样例数据，覆盖 2025-2026 年。
+- `da_tms`：54 通完全合成的“小鹏汽车”试驾邀约通话，包含 SOP 检查点、ASR 证据、质检分和问题归类。
 - `indbtest`：DA 元数据库。
+
+同时会在 `tpcds.alert_rule` 中安装三张看板使用的默认预警规则。
 
 ```bash
 ./scripts/init-demo-db.sh
@@ -277,9 +280,9 @@ AD 启动时会在运行目录缺失这些文件时自动恢复默认案例。�
 MYSQL_USER=root MYSQL_PASSWORD=your_password ./scripts/init-demo-db.sh
 ```
 
-> `init-demo-db.sh` 会重建 `tpcds` 演示库；不要把它指向已有生产或重要数据库。
+> `init-demo-db.sh` 会重建 `tpcds` 和 `da_tms` 演示库；不要把它指向已有生产或重要数据库。
 
-### 启动并打开默认 dashboard
+### 启动并打开三张演示看板
 
 完整 demo 启动流程：
 
@@ -292,10 +295,12 @@ MYSQL_USER=root MYSQL_PASSWORD=your_password ./scripts/init-demo-db.sh
 打开：
 
 ```text
-http://localhost:8080/?dashboard=dash_web_sales_overview#tab-dashboard
+http://localhost:8080/dashboard/view/dash_da_tms_call_sop_diagnosis
+http://localhost:8080/dashboard/view/dash_da_tms_call_sop_workbench
+http://localhost:8080/dashboard/view/dash_da_tms_call_monitor_alert
 ```
 
-这时可以在 AD 页面查看数据图谱、业务图谱、已保存组件和默认 dashboard；dashboard 中的图表会基于 `tpcds` 演示数据执行查询。
+这时可以演示门店总览、SOP 环节下钻、按问题统一复盘、逐通 ASR 证据查看，以及透视表单元格预警和继续下钻。看板查询通过 DA 执行，业务口径来自随仓库发布的知识图谱。
 
 这套默认案例不依赖 LLM。需要重新生成业务知识图谱时，再配置 LLM 环境变量并运行：
 

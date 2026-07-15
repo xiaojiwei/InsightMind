@@ -40,12 +40,12 @@ public class CommonConstants {
     public static final Map<String, String> CarCodeMap = new HashMap<>();
 
     static {
-        CarCodeMap.put("L9", "X01");
-        CarCodeMap.put("L8", "X02");
-        CarCodeMap.put("L7", "X03");
-        CarCodeMap.put("l9", "X01");
-        CarCodeMap.put("l8", "X02");
-        CarCodeMap.put("l7", "X03");
+        CarCodeMap.put("G9", "XP01");
+        CarCodeMap.put("G6", "XP02");
+        CarCodeMap.put("X9", "XP03");
+        CarCodeMap.put("g9", "XP01");
+        CarCodeMap.put("g6", "XP02");
+        CarCodeMap.put("x9", "XP03");
     }
 
 

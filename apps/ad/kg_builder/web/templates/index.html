@@ -700,6 +700,23 @@
     body.dashboard-view-mode .dashboard-canvas { background:#fff; border-color:#dde5ee; padding:0; }
     body.dashboard-view-mode .dashboard-fallback-grid { gap:0; }
     body.dashboard-view-mode .dashboard-widget { box-shadow:none; }
+    body.dashboard-view-mode .dashboard-report-widget {
+      height:auto !important;
+      min-height:0;
+    }
+    body.dashboard-view-mode .dashboard-report-widget .dashboard-view-grid-item-content,
+    body.dashboard-view-mode .dashboard-report-widget .dashboard-widget,
+    body.dashboard-view-mode .dashboard-report-widget .dashboard-widget-body,
+    body.dashboard-view-mode .dashboard-report-widget .dashboard-widget-chart {
+      height:auto;
+      min-height:0;
+      overflow:visible;
+    }
+    body.dashboard-view-mode .dashboard-report-widget .exec-report-shell {
+      height:auto;
+      min-height:0;
+      overflow:visible;
+    }
     body.dashboard-standalone-view .app-sidebar,
     body.dashboard-standalone-view .app-topbar,
     body.dashboard-standalone-view nav.navbar,
@@ -1125,6 +1142,11 @@
       min-height:360px;
       max-height:1716px;
       padding:8px;
+    }
+    .insight-flow-scroll.full-map {
+      height:1716px !important;
+      max-height:none;
+      overflow:visible;
     }
     .insight-flow-svg {
       position:absolute;
@@ -2611,7 +2633,11 @@
       <div class="card mb-3" id="insight-flow-card">
         <div class="card-header py-2 d-flex justify-content-between align-items-center">
           <span><i class="bi bi-diagram-3 me-1"></i>智能Insight流程进度</span>
-          <span id="insight-flow-summary" class="insight-flow-summary">等待开始</span>
+          <span class="d-flex align-items-center gap-2">
+            <button id="insight-flow-full-btn" type="button" class="btn btn-sm btn-outline-secondary py-0"
+              style="font-size:11px" onclick="toggleInsightFlowFullMap()">全图展示</button>
+            <span id="insight-flow-summary" class="insight-flow-summary">等待开始</span>
+          </span>
         </div>
         <div class="card-body p-0">
           <div class="insight-flow-scroll">
@@ -4361,63 +4387,63 @@ function techNoteReason(text) {
   const value = String(text || '');
   if (!value) return '';
   if (value.includes('call_record_judgement_results')) return '这些电话质量、通过率、槽位覆盖等指标都以真实质检结果为准，避免使用 mock 电话数据。';
-  if (value.includes('Li-BasedOnEvidence') || value.includes('Li-Evidence') || value.includes('Li-TriggersStageChange')) return '用证据和阶段变化关系判断这次沟通是否推动了客户阶段前进，方便店长复盘关键动作。';
-  if (value.includes('Li-AssignedTo') || value.includes('Li-ProductExpert')) return '把跟进任务落到具体销售专家，方便定位谁负责、谁需要辅导。';
-  if (value.includes('Li-UsesScript') || value.includes('Li-UsesStrategy')) return '把缺失槽位关联到话术和策略，帮助店长判断是执行问题还是话术设计问题。';
-  if (value.includes('Li-ReviewedBy') || value.includes('Li-DailyReview')) return '把低质量通话沉淀到店长每日复盘，形成可跟进的管理动作。';
-  if (value.includes('Li-TracesTo') || value.includes('Li-ConversionEvent')) return '把沟通过程追溯到转化结果，验证电话质量是否真正带来经营改善。';
-  if (value.includes('Li-FollowUpTask') || value.includes('Li-FollowUpRecord')) return '用跟进任务和跟进记录串起电话后的下一步动作，判断沟通有没有闭环。';
-  if (value.includes('Li-StageDetermination')) return '用阶段判断链路解释客户为什么处于当前 CELN 阶段，便于下钻核验。';
-  if (value.includes('Li-HasTag') || value.includes('Li-TagAppliesToStage')) return '用标签解释客户分层原因，帮助店长理解客户处在该阶段的关键特征。';
-  if (value.includes('Li-FCIdentification') || value.includes('Li-FCRule')) return '用 FC 识别规则说明哪些客户需要优先推进，避免漏跟高价值机会。';
+  if (value.includes('Demo-BasedOnEvidence') || value.includes('Demo-Evidence') || value.includes('Demo-TriggersStageChange')) return '用证据和阶段变化关系判断这次沟通是否推动了客户阶段前进，方便店长复盘关键动作。';
+  if (value.includes('Demo-AssignedTo') || value.includes('Demo-ProductExpert')) return '把跟进任务落到具体销售专家，方便定位谁负责、谁需要辅导。';
+  if (value.includes('Demo-UsesScript') || value.includes('Demo-UsesStrategy')) return '把缺失槽位关联到话术和策略，帮助店长判断是执行问题还是话术设计问题。';
+  if (value.includes('Demo-ReviewedBy') || value.includes('Demo-DailyReview')) return '把低质量通话沉淀到店长每日复盘，形成可跟进的管理动作。';
+  if (value.includes('Demo-TracesTo') || value.includes('Demo-ConversionEvent')) return '把沟通过程追溯到转化结果，验证电话质量是否真正带来经营改善。';
+  if (value.includes('Demo-FollowUpTask') || value.includes('Demo-FollowUpRecord')) return '用跟进任务和跟进记录串起电话后的下一步动作，判断沟通有没有闭环。';
+  if (value.includes('Demo-StageDetermination')) return '用阶段判断链路解释客户为什么处于当前 CELN 阶段，便于下钻核验。';
+  if (value.includes('Demo-HasTag') || value.includes('Demo-TagAppliesToStage')) return '用标签解释客户分层原因，帮助店长理解客户处在该阶段的关键特征。';
+  if (value.includes('Demo-FCIdentification') || value.includes('Demo-FCRule')) return '用 FC 识别规则说明哪些客户需要优先推进，避免漏跟高价值机会。';
   if (value.includes('ad.')) return '这是当前看板沉淀出的语义指标或维度，可用于筛选、下钻和复用分析。';
   if (value.includes('本体节点') || value.includes('物理表')) return '说明这个业务节点背后关联到哪些本体关系和数据表，便于追溯数据来源。';
   if (value.includes('节点已映射')) return '说明页面上的业务路径已经和图谱、数据表、语义查询打通，可以继续下钻。';
-  if (value.includes('core:') || value.includes('celn:') || value.includes('sales:') || value.includes('Li-')) return '这里展示的是业务图谱依赖关系，用于解释指标背后的业务链路。';
+  if (value.includes('core:') || value.includes('celn:') || value.includes('sales:') || value.includes('Demo-')) return '这里展示的是业务图谱依赖关系，用于解释指标背后的业务链路。';
   return '补充说明当前指标或节点的来源和使用口径。';
 }
 
 const GRAPH_TERM_CN = {
-  'core:Li-Store': '门店',
-  'core:Li-Customer': '用户',
-  'core:Li-CoversStore': '覆盖门店',
-  'celn:Li-BelongsToStore': '归属门店',
-  'sales:Li-InteractionEvent': '销售互动事件',
-  'celn:Li-CELNStage': 'CELN阶段',
-  'celn:Li-C-Consider': 'C-考虑阶段',
-  'celn:Li-E-Evaluate': 'E-评估阶段',
-  'celn:Li-L-Lead': 'L-意向阶段',
-  'celn:Li-N-Negotiate': 'N-谈判阶段',
-  'celn:Li-StageDetermination': '阶段判断',
-  'celn:Li-Evidence': '判断证据',
-  'celn:Li-Tag': '客户标签',
-  'celn:Li-FollowUpTask': '跟进任务',
-  'celn:Li-FollowUpRecord': '跟进记录',
-  'celn:Li-ConversionEvent': '转化事件',
-  'celn:Li-DailyReview': '每日复盘',
-  'celn:Li-DeterminesStage': '判断客户阶段',
-  'celn:Li-HasStage': '拥有客户阶段',
-  'celn:Li-BasedOnEvidence': '基于证据',
-  'celn:Li-HasTag': '拥有标签',
-  'celn:Li-TagAppliesToStage': '标签适用于阶段',
-  'celn:Li-AssignedTo': '分配给销售专家',
-  'celn:Li-ProductExpert': '销售专家',
-  'celn:Li-HasFollowUpRecord': '拥有跟进记录',
-  'celn:Li-TriggersStageChange': '触发阶段变化',
-  'celn:Li-TracesTo': '追溯到',
-  'celn:Li-LeadsToConversion': '带来转化',
-  'celn:Li-ReviewedBy': '由店长复盘',
-  'celn:Li-UsesScript': '使用话术',
-  'celn:Li-UsesStrategy': '使用策略',
-  'celn:Li-FCIdentification': 'FC识别',
-  'celn:Li-FCRule': 'FC识别规则',
-  'Li-FollowUpTask': '跟进任务',
-  'Li-FollowUpRecord': '跟进记录',
-  'Li-TriggersStageChange': '触发阶段变化',
-  'Li-DailyReview': '每日复盘',
-  'Li-UsesScript': '使用话术',
-  'Li-UsesStrategy': '使用策略',
-  'Li-ConversionEvent': '转化事件',
+  'core:Demo-Store': '门店',
+  'core:Demo-Customer': '用户',
+  'core:Demo-CoversStore': '覆盖门店',
+  'celn:Demo-BelongsToStore': '归属门店',
+  'sales:Demo-InteractionEvent': '销售互动事件',
+  'celn:Demo-CELNStage': 'CELN阶段',
+  'celn:Demo-C-Consider': 'C-考虑阶段',
+  'celn:Demo-E-Evaluate': 'E-评估阶段',
+  'celn:Demo-L-Lead': 'L-意向阶段',
+  'celn:Demo-N-Negotiate': 'N-谈判阶段',
+  'celn:Demo-StageDetermination': '阶段判断',
+  'celn:Demo-Evidence': '判断证据',
+  'celn:Demo-Tag': '客户标签',
+  'celn:Demo-FollowUpTask': '跟进任务',
+  'celn:Demo-FollowUpRecord': '跟进记录',
+  'celn:Demo-ConversionEvent': '转化事件',
+  'celn:Demo-DailyReview': '每日复盘',
+  'celn:Demo-DeterminesStage': '判断客户阶段',
+  'celn:Demo-HasStage': '拥有客户阶段',
+  'celn:Demo-BasedOnEvidence': '基于证据',
+  'celn:Demo-HasTag': '拥有标签',
+  'celn:Demo-TagAppliesToStage': '标签适用于阶段',
+  'celn:Demo-AssignedTo': '分配给销售专家',
+  'celn:Demo-ProductExpert': '销售专家',
+  'celn:Demo-HasFollowUpRecord': '拥有跟进记录',
+  'celn:Demo-TriggersStageChange': '触发阶段变化',
+  'celn:Demo-TracesTo': '追溯到',
+  'celn:Demo-LeadsToConversion': '带来转化',
+  'celn:Demo-ReviewedBy': '由店长复盘',
+  'celn:Demo-UsesScript': '使用话术',
+  'celn:Demo-UsesStrategy': '使用策略',
+  'celn:Demo-FCIdentification': 'FC识别',
+  'celn:Demo-FCRule': 'FC识别规则',
+  'Demo-FollowUpTask': '跟进任务',
+  'Demo-FollowUpRecord': '跟进记录',
+  'Demo-TriggersStageChange': '触发阶段变化',
+  'Demo-DailyReview': '每日复盘',
+  'Demo-UsesScript': '使用话术',
+  'Demo-UsesStrategy': '使用策略',
+  'Demo-ConversionEvent': '转化事件',
   'celn_store': '门店表',
   'celn_customer': '用户表',
   'celn_stage': '阶段表',
@@ -4467,7 +4493,7 @@ function techNoteHint(note, reasonOverride='') {
   const text = String(note || '').trim();
   if (!text) return '';
   const reason = String(reasonOverride || '').trim() || techNoteReason(text);
-  const label = /[a-z]+:|call_record|ad\.|core:|celn:|sales:|Li-|本体节点|物理表/.test(text) ? '图谱依赖' : '备注';
+  const label = /[a-z]+:|call_record|ad\.|core:|celn:|sales:|Demo-|本体节点|物理表/.test(text) ? '图谱依赖' : '备注';
   const content = `使用原因：${reason}\n${label}：${graphTermText(text)}`;
   return `<span class="tech-note-help" tabindex="0" data-tech-note="${escHtml(content)}" aria-label="${escHtml(content)}" onclick="toggleTechNote(event,this)" onkeydown="if(event.key==='Enter'||event.key===' '){toggleTechNote(event,this)}"><i class="bi bi-info-circle-fill" aria-hidden="true"></i></span>`;
 }
@@ -4553,6 +4579,53 @@ let _dashboardState = {
 function adhocMemberLabel(name) {
   const m = adhocFindMember(name);
   return m ? (m.title || m.name) : name;
+}
+
+const CALL_REPORT_VIRTUAL_MEASURES = {
+  'ad.sop_total_call_count': {
+    label: '总通话量',
+    dependencies: [],
+    format: 'count',
+  },
+  'ad.effective_connect_rate': {
+    label: '有效接通率',
+    dependencies: ['ad.quality_record_count', 'ad.phone_call_count'],
+    format: 'ratio_percent',
+  },
+  'ad.connected_call_count': {
+    label: '有效接通通话',
+    dependencies: [],
+    format: 'count',
+  },
+  'ad.sop_checkpoint_pass_rate': {
+    label: 'SOP 检查点总体命中率',
+    dependencies: [],
+    format: 'ratio_percent',
+  },
+  'ad.sop_hit_checkpoint_count': {
+    label: '命中检查点',
+    dependencies: [],
+    format: 'count',
+  },
+  'ad.sop_total_checkpoint_count': {
+    label: '总检查点',
+    dependencies: [],
+    format: 'count',
+  },
+  'ad.quality_issue_rate': {
+    label: '问题通话占比',
+    dependencies: [],
+    format: 'ratio_percent',
+  },
+};
+
+function callReportVirtualMeasure(member) {
+  return CALL_REPORT_VIRTUAL_MEASURES[String(member || '')] || null;
+}
+
+function callReportMemberLabel(member) {
+  if (member === 'ad.avg_call_quality_score') return '平均通话质量分';
+  return callReportVirtualMeasure(member)?.label || adhocMemberLabel(member);
 }
 
 function adhocSimpleMemberKey(value) {
@@ -5930,6 +6003,11 @@ function ensureAdhocAlertStyles() {
     .cell-insight-kv{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px dashed #e6ebf0;font-size:12px}
     .cell-insight-kv:last-child{border-bottom:0}
     .cell-insight-kv span:first-child{color:#687485}
+    .cell-insight-formula{padding:7px 0;border-bottom:1px dashed #e6ebf0;font-size:12px}
+    .cell-insight-formula:last-child{border-bottom:0}
+    .cell-insight-formula span{display:block;color:#687485;margin-bottom:4px}
+    .cell-insight-formula strong{display:block;color:#223044;line-height:1.6;font-weight:600}
+    .cell-insight-sql{margin:0;background:#f8fafc;border:1px solid #e5ebf1;border-radius:4px;padding:7px 8px;white-space:pre-wrap;color:#2f3b4a;font-size:11px;line-height:1.45}
     .cell-insight-evidence{border-left:3px solid #d8e3ef;padding:6px 0 6px 9px;margin-bottom:6px;font-size:12px}
     .cell-insight-evidence-title{font-weight:700;color:#435365}
     .cell-insight-hypothesis{background:#f8fafc;border:1px solid #e5ebf1;border-radius:6px;padding:7px 9px;font-size:12px}
@@ -6057,6 +6135,148 @@ function ensureAdhocAlertStyles() {
     .call-report-drillable:hover::after{content:"选择下钻";position:absolute;right:8px;top:6px;font-size:10px;color:#126255;background:#eef8f4;border:1px solid #c8e3da;padding:1px 6px;z-index:2}
     .call-report-table tr.call-report-drillable:hover td{background:#eef8f4!important}
     .call-report-table tr.call-report-drillable:hover::after{top:3px}
+    .sop-diagnosis-shell{height:100%;overflow:auto;background:#efeee8;color:#20332f;font-size:12px;line-height:1.42}
+    .sop-diagnosis-body{padding:16px clamp(14px,1.8vw,28px) 24px;max-width:none;width:100%;box-sizing:border-box}
+    .sop-diagnosis-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .sop-diagnosis-title{display:flex;align-items:center;gap:10px;min-width:0}
+    .sop-diagnosis-title h2{margin:0;color:#1b3430;font-size:20px;font-weight:850;letter-spacing:0}
+    .sop-diagnosis-title span{display:inline-flex;align-items:center;color:#2d6388;background:#dfeaf0;border:1px solid #c5d8e2;padding:3px 9px;font-size:12px;font-weight:800;white-space:nowrap}
+    .sop-diagnosis-sub{color:#74817d;font-size:12px;white-space:nowrap}
+    .sop-kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:12px}
+    .sop-kpi{background:#fff;border:1px solid #dce2dd;border-radius:8px;padding:12px 14px;min-height:94px;box-shadow:0 12px 28px rgba(27,43,38,.06)}
+    .sop-kpi b{display:block;color:#253b38;font-size:13px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sop-kpi span{display:block;color:#74817d;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sop-kpi strong{display:block;margin-top:8px;color:var(--exec-accent,#20332f);font-size:26px;line-height:1;font-weight:850}
+    .sop-board-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(360px,.95fr);gap:12px;align-items:start}
+    .sop-panel{background:#fff;border:1px solid #dce2dd;border-radius:8px;box-shadow:0 12px 28px rgba(27,43,38,.06);overflow:hidden}
+    .sop-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px 12px;border-bottom:1px solid #dce2dd}
+    .sop-panel-head h3{margin:0 0 4px;color:#20332f;font-size:16px;font-weight:850}
+    .sop-panel-head p{margin:0;color:#74817d;font-size:12px}
+    .sop-legend{display:flex;align-items:center;gap:10px;color:#65746f;font-size:11px;white-space:nowrap;flex-wrap:wrap}
+    .sop-legend span{display:inline-flex;align-items:center;gap:4px}
+    .sop-dot{width:7px;height:7px;border-radius:50%;background:var(--sop-color,#14806f);display:inline-block}
+    .sop-list{display:grid;gap:8px;padding:12px 14px}
+    .sop-row{display:grid;grid-template-columns:170px minmax(0,1fr);gap:14px;align-items:center;border:1px solid #dce2dd;border-radius:7px;background:#fff;padding:12px;transition:box-shadow .16s ease,border-color .16s ease}
+    .sop-row:hover{border-color:#82b8ae;box-shadow:0 0 0 2px rgba(20,128,111,.13)}
+    .sop-row.active{border-color:#14806f;background:#fbfffd;box-shadow:0 0 0 2px rgba(20,128,111,.12)}
+    button.sop-row-main{border:0;background:transparent;padding:0;text-align:left;font:inherit;cursor:pointer;border-radius:4px}
+    button.sop-row-main:focus-visible{outline:2px solid #14806f;outline-offset:4px}
+    .sop-row-main b{display:block;color:#20332f;font-size:13px;margin-bottom:5px}
+    .sop-row-main strong{display:block;color:#14806f;font-size:13px;margin-bottom:5px}
+    .sop-row-main p{margin:0;color:#65746f;font-size:12px;line-height:1.45}
+    .sop-row-stat{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#65746f;font-size:12px;margin-bottom:7px}
+    .sop-row-toggle{display:inline-flex;align-items:center;margin-top:6px;color:#14806f;font-size:11px;font-weight:800}
+    .sop-stack{height:22px;border-radius:6px;background:#e9ece9;overflow:hidden;display:flex;min-width:0}
+    .sop-seg{height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:850;font-size:11px;min-width:0}
+    button.sop-seg{border:0;padding:0;font:inherit;cursor:pointer}
+    button.sop-seg:hover{filter:brightness(.96);box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}
+    .sop-seg.high{background:#14806f}.sop-seg.standard{background:#4e7898}.sop-seg.basic{background:#d4922e}.sop-seg.miss{background:#e1e5e2;color:#5d6965}
+    .sop-detail{border:1px solid #bcd9d3;border-radius:7px;background:#fbfffd;margin:0 14px 12px;overflow:hidden}
+    .sop-detail-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border-bottom:1px solid #dce9e5;color:#20332f;font-weight:850}
+    .sop-check-row{display:grid;grid-template-columns:180px minmax(0,1fr) 48px;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid #edf2ef}
+    .sop-check-row.sop-drillable{cursor:pointer;transition:background-color .16s ease,box-shadow .16s ease}
+    .sop-check-row.sop-drillable:hover{background:#f5fbf8;box-shadow:inset 3px 0 0 var(--exec-accent,#14806f)}
+    .sop-check-row:last-child{border-bottom:0}
+    .sop-check-row b{display:block;color:#20332f;margin-bottom:3px}
+    .sop-check-row p{margin:0;color:#65746f;font-size:11px;line-height:1.35}
+    .sop-mini-track{height:14px;background:#e6ebe7;border-radius:999px;overflow:hidden}
+    .sop-mini-fill{height:100%;background:var(--exec-accent,#14806f);border-radius:999px}
+    .sop-expert-list{display:grid;gap:8px;padding:12px 14px}
+    .sop-expert-card{border:1px solid #dce2dd;border-radius:7px;background:#fff;padding:11px 12px;transition:box-shadow .16s ease,border-color .16s ease}
+    .sop-expert-card:hover{border-color:#82b8ae;box-shadow:0 0 0 2px rgba(20,128,111,.13)}
+    .sop-expert-card.active{border-color:#14806f;background:#fbfffd;box-shadow:0 0 0 2px rgba(20,128,111,.12)}
+    button.sop-expert-toggle{display:block;width:100%;border:0;background:transparent;padding:0;margin:0 0 8px;text-align:left;font:inherit;cursor:pointer;border-radius:4px}
+    button.sop-expert-toggle:focus-visible{outline:2px solid #14806f;outline-offset:4px}
+    .sop-expert-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .sop-expert-head b{color:#20332f;font-size:13px}.sop-expert-head strong{color:#14806f;font-size:14px}
+    .sop-expert-summary{display:inline-flex;align-items:center;gap:8px;color:#65746f;font-size:11px;white-space:nowrap}
+    .sop-expert-sample-warning{display:inline-flex;align-items:center;border:1px solid #efd3b6;background:#fff8ea;color:#9a6419;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:800;white-space:nowrap}
+    .sop-compact-stack{height:9px;border-radius:999px}
+    .sop-compact-stack .sop-seg{font-size:0;padding:0}
+    .sop-expert-detail{margin-top:10px;border:1px solid #cfe5dc;border-radius:7px;background:#fbfffd;padding:10px}
+    .sop-expert-detail-title{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#20332f;font-weight:850;margin-bottom:9px}
+    .sop-expert-detail-title span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sop-expert-detail-title em{font-style:normal;color:#14806f;font-size:11px;font-weight:850;white-space:nowrap}
+    .sop-expert-sop-list{display:grid;gap:8px}
+    .sop-expert-sop-row{display:grid;gap:4px}
+    .sop-expert-sop-top{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#20332f;font-size:12px}
+    .sop-expert-sop-top span:first-child{font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sop-expert-sop-top span:last-child{color:#14806f;font-weight:850}
+    .sop-issue-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:12px 14px}
+    .sop-issue-card{border:1px solid #dce2dd;background:#fbfaf6;border-left:4px solid var(--exec-accent,#14806f);padding:12px;min-height:112px;text-align:left;font:inherit;color:inherit}
+    button.sop-issue-card{cursor:pointer;transition:border-color .16s ease,box-shadow .16s ease}
+    button.sop-issue-card:hover{border-color:#82b8ae;box-shadow:0 0 0 2px rgba(20,128,111,.13)}
+    button.sop-issue-card:focus-visible{outline:2px solid #14806f;outline-offset:2px}
+    .sop-issue-card b{display:block;color:#20332f;margin-bottom:7px}.sop-issue-card p{margin:0;color:#65746f;line-height:1.55}
+    .sop-issue-link{display:block;margin-top:8px;color:#14806f;font-size:11px;font-weight:850}
+    .call-workbench-shell{height:100%;overflow:auto;background:#efeee8;color:#20332f;font-size:12px;line-height:1.42}
+    .call-workbench-body{padding:14px clamp(12px,1.6vw,24px) 24px;max-width:none;width:100%;box-sizing:border-box}
+    .call-workbench-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px;border-bottom:1px solid #d1d7d2;padding-bottom:10px}
+    .call-workbench-title{display:flex;align-items:center;gap:10px;min-width:0}
+    .call-workbench-title h2{margin:0;color:#1b3430;font-size:20px;font-weight:850;letter-spacing:0}
+    .call-workbench-title span{display:inline-flex;align-items:center;color:#2d6388;background:#dfeaf0;border:1px solid #c5d8e2;padding:3px 9px;font-size:12px;font-weight:800;white-space:nowrap}
+    .call-workbench-sub{color:#74817d;font-size:12px;white-space:nowrap}
+    .call-workbench-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:10px}
+    .call-workbench-kpi{background:#fff;border:1px solid #dce2dd;border-radius:7px;padding:10px 12px;min-height:78px;box-shadow:0 10px 24px rgba(27,43,38,.05)}
+    .call-workbench-kpi b{display:block;color:#253b38;font-size:12px;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .call-workbench-kpi strong{display:block;color:var(--exec-accent,#14806f);font-size:22px;line-height:1.05;font-weight:850}
+    .call-workbench-kpi span{display:block;color:#74817d;font-size:11px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .call-workbench-filterbar{display:grid;grid-template-columns:minmax(260px,1.25fr) repeat(3,minmax(150px,.5fr));gap:10px;background:#fff;border:1px solid #dce2dd;border-radius:8px;padding:10px 12px;margin-bottom:12px;box-shadow:0 10px 24px rgba(27,43,38,.05)}
+    .call-workbench-filterbar .filter-chip{display:flex;align-items:center;min-width:0;border:1px solid #dce2dd;border-radius:7px;background:#fbfffd;padding:0 11px;color:#40534f;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .call-workbench-filterbar select{height:38px;border:1px solid #dce2dd;border-radius:7px;background:#fbfffd;color:#20332f;font-weight:760;padding:0 10px;min-width:0}
+    .call-workbench-layout{display:grid;grid-template-columns:minmax(270px,.75fr) minmax(0,2.25fr);gap:12px;align-items:stretch;min-height:760px}
+    .call-workbench-panel{background:#fff;border:1px solid #dce2dd;border-radius:8px;box-shadow:0 10px 24px rgba(27,43,38,.05);overflow:hidden;min-width:0}
+    .call-workbench-list-panel{display:flex;flex-direction:column;min-height:760px}
+    .call-workbench-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid #dce2dd}
+    .call-workbench-list-head b{color:#20332f;font-size:14px}.call-workbench-list-head span{color:#74817d;font-size:11px;white-space:nowrap}
+    .call-workbench-list{display:grid;gap:10px;padding:12px;overflow:auto;align-content:start}
+    .call-workbench-expert-group{display:grid;gap:8px}
+    .call-workbench-expert-head{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#20332f;font-weight:850}
+    .call-workbench-expert-head span:last-child{color:#74817d;font-size:11px;font-weight:650}
+    .call-workbench-call-card{border:1px solid #dce2dd;border-radius:7px;background:#fff;padding:10px;cursor:pointer;transition:box-shadow .16s ease,border-color .16s ease,background-color .16s ease}
+    .call-workbench-call-card:hover{border-color:#82b8ae;box-shadow:0 0 0 2px rgba(20,128,111,.12)}
+    .call-workbench-call-card.active{border-color:#14806f;background:#fbfffd;box-shadow:0 0 0 2px rgba(20,128,111,.13)}
+    .call-workbench-call-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+    .call-workbench-call-card-top b{color:#20332f;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .call-workbench-badge{display:inline-flex;align-items:center;border:1px solid #c8e3da;background:#eef8f4;color:#126255;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:800;white-space:nowrap}
+    .call-workbench-badge.warn{border-color:#efd3b6;background:#fff8ea;color:#9a6419}.call-workbench-badge.bad{border-color:#efb8b4;background:#fff1f0;color:#9b2f2f}.call-workbench-badge.neutral{border-color:#dce2dd;background:#f4f7f5;color:#65746f}
+    .call-workbench-card-meta{color:#65746f;font-size:11px;line-height:1.55;word-break:break-word}
+    .call-workbench-detail{min-height:760px;display:grid;grid-template-rows:auto auto auto minmax(0,1fr);background:#fff}
+    .call-workbench-customer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid #dce2dd}
+    .call-workbench-customer-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+    .call-workbench-customer-title b{font-size:16px;color:#20332f}.call-workbench-customer-title span{color:#65746f}
+    .call-workbench-customer-meta{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .call-workbench-sopbar{margin:12px 14px 0;border:1px solid #dce2dd;border-radius:8px;background:#fbfffd;padding:9px 10px}
+    .call-workbench-sopbar-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;color:#20332f;font-weight:850}
+    .call-workbench-sopbar-head span{color:#65746f;font-weight:700}
+    .call-workbench-sop-pills{display:flex;gap:6px;flex-wrap:wrap}
+    .call-workbench-sop-pill{border:1px solid #dce2dd;background:#fff;color:#40534f;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:800;cursor:pointer}
+    .call-workbench-sop-pill.hit{border-color:#c8e3da;background:#eef8f4;color:#126255}.call-workbench-sop-pill.warn{border-color:#efd3b6;background:#fff8ea;color:#9a6419}.call-workbench-sop-pill.active{box-shadow:0 0 0 2px rgba(20,128,111,.16);border-color:#14806f;color:#126255}
+    .call-workbench-audio{margin:10px 14px 0;border:1px solid #dce2dd;border-radius:8px;background:#fbfffd;padding:10px 12px}
+    .call-workbench-audio-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;color:#65746f}
+    .call-workbench-timeline-info{display:flex;align-items:center;gap:8px;min-width:0}.call-workbench-timeline-label{display:inline-flex;align-items:center;gap:6px;color:#14806f;font-weight:850;white-space:nowrap}.call-workbench-timeline-legend{display:flex;align-items:center;gap:7px;font-size:11px;color:#65746f;white-space:nowrap}.call-workbench-timeline-legend span{display:inline-flex;align-items:center;gap:3px}.call-workbench-timeline-legend i{width:8px;height:8px;border-radius:2px;background:#14806f}.call-workbench-timeline-legend i.standard{background:#4e7898}.call-workbench-timeline-legend i.basic{background:#d4922e}.call-workbench-timeline-legend i.neutral{background:#e7ece8;border:1px solid #d6ddd8}.call-workbench-timeline-note{font-size:11px;color:#7b8984;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .call-workbench-timeline{height:18px;background:#e7ece8;border-radius:3px;position:relative;overflow:hidden}
+    .call-workbench-timeline-seg{--evidence-color:#14806f;position:absolute;top:0;bottom:0;min-width:3px;margin:0;padding:0;border:0;border-right:2px solid #fbfffd;border-radius:0;background:var(--evidence-color);appearance:none;cursor:pointer}.call-workbench-timeline-seg.standard{--evidence-color:#4e7898}.call-workbench-timeline-seg.basic{--evidence-color:#d4922e}.call-workbench-timeline-seg.miss{--evidence-color:#dce2dd}
+    .call-workbench-timeline-seg:hover{filter:brightness(.92);z-index:2}.call-workbench-timeline-seg:focus-visible{outline:2px solid #20332f;outline-offset:-2px;z-index:3}.call-workbench-timeline-seg.active{outline:2px solid #fff;outline-offset:-3px;box-shadow:inset 0 0 0 3px var(--evidence-color);z-index:2}
+    .call-workbench-main{display:grid;grid-template-columns:minmax(320px,.95fr) minmax(360px,1.05fr);gap:0;min-height:0;margin-top:12px;border-top:1px solid #dce2dd}
+    .call-workbench-asr,.call-workbench-evidence{min-width:0;overflow:auto;padding:14px}
+    .call-workbench-asr{border-right:1px solid #dce2dd;background:#fbfffd}
+    .call-workbench-section-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;color:#20332f;font-size:14px;font-weight:850}
+    .call-workbench-section-title span{color:#74817d;font-size:11px;font-weight:700}
+    .call-workbench-segment{display:grid;grid-template-columns:42px 1fr;gap:8px;align-items:start;margin-bottom:9px}
+    .call-workbench-segment-time{color:#65746f;font-variant-numeric:tabular-nums;padding-top:7px}
+    .call-workbench-bubble{border:1px solid #cce5df;background:#fff;border-left:4px solid #14806f;border-radius:7px;padding:8px 10px;color:#40534f}
+    .call-workbench-bubble.customer{border-color:#cfe0ef;border-left-color:#4e7898;background:#f8fbff}
+    .call-workbench-bubble.active{--evidence-color:#14806f;--evidence-ring:rgba(20,128,111,.2);--evidence-bg:#effaf6;border-color:var(--evidence-color);border-left-color:var(--evidence-color);box-shadow:0 0 0 3px var(--evidence-ring);background:var(--evidence-bg)}
+    .call-workbench-bubble.active.evidence-standard{--evidence-color:#4e7898;--evidence-ring:rgba(78,120,152,.22);--evidence-bg:#f2f7fb}.call-workbench-bubble.active.evidence-basic{--evidence-color:#d4922e;--evidence-ring:rgba(212,146,46,.22);--evidence-bg:#fff8ec}.call-workbench-bubble.active.evidence-miss{--evidence-color:#9aa59f;--evidence-ring:rgba(154,165,159,.2);--evidence-bg:#f4f7f5}
+    .call-workbench-role{display:inline-flex;align-items:center;margin-bottom:4px;color:#126255;background:#eef8f4;border:1px solid #c8e3da;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:850}
+    .call-workbench-bubble.customer .call-workbench-role{color:#3e6685;background:#eef6fc;border-color:#cfe0ef}
+    .call-workbench-evidence-card{border:1px solid #dce2dd;background:#fff;border-radius:7px;padding:12px;margin-bottom:10px}
+    .call-workbench-evidence-card b{display:block;color:#20332f;margin-bottom:7px}.call-workbench-evidence-card p{margin:0;color:#53635f;line-height:1.65}
+    .call-workbench-checkpoints{display:grid;gap:7px}
+    .call-workbench-checkpoint{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:start;color:#53635f}
+    .call-workbench-checkpoint i{width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#dce2dd;color:#65746f;font-size:10px;font-style:normal;margin-top:1px}
+    .call-workbench-checkpoint.hit i{background:#14806f;color:#fff}.call-workbench-checkpoint b{display:block;color:#20332f;margin:0 0 2px}.call-workbench-checkpoint span{font-size:11px;color:#65746f}
     .call-report-drill-result-table th{white-space:nowrap;background:#f4f7f5}
     .call-report-drill-result-table td{vertical-align:middle}
     .call-report-drill-value-bar{min-width:150px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
@@ -6144,8 +6364,8 @@ function ensureAdhocAlertStyles() {
     .celn-stage-trend-head span:last-child{color:var(--exec-accent,#14806f);font-weight:800;white-space:nowrap}
     .celn-stage-sparkline{width:100%;height:38px;display:block;overflow:visible}
     .celn-stage-sparkline .spark-area{fill:var(--exec-accent,#14806f);opacity:.08}
-    .celn-stage-sparkline .spark-line{fill:none;stroke:var(--exec-accent,#14806f);stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
-    .celn-stage-sparkline .spark-dot{fill:#fbfaf6;stroke:var(--exec-accent,#14806f);stroke-width:1.6}
+    .celn-stage-sparkline .spark-line{fill:none;stroke:var(--exec-accent,#14806f);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+    .celn-stage-sparkline .spark-dot{fill:#fbfaf6;stroke:var(--exec-accent,#14806f);stroke-width:1.2}
     .celn-stage-sparkline .spark-dot-muted{fill:var(--exec-accent,#14806f);opacity:.42;stroke:none}
     .celn-stage-mini{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:11px;color:#7d6a4a;min-width:0}
     .celn-stage-mini span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -6218,7 +6438,7 @@ function ensureAdhocAlertStyles() {
     .celn-compact-action.bad{border-color:#efb8b4;background:#fff1f0;color:#9b2f2f}
     @media (max-width: 1500px) and (min-width: 1101px){.celn-overview-shell .celn-distribution-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.celn-overview-shell .celn-ontology-path{grid-template-columns:repeat(9,minmax(0,1fr))}}
     @media (max-width: 900px){.celn-overview-shell .celn-distribution-grid{grid-template-columns:1fr}}
-    @media (max-width: 1100px){.call-report-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.call-report-flow,.call-report-script-grid,.call-report-ranking,.call-report-action-grid,.call-report-compare-grid,.call-ontology-grid,.call-ontology-detail-grid,.call-ontology-playbook{grid-template-columns:1fr}}
+    @media (max-width: 1100px){.call-report-summary-grid,.sop-kpi-grid,.call-workbench-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.call-report-flow,.call-report-script-grid,.call-report-ranking,.call-report-action-grid,.call-report-compare-grid,.call-ontology-grid,.call-ontology-detail-grid,.call-ontology-playbook,.sop-board-grid,.sop-issue-grid,.call-workbench-layout,.call-workbench-filterbar,.call-workbench-main{grid-template-columns:1fr}.sop-row,.sop-check-row{grid-template-columns:1fr}.sop-diagnosis-head,.call-workbench-head{align-items:flex-start;flex-direction:column}.sop-diagnosis-sub,.call-workbench-sub{white-space:normal}.call-workbench-asr{border-right:0;border-bottom:1px solid #dce2dd}.call-workbench-list-panel,.call-workbench-detail{min-height:auto}}
     @media (max-width: 1100px){.call-report-compare-bars,.celn-overview-grid,.celn-funnel-groups,.celn-bridge-grid,.celn-action-grid,.celn-distribution-grid,.celn-ontology-path,.celn-review-grid,.celn-semantic-assets,.celn-compact-board{grid-template-columns:1fr}.celn-ontology-node::after{display:none}}
     @media (max-width: 1100px) and (min-width: 901px){.celn-overview-shell .celn-distribution-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.celn-overview-shell .celn-bridge-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.celn-overview-shell .celn-ontology-path{grid-template-columns:repeat(3,minmax(0,1fr))}}
     @media (max-width: 1100px){.exec-report-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exec-report-two-col,.exec-report-insight-list,.exec-report-reco-grid{grid-template-columns:1fr}.exec-report-mini-grid{grid-template-columns:1fr}}
@@ -6819,6 +7039,21 @@ function execReportValue(row, key) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function callReportApplyVirtualMeasures(rows=[], measures=[]) {
+  const needsConnectRate = (measures || []).includes('ad.effective_connect_rate');
+  const needsConnectedCount = (measures || []).includes('ad.connected_call_count');
+  if (!needsConnectRate && !needsConnectedCount) return rows || [];
+  return (rows || []).map(row => {
+    const quality = execReportValue(row, 'ad.quality_record_count');
+    const total = execReportValue(row, 'ad.phone_call_count');
+    return {
+      ...row,
+      'ad.connected_call_count': row['ad.connected_call_count'] ?? quality,
+      'ad.effective_connect_rate': total ? quality / total : 0,
+    };
+  });
+}
+
 function execReportHasGroupValue(row, key) {
   const value = String(row?.[key] ?? '').trim();
   return Boolean(value && value !== '-' && value.toLowerCase() !== 'null');
@@ -6941,7 +7176,7 @@ function callReportDecodePayload(payload, fallback) {
 }
 
 function callReportContextText(ctx={}) {
-  const metric = ctx.metricLabel || adhocMemberLabel(ctx.measure || 'ad.quality_record_count');
+  const metric = ctx.metricLabel || callReportMemberLabel(ctx.measure || 'ad.quality_record_count');
   const row = ctx.rowLabel || '全部';
   const column = ctx.columnLabel || '全部';
   return `${metric} · 行: ${row} · 列: ${column}`;
@@ -6954,6 +7189,126 @@ function callReportFilterSummary(filters=[]) {
     const suffix = (filter.values || []).length > 3 ? '等' : '';
     return `${label} ${filter.operator || 'in'} ${values}${suffix}`;
   }).join('；');
+}
+
+function callReportSqlDimensionHint(member='') {
+  const mapping = {
+    'ad.date_day': 'f.activity_date',
+    'ad.store': 'f.store_name',
+    'ad.store_city': 'f.store_city',
+    'ad.store_manager': 'f.manager_name',
+    'ad.sales_expert': 'f.expert_name',
+    'ad.intent': 'f.intent_name',
+    'ad.quality_score_level': 'f.quality_score_level',
+    'ad.quality_issue_category': 'f.issue_category',
+    'ad.quality_pass': 'f.quality_pass_label',
+    'ad.call_flow_total': 'f.call_flow_total',
+    'ad.quality_rule': 'COALESCE(r.sop_category_name, r.sop_category_code, f.rule_id)',
+  };
+  return mapping[member] || callReportMemberLabel(member || '当前下钻维度');
+}
+
+function callReportSqlLiteral(value) {
+  if (value === null || value === undefined) return 'NULL';
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function callReportSqlFilterHint(filters=[]) {
+  const parts = (filters || [])
+    .filter(filter => filter?.member && (filter.values || []).length)
+    .map(filter => {
+      const column = callReportSqlDimensionHint(filter.member);
+      const values = filter.values || [];
+      const op = String(filter.operator || 'in').toLowerCase();
+      if (op === 'equals' || op === '=' || op === 'eq') {
+        return `${column} = ${callReportSqlLiteral(values[0])}`;
+      }
+      if (op === 'not_equals' || op === 'neq' || op === '!=') {
+        return `${column} <> ${callReportSqlLiteral(values[0])}`;
+      }
+      if (op === 'contains') {
+        return `${column} LIKE ${callReportSqlLiteral('%' + values[0] + '%')}`;
+      }
+      return `${column} IN (${values.map(callReportSqlLiteral).join(', ')})`;
+    });
+  return parts.length ? `WHERE ${parts.join('\n  AND ')}` : 'WHERE 当前看板筛选条件';
+}
+
+function callReportMetricFormulaMeta(ctx={}) {
+  const measure = ctx.measure || 'ad.quality_record_count';
+  const filters = ctx.filters || [];
+  const filterLine = callReportSqlFilterHint(filters);
+  const groupLine = ctx.currentMember
+    ? `GROUP BY ${callReportSqlDimensionHint(ctx.currentMember)}`
+    : 'GROUP BY <下钻维度>';
+  const factJoin = [
+    'FROM im_call_quality_fact f',
+    'JOIN call_record_judgement_results j ON j.id = f.quality_id',
+  ].join('\n');
+  const connectedExpr = 'CASE WHEN j.sop_connected_flag = 1 THEN 1 ELSE 0 END';
+  const meta = {
+    'ad.sop_total_call_count': {
+      business: '当前筛选范围内进入试驾前通话质检范围的通话总量，用于店长观察样本基数。',
+      sql: `SELECT COUNT(*) AS sop_total_call_count\n${factJoin}\n${filterLine}\n${groupLine}`,
+    },
+    'ad.quality_record_count': {
+      business: '当前筛选范围内的质检通话记录数，作为可复盘电话样本基数。',
+      sql: `SELECT COUNT(*) AS quality_record_count\nFROM im_call_quality_fact f\n${filterLine}\n${groupLine}`,
+    },
+    'ad.phone_call_count': {
+      business: '当前筛选范围内纳入电话质检事实表的通话次数。',
+      sql: `SELECT COUNT(*) AS phone_call_count\nFROM im_call_quality_fact f\n${filterLine}\n${groupLine}`,
+    },
+    'ad.connected_call_count': {
+      business: '接通且可用于 SOP 识别的通话数量，优先使用 sop_connected_flag 标记。',
+      sql: `SELECT SUM(${connectedExpr}) AS connected_call_count\n${factJoin}\n${filterLine}\n${groupLine}`,
+    },
+    'ad.effective_connect_rate': {
+      business: '有效接通通话数 / 总通话量。有效接通表示通话已接通且原文足以支撑 SOP 识别。',
+      sql: `SELECT SUM(${connectedExpr}) / NULLIF(COUNT(*), 0) AS effective_connect_rate\n${factJoin}\n${filterLine}\n${groupLine}`,
+    },
+    'ad.sop_checkpoint_pass_rate': {
+      business: 'SOP 小达成点命中数 / SOP 小达成点应检数，用于衡量必要检查项整体完成度。',
+      sql: `SELECT SUM(j.sop_hit_checkpoint_count) / NULLIF(SUM(j.sop_total_checkpoint_count), 0) AS sop_checkpoint_pass_rate\n${factJoin}\n${filterLine}\n${groupLine}`,
+    },
+    'ad.sop_hit_checkpoint_count': {
+      business: '当前筛选范围内已命中的 SOP 小达成点数量。',
+      sql: `SELECT SUM(j.sop_hit_checkpoint_count) AS sop_hit_checkpoint_count\n${factJoin}\n${filterLine}\n${groupLine}`,
+    },
+    'ad.sop_total_checkpoint_count': {
+      business: '当前筛选范围内理论应检查的 SOP 小达成点数量。',
+      sql: `SELECT SUM(j.sop_total_checkpoint_count) AS sop_total_checkpoint_count\n${factJoin}\n${filterLine}\n${groupLine}`,
+    },
+    'ad.quality_issue_rate': {
+      business: '存在低质量或低覆盖任一问题的有效接通通话数 / 有效接通通话数。同一通电话只计一次，用于判断需要店长介入复盘的通话占比。',
+      sql: `SELECT SUM(CASE WHEN ${connectedExpr} = 1 AND (f.low_quality_call_count > 0 OR f.low_coverage_call_count > 0) THEN 1 ELSE 0 END) / NULLIF(SUM(${connectedExpr}), 0) AS quality_issue_rate\n${factJoin}\n${filterLine}\n${groupLine}`,
+    },
+    'ad.avg_call_quality_score': {
+      business: '当前筛选范围内通话质检总分的平均值，仅反映已进入质检事实表的样本。',
+      sql: `SELECT AVG(f.total_score) AS avg_call_quality_score\nFROM im_call_quality_fact f\n${filterLine}\n${groupLine}`,
+    },
+    'ad.avg_slot_coverage_rate': {
+      business: '关键槽位覆盖率的平均值，用于观察客户意图、预算、车型、时间等关键信息是否被充分确认。',
+      sql: `SELECT AVG(f.slot_coverage_rate) AS avg_slot_coverage_rate\nFROM im_call_quality_fact f\n${filterLine}\n${groupLine}`,
+    },
+    'ad.low_quality_call_count': {
+      business: '质检质量分未达标的通话数量，通常作为复盘清单入口。',
+      sql: `SELECT SUM(f.low_quality_call_count) AS low_quality_call_count\nFROM im_call_quality_fact f\n${filterLine}\n${groupLine}`,
+    },
+    'ad.low_coverage_call_count': {
+      business: '关键信息覆盖不足的通话数量，用于定位话术和信息收集缺口。',
+      sql: `SELECT SUM(f.low_coverage_call_count) AS low_coverage_call_count\nFROM im_call_quality_fact f\n${filterLine}\n${groupLine}`,
+    },
+    'ad.missing_slot_count': {
+      business: '缺失关键槽位的数量，用于定位哪些客户信息没有在通话中确认。',
+      sql: `SELECT SUM(f.missing_slot_count) AS missing_slot_count\nFROM im_call_quality_fact f\n${filterLine}\n${groupLine}`,
+    },
+  };
+  return meta[measure] || {
+    business: `${callReportMemberLabel(measure)} 按当前看板筛选与点击上下文聚合，用于解释该单元格的业务含义。`,
+    sql: `SELECT ${callReportMemberLabel(measure)}\nFROM 指标来源表\n${filterLine}\n${groupLine}`,
+  };
 }
 
 function callReportPreferredDrillDimensions(ctx={}) {
@@ -7016,7 +7371,9 @@ function callReportMeasureCompatibilityForDimensions(measureMember, dimensionMem
 
 function callReportDrillCandidates(ctx={}) {
   const measure = ctx.measure || 'ad.quality_record_count';
-  const measureMeta = adhocFindMeasure(measure);
+  const virtual = callReportVirtualMeasure(measure);
+  const candidateMeasure = virtual ? ((virtual.dependencies || [])[0] || 'ad.quality_record_count') : measure;
+  const measureMeta = adhocFindMeasure(candidateMeasure);
   if (!measureMeta) return [];
   const currentMembers = new Set([ctx.currentMember, ...(ctx.contextMembers || [])].filter(Boolean).map(adhocSimpleMemberKey));
   const filteredMembers = new Set((ctx.filters || []).map(filter => filter?.member).filter(Boolean).map(adhocSimpleMemberKey));
@@ -7028,7 +7385,7 @@ function callReportDrillCandidates(ctx={}) {
     const key = dim.name || member;
     const simple = adhocSimpleMemberKey(key);
     if (currentMembers.has(simple)) return;
-    const info = callReportMeasureCompatibilityForDimensions(measure, [...baseDimensionMembers, dim.name || member]);
+    const info = callReportMeasureCompatibilityForDimensions(candidateMeasure, [...baseDimensionMembers, dim.name || member]);
     if (!info.enabled) return;
     const filteredPenalty = filteredMembers.has(simple) ? 12 : 0;
     const finalScore = Math.max(1, Math.min(99, Math.round(Number(score || 70) - filteredPenalty)));
@@ -7038,7 +7395,7 @@ function callReportDrillCandidates(ctx={}) {
     }
   };
   callReportPreferredDrillDimensions(ctx).forEach(item => addCandidate(item.member, item.score, item.reason));
-  adhocRecommendedDimensions(40, [measure], Array.from(currentMembers)).forEach(({dim, recommendation}) => {
+  adhocRecommendedDimensions(40, [candidateMeasure], Array.from(currentMembers)).forEach(({dim, recommendation}) => {
     addCandidate(dim.name, recommendation?.score || 70, recommendation?.reason || '知识图谱推荐的兼容维度');
   });
   return Array.from(candidates.values())
@@ -7047,11 +7404,13 @@ function callReportDrillCandidates(ctx={}) {
 }
 
 async function callReportBackendDrillCandidates(ctx={}) {
+  const virtual = callReportVirtualMeasure(ctx.measure);
+  const backendMeasure = virtual ? ((virtual.dependencies || [])[0] || 'ad.quality_record_count') : (ctx.measure || 'ad.quality_record_count');
   const r = await fetch('/api/ad/v1/drill-dimensions', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
-      measure: ctx.measure || 'ad.quality_record_count',
+      measure: backendMeasure || 'ad.quality_record_count',
       filters: ctx.filters || [],
       currentMember: ctx.currentMember || '',
       contextMembers: ctx.contextMembers || [],
@@ -7083,6 +7442,21 @@ async function callReportBackendDrillCandidates(ctx={}) {
   return {items, warning:'', source:d.source || 'business_kg'};
 }
 
+async function callReportLoadCallSopKpiDrill(ctx={}, dimensionMember='', limit=200) {
+  const r = await fetch('/api/da-tms/call-sop/kpi-drill', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      filters: ctx.filters || [],
+      dimension: dimensionMember,
+      limit,
+    })
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.error) throw new Error(d.error || 'SOP KPI 下钻失败');
+  return d.rows || [];
+}
+
 async function openCallReportDrillChooser(measure, filtersPayload='[]', contextPayload='%7B%7D') {
   const filters = callReportDecodePayload(filtersPayload, []);
   const context = callReportDecodePayload(contextPayload, {});
@@ -7096,7 +7470,7 @@ async function openCallReportDrillChooser(measure, filtersPayload='[]', contextP
     ...context,
     measure: targetMeasure,
     filters,
-    metricLabel: context.metricLabel || adhocMemberLabel(targetMeasure),
+    metricLabel: context.metricLabel || callReportMemberLabel(targetMeasure),
   };
   let backendWarning = '';
   try {
@@ -7148,10 +7522,44 @@ function callReportDrillAttrs(measure, filters, context={}) {
   return `role="button" tabindex="0" title="选择下钻方式" onclick="openCallReportDrillChooser('${_escJs(measure || 'ad.quality_record_count')}', '${filterPayload}', '${contextPayload}')"`;
 }
 
+function callSopWorkbenchDrillUrl(drill={}, filters=[]) {
+  const url = new URL('/dashboard/view/dash_da_tms_call_sop_workbench', location.origin);
+  const filterValue = member => (filters || []).find(item => item?.member === member)?.values?.[0] || '';
+  const params = {
+    wbDate: drill.date || filterValue('ad.date_day'),
+    wbStore: drill.store || filterValue('ad.store'),
+    wbResult: drill.result || '',
+    wbGrade: drill.grade || '',
+    wbSop: drill.sop || '',
+    wbSopLevel: drill.level || '',
+    wbExpert: drill.expert || '',
+    wbIssue: drill.issue || '',
+    wbProblem: drill.problem || '',
+    wbConnected: drill.connected || '',
+    wbGroup: drill.group || '',
+    wbCheckpoint: drill.checkpoint || '',
+    wbCheckpointHit: drill.checkpointHit || '',
+  };
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value) !== '') {
+      url.searchParams.set(key, String(value));
+    }
+  });
+  return url.toString();
+}
+
+function callSopOpenWorkbenchDrill(drill={}, filters=[]) {
+  location.href = callSopWorkbenchDrillUrl(drill, filters);
+}
+
 async function openCallReportDetailFromChooser() {
   const ctx = _callReportDrillContext;
   if (!ctx) return;
   bootstrap.Modal.getOrCreateInstance(document.getElementById('call-report-drill-modal')).hide();
+  if (ctx.workbenchDrill) {
+    callSopOpenWorkbenchDrill(ctx.workbenchDrill, ctx.filters || []);
+    return;
+  }
   await openAdhocDetail(ctx.measure || 'ad.quality_record_count', ctx.filters || [], {
     value:'报告明细钻取',
     filters:ctx.filters || [],
@@ -7168,20 +7576,25 @@ function openCallReportBusinessExplain() {
   const body = document.getElementById('cell-insight-body');
   const contextEl = document.getElementById('cell-insight-context');
   if (contextEl) contextEl.textContent = callReportContextText(ctx);
+  const metricLabel = ctx.metricLabel || callReportMemberLabel(ctx.measure || 'ad.quality_record_count');
   const filterText = callReportFilterSummary(ctx.filters || []) || '无额外筛选';
+  const formula = callReportMetricFormulaMeta(ctx);
   const candidates = ctx.candidates || callReportDrillCandidates(ctx);
   if (body) {
     body.innerHTML = `
       <div class="cell-insight-card cell-insight-summary mb-3">
         <div class="cell-insight-card-title"><i class="bi bi-lightbulb me-1"></i>电话质检业务解释</div>
         <div style="font-size:13px;line-height:1.7">
-          当前单元格用于观察${escHtml(ctx.metricLabel || adhocMemberLabel(ctx.measure))}，已继承看板日期、门店以及当前点击点位的筛选条件。建议优先做维度下钻，先定位问题集中在哪类销售专家、客户意图或问题分类，再决定是否查看通话明细。
+          当前单元格用于观察${escHtml(metricLabel)}，已继承看板日期、门店以及当前点击点位的筛选条件。建议优先做维度下钻，先定位问题集中在哪类销售专家、客户意图或问题分类，再决定是否查看通话明细。
         </div>
       </div>
       <div class="cell-insight-card mb-3">
         <div class="cell-insight-card-title">当前上下文</div>
-        <div class="cell-insight-kv"><span>指标</span><strong>${escHtml(ctx.metricLabel || adhocMemberLabel(ctx.measure))}</strong></div>
+        <div class="cell-insight-kv"><span>指标</span><strong>${escHtml(metricLabel)}</strong></div>
+        <div class="cell-insight-kv"><span>点击点位</span><strong>行 ${escHtml(ctx.rowLabel || '全部')}；列 ${escHtml(ctx.columnLabel || '全部')}</strong></div>
         <div class="cell-insight-kv"><span>筛选</span><strong>${escHtml(filterText)}</strong></div>
+        <div class="cell-insight-formula"><span>业务口径</span><strong>${escHtml(formula.business)}</strong></div>
+        <div class="cell-insight-formula"><span>技术口径（SQL逻辑）</span><pre class="cell-insight-sql">${escHtml(formula.sql)}</pre></div>
       </div>
       <div class="cell-insight-card">
         <div class="cell-insight-card-title">推荐下钻</div>
@@ -7206,35 +7619,267 @@ function callReportMeasureCompatibleWithDimension(measureMember, dimensionMember
   return adhocDimensionCompatibilityInfo(dim.name || dimensionMember, measureMeta).enabled;
 }
 
-function callReportDrillMeasures(primaryMeasure, dimensionMember=null, extraDimensionMembers=[]) {
+function callReportFindCandidate(ctx={}, member='') {
+  const targetKey = adhocSimpleMemberKey(member);
+  if (!targetKey) return null;
+  return (ctx.candidates || []).find(item => {
+    const dim = item?.dim || {};
+    return [dim.name, dim.code, item.member, item.code, ...(dim.sourceCodes || []), ...(item.sourceCodes || [])]
+      .filter(Boolean)
+      .some(alias => adhocSimpleMemberKey(alias) === targetKey);
+  }) || null;
+}
+
+function callReportCandidateTables(candidate=null) {
+  const dim = candidate?.dim || {};
+  return [...new Set([...(candidate?.tables || []), ...(dim.tables || [])].filter(Boolean))];
+}
+
+function callReportMeasuresByTables(measureMembers=[], tables=[]) {
+  const tableSet = new Set(tables || []);
+  if (!tableSet.size) return [];
+  return (measureMembers || [])
+    .filter(member => {
+      const measure = adhocFindMeasure(member);
+      return measure && (measure.tables || []).some(table => tableSet.has(table));
+    });
+}
+
+function callReportQueryMeasures(displayMeasures=[]) {
+  const result = [];
+  (displayMeasures || []).forEach(member => {
+    const virtual = callReportVirtualMeasure(member);
+    if (virtual) {
+      (virtual.dependencies || []).forEach(dep => result.push(dep));
+    } else {
+      result.push(member);
+    }
+  });
+  return [...new Set(result)].filter(member => adhocFindMeasure(member));
+}
+
+function callReportDrillMeasures(primaryMeasure, dimensionMember=null, extraDimensionMembers=[], trustedTables=[]) {
+  const primaryVirtual = callReportVirtualMeasure(primaryMeasure);
+  const callSopKpiMeasures = {
+    'ad.sop_total_call_count': [
+      'ad.sop_total_call_count',
+      'ad.connected_call_count',
+      'ad.effective_connect_rate',
+      'ad.avg_call_quality_score',
+      'ad.avg_slot_coverage_rate',
+      'ad.low_quality_call_count',
+      'ad.low_coverage_call_count',
+    ],
+    'ad.effective_connect_rate': [
+      'ad.effective_connect_rate',
+      'ad.connected_call_count',
+      'ad.phone_call_count',
+      'ad.avg_call_quality_score',
+      'ad.avg_slot_coverage_rate',
+      'ad.low_quality_call_count',
+      'ad.low_coverage_call_count',
+      'ad.missing_slot_count',
+    ],
+    'ad.sop_checkpoint_pass_rate': [
+      'ad.sop_checkpoint_pass_rate',
+      'ad.sop_hit_checkpoint_count',
+      'ad.sop_total_checkpoint_count',
+      'ad.effective_connect_rate',
+      'ad.avg_call_quality_score',
+      'ad.avg_slot_coverage_rate',
+    ],
+    'ad.quality_issue_rate': [
+      'ad.quality_issue_rate',
+      'ad.low_quality_call_count',
+      'ad.low_coverage_call_count',
+      'ad.connected_call_count',
+      'ad.avg_call_quality_score',
+      'ad.avg_slot_coverage_rate',
+    ],
+  };
+  if (callSopKpiMeasures[primaryMeasure]) {
+    return callSopKpiMeasures[primaryMeasure];
+  }
   const measures = [
     primaryMeasure || 'ad.quality_record_count',
     'ad.quality_record_count',
+    'ad.phone_call_count',
     'ad.avg_call_quality_score',
     'ad.avg_slot_coverage_rate',
     'ad.low_quality_call_count',
     'ad.low_coverage_call_count',
     'ad.missing_slot_count',
   ];
-  const existing = [...new Set(measures)].filter(member => adhocFindMeasure(member));
+  const existing = [...new Set(measures)].filter(member => callReportVirtualMeasure(member) || adhocFindMeasure(member));
   if (!dimensionMember) return existing;
   const requiredMembers = callReportUniqueDimensionMembers([dimensionMember, ...(extraDimensionMembers || [])]);
-  return existing.filter(member => callReportMeasureCompatibilityForDimensions(member, requiredMembers).enabled);
+  const compatible = existing.filter(member => {
+    const virtual = callReportVirtualMeasure(member);
+    const checkMember = virtual ? (virtual.dependencies || [])[0] : member;
+    return callReportMeasureCompatibilityForDimensions(checkMember, requiredMembers).enabled;
+  });
+  const trusted = callReportMeasuresByTables(callReportQueryMeasures(existing), trustedTables || []);
+  if (primaryVirtual && !compatible.includes(primaryMeasure)) compatible.unshift(primaryMeasure);
+  return [...new Set([...compatible, ...trusted])];
 }
 
 function callReportFormatMeasureValue(member, value) {
+  if (callReportVirtualMeasure(member)?.format === 'ratio_percent') return callReportRate(Number(value || 0) * 100, 1);
   if (String(member).includes('coverage_rate')) return callReportCoverage(value);
   if (String(member).includes('score')) return callReportNum(value, 1);
   return callReportNum(value);
 }
 
+function callReportUsesCallSopKpiDrill(ctx={}, primaryMeasure='') {
+  return Boolean(ctx.callSopKpiDrill || [
+    'ad.sop_total_call_count',
+    'ad.effective_connect_rate',
+    'ad.sop_checkpoint_pass_rate',
+    'ad.quality_issue_rate',
+  ].includes(primaryMeasure));
+}
+
 function callReportMeasureTone(member, value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return '';
+  if (member === 'ad.effective_connect_rate') return n < .7 ? 'bad' : n < .9 ? 'warn' : '';
   if (String(member).includes('avg_call_quality_score')) return n <= 50 ? 'bad' : n < 60 ? 'warn' : '';
   if (String(member).includes('coverage_rate')) return n < .5 ? 'bad' : n < .6 ? 'warn' : '';
   if (String(member).includes('low_quality') || String(member).includes('low_coverage') || String(member).includes('missing_slot')) return n >= 5 ? 'bad' : n >= 2 ? 'warn' : '';
   return '';
+}
+
+function callReportWorkbenchStateFromDrill(drill={}, filters=[]) {
+  const filterValue = member => (filters || []).find(item => item?.member === member)?.values?.[0] || '';
+  return {
+    result: drill.result || '全部结果',
+    grade: drill.grade || '全部达成',
+    sop: drill.sop || '全部SOP',
+    sopLevel: drill.level || '',
+    expert: drill.expert || filterValue('ad.sales_expert') || '',
+    issue: drill.issue || filterValue('ad.quality_issue_category') || '',
+    checkpoint: drill.checkpoint || '',
+    checkpointHit: drill.checkpointHit || '',
+  };
+}
+
+function callReportWorkbenchRecordMatchesFilters(record={}, filters=[]) {
+  return (filters || []).every(filter => {
+    const values = filter?.values || [];
+    if (!filter?.member || !values.length) return true;
+    const member = filter.member;
+    if (member === 'ad.date_day' || member === 'ad.store') return true;
+    const actual = {
+      'ad.sales_expert': record.expertName,
+      'ad.intent': record.intentName || record.intentOriginalName,
+      'ad.quality_issue_category': record.issueCategory,
+      'ad.quality_score_level': record.sopGradeLabel,
+      'ad.quality_pass': record.sopGradeLabel === '未达成' ? '未通过' : '通过',
+      'ad.store': record.storeName,
+      'ad.date_day': record.activityDate,
+    }[member];
+    if (actual === undefined) return true;
+    const op = String(filter.operator || 'in').toLowerCase();
+    if (op === 'equals' || op === '=' || op === 'eq') return String(actual) === String(values[0]);
+    if (op === 'not_equals' || op === 'neq' || op === '!=') return String(actual) !== String(values[0]);
+    return values.map(String).includes(String(actual));
+  });
+}
+
+function callReportWorkbenchDimensionValue(record={}, member='') {
+  if (member === 'ad.sales_expert') return record.expertName || '-';
+  if (member === 'ad.intent') return record.intentName || record.intentOriginalName || '-';
+  if (member === 'ad.quality_issue_category') return record.issueCategory || '-';
+  if (member === 'ad.quality_score_level') return record.sopGradeLabel || '-';
+  if (member === 'ad.quality_pass') return record.sopGradeLabel === '未达成' ? '未通过' : '通过';
+  if (member === 'ad.date_day') return record.activityDate || record.dateLabel || '-';
+  if (member === 'ad.store') return record.storeName || '-';
+  if (member === 'ad.call_flow_total') return record.inviteResultLabel || '-';
+  return record[member] || '-';
+}
+
+function callReportWorkbenchGradeScore(record={}) {
+  const label = String(record.sopGradeLabel || '');
+  if (label.includes('高质量')) return 85;
+  if (label.includes('标准')) return 65;
+  if (label.includes('基础')) return 45;
+  if (label.includes('未达')) return 25;
+  return 0;
+}
+
+function callReportWorkbenchEvidenceScope(record={}, drill={}) {
+  const rows = callWorkbenchEvidenceList(record);
+  if (drill.sop && drill.sop !== '全部SOP') {
+    const selected = rows.find(item => item.name === drill.sop || item.code === drill.sop);
+    return selected ? [selected] : [];
+  }
+  return rows;
+}
+
+function callReportWorkbenchAggregateRows(records=[], dimensionMember='', measures=[], drill={}) {
+  const groups = new Map();
+  (records || []).forEach(record => {
+    const key = callReportWorkbenchDimensionValue(record, dimensionMember);
+    const row = groups.get(key) || {
+      [dimensionMember]: key,
+      __count:0,
+      __connected:0,
+      __scoreTotal:0,
+      __coverageTotal:0,
+      __hitChecks:0,
+      __totalChecks:0,
+      __lowQuality:0,
+      __lowCoverage:0,
+      __problemCalls:0,
+      __missing:0,
+    };
+    const evidenceRows = callReportWorkbenchEvidenceScope(record, drill);
+    const hitChecks = evidenceRows.reduce((sum, item) => sum + Number(item.hitCount || 0), 0);
+    const totalChecks = evidenceRows.reduce((sum, item) => sum + Number(item.totalCount || 0), 0);
+    const coverage = totalChecks ? hitChecks / totalChecks : Number(record.detail?.coverageRate || 0);
+    row.__count += 1;
+    if (record.connected) {
+      const lowQuality = Number(record.lowQualityCallCount || 0) > 0;
+      const lowCoverage = Number(record.lowCoverageCallCount || 0) > 0;
+      row.__connected += 1;
+      row.__scoreTotal += Number(record.qualityScore || 0);
+      row.__coverageTotal += Number(record.slotCoverageRate ?? coverage);
+      row.__hitChecks += hitChecks;
+      row.__totalChecks += totalChecks;
+      row.__lowQuality += lowQuality ? 1 : 0;
+      row.__lowCoverage += lowCoverage ? 1 : 0;
+      row.__problemCalls += (lowQuality || lowCoverage) ? 1 : 0;
+      row.__missing += Number(record.missingSlotCount || 0);
+    }
+    groups.set(key, row);
+  });
+  return Array.from(groups.values()).map(row => {
+    const total = row.__count || 0;
+    const connected = row.__connected || 0;
+    row['ad.quality_record_count'] = total;
+    row['ad.sop_total_call_count'] = total;
+    row['ad.phone_call_count'] = total;
+    row['ad.connected_call_count'] = connected;
+    row['ad.effective_connect_rate'] = total ? connected / total : 0;
+    row['ad.avg_call_quality_score'] = connected ? row.__scoreTotal / connected : 0;
+    row['ad.avg_slot_coverage_rate'] = connected ? row.__coverageTotal / connected : 0;
+    row['ad.sop_hit_checkpoint_count'] = row.__hitChecks || 0;
+    row['ad.sop_total_checkpoint_count'] = row.__totalChecks || 0;
+    row['ad.sop_checkpoint_pass_rate'] = row.__totalChecks ? row.__hitChecks / row.__totalChecks : 0;
+    row['ad.low_quality_call_count'] = row.__lowQuality || 0;
+    row['ad.low_coverage_call_count'] = row.__lowCoverage || 0;
+    row['ad.missing_slot_count'] = row.__missing || 0;
+    row['ad.quality_issue_rate'] = connected ? row.__problemCalls / connected : 0;
+    return row;
+  }).sort((a, b) => execReportValue(b, measures[0] || 'ad.quality_record_count') - execReportValue(a, measures[0] || 'ad.quality_record_count'));
+}
+
+async function callReportLoadWorkbenchDimensionDrill(ctx={}, dimensionMember='', measures=[]) {
+  const data = await callSopLoadWorkbench(ctx.filters || []);
+  const state = callReportWorkbenchStateFromDrill(ctx.workbenchDrill || {}, ctx.filters || []);
+  const filtered = callWorkbenchFilteredRecords(data.records || [], state)
+    .filter(record => callReportWorkbenchRecordMatchesFilters(record, ctx.filters || []));
+  return callReportWorkbenchAggregateRows(filtered, dimensionMember, measures, ctx.workbenchDrill || {});
 }
 
 function renderCallReportDimensionDrillResult(ctx, dim, rows, measures) {
@@ -7246,7 +7891,7 @@ function renderCallReportDimensionDrillResult(ctx, dim, rows, measures) {
   const table = rows.length ? `<table class="table table-sm table-hover mb-0 call-report-drill-result-table">
     <thead><tr>
       <th>${escHtml(title)}</th>
-      ${measures.map(member => `<th class="text-end">${escHtml(adhocMemberLabel(member))}</th>`).join('')}
+      ${measures.map(member => `<th class="text-end">${escHtml(callReportMemberLabel(member))}</th>`).join('')}
     </tr></thead>
     <tbody>${rows.map(row => {
       const value = row[dimName] ?? '-';
@@ -7254,12 +7899,15 @@ function renderCallReportDimensionDrillResult(ctx, dim, rows, measures) {
       const primaryValue = execReportValue(row, primary);
       const pct = Math.max(4, Math.min(100, Math.abs(primaryValue) / maxPrimary * 100));
       const tone = callReportMeasureTone(primary, primaryValue);
+      const rowWorkbenchDrill = ctx.workbenchDrill ? {...ctx.workbenchDrill} : null;
+      if (rowWorkbenchDrill && dimName === 'ad.sales_expert') rowWorkbenchDrill.expert = value;
       const rowCtx = {
         rowLabel:value,
         columnLabel:'全部',
         currentMember:dimName,
         contextMembers:[...(ctx.contextMembers || []), dimName],
-        metricLabel:ctx.metricLabel || adhocMemberLabel(primary),
+        metricLabel:ctx.metricLabel || callReportMemberLabel(primary),
+        ...(rowWorkbenchDrill ? {workbenchDrill:rowWorkbenchDrill} : {}),
       };
       return `<tr class="call-report-drillable" ${callReportDrillAttrs(primary, rowFilters, rowCtx)}>
         <td class="fw-semibold">${escHtml(value)}</td>
@@ -7282,19 +7930,24 @@ async function applyCallReportDimensionDrill(member) {
   const dim = adhocFindDimension(member);
   if (!dim) return showToast('未找到下钻维度', 'warning');
   const primaryMeasure = ctx.measure || 'ad.quality_record_count';
+  const primaryVirtual = callReportVirtualMeasure(primaryMeasure);
+  const compatibilityMeasure = primaryVirtual ? (primaryVirtual.dependencies || [])[0] : primaryMeasure;
+  const targetMember = dim.name || member;
+  const trustedCandidate = callReportFindCandidate(ctx, targetMember);
+  const trustedTables = callReportCandidateTables(trustedCandidate);
   const requiredDimensionMembers = callReportUniqueDimensionMembers([
-    ...callReportFilterDimensionMembers(ctx.filters || []),
-    dim.name || member,
+    targetMember,
   ]);
-  const compatibility = callReportMeasureCompatibilityForDimensions(primaryMeasure, requiredDimensionMembers);
-  if (!compatibility.enabled) {
-    showToast(`不能按 ${dim.title || dim.name} 下钻：${compatibility.reason}`, 'warning');
-    return;
+  const compatibility = callReportMeasureCompatibilityForDimensions(compatibilityMeasure, requiredDimensionMembers);
+  if (!compatibility.enabled && !trustedCandidate) {
+    console.warn('call report drill uses query-time validation:', compatibility.reason);
   }
-  const measures = callReportDrillMeasures(primaryMeasure, dim.name || member, callReportFilterDimensionMembers(ctx.filters || []));
+  let measures = callReportDrillMeasures(primaryMeasure, targetMember, [], trustedTables);
+  if (trustedCandidate && !measures.includes(primaryMeasure)) {
+    measures = [primaryMeasure, ...measures];
+  }
   if (!measures.length) {
-    showToast(`当前下钻维度与可展示指标没有共用事实表`, 'warning');
-    return;
+    measures = [primaryMeasure];
   }
   bootstrap.Modal.getOrCreateInstance(document.getElementById('call-report-drill-modal')).hide();
   const drawer = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('pivot-drill-drawer'));
@@ -7311,13 +7964,37 @@ async function applyCallReportDimensionDrill(member) {
   try {
     const primary = measures.includes(primaryMeasure) ? primaryMeasure : measures[0];
     const sortAsc = String(primary).includes('avg_call_quality_score');
-    const rows = await execReportLoad({
-      measures,
-      dimensions:[dim.name || member],
-      filters:ctx.filters || [],
-      order:{[primary]: sortAsc ? 'asc' : 'desc'},
-      limit:200,
-    });
+    let rows = [];
+    if (ctx.workbenchDrill) {
+      rows = await callReportLoadWorkbenchDimensionDrill(ctx, targetMember, measures);
+    } else if (callReportUsesCallSopKpiDrill(ctx, primaryMeasure)) {
+      try {
+        rows = await callReportLoadCallSopKpiDrill(ctx, targetMember, 200);
+      } catch(kpiDrillError) {
+        console.warn('call SOP KPI drill fallback:', kpiDrillError);
+        const queryMeasures = callReportQueryMeasures(measures);
+        const rawRows = await execReportLoad({
+          measures: queryMeasures,
+          dimensions:[targetMember],
+          filters:ctx.filters || [],
+          order:{'ad.quality_record_count': 'desc'},
+          limit:200,
+        });
+        rows = callReportApplyVirtualMeasures(rawRows, measures);
+        showToast('该维度暂未接入专属 KPI 口径，已使用语义计数口径兜底', 'warning');
+      }
+    } else {
+      const queryMeasures = callReportQueryMeasures(measures);
+      const sortQueryMeasure = callReportVirtualMeasure(primary) ? (callReportVirtualMeasure(primary).dependencies || [])[0] : primary;
+      const rawRows = await execReportLoad({
+        measures: queryMeasures,
+        dimensions:[targetMember],
+        filters:ctx.filters || [],
+        order:{[sortQueryMeasure]: sortAsc ? 'asc' : 'desc'},
+        limit:200,
+      });
+      rows = callReportApplyVirtualMeasures(rawRows, measures);
+    }
     const sortedRows = [...rows].sort((a, b) => sortAsc
       ? execReportValue(a, primary) - execReportValue(b, primary)
       : execReportValue(b, primary) - execReportValue(a, primary));
@@ -7561,6 +8238,1063 @@ function callReportHeadTailComparison(expertRows, baseFilters=[]) {
   <div class="exec-report-hint">${escHtml(conclusion)}</div>`;
 }
 
+function callSopRuleCatalog() {
+  return [
+    {key:'自我介绍', aliases:['RULE_000'], desc:'清晰说明产品专家身份、门店与来电原因', checks:[
+      ['是否介绍自己', '说明自己是产品专家/顾问，而不是泛泛说“这边”。'],
+      ['是否说明来自哪里', '说明品牌、门店或线索来源，降低客户陌生感。'],
+      ['是否表明来意', '说清楚本通电话是围绕试驾邀约或到店安排。'],
+    ]},
+    {key:'回忆唤起', aliases:['RULE_001'], desc:'帮助客户回忆线索来源、关注车型或上次沟通背景', checks:[
+      ['是否提及线索来源', '说明客户曾留资、关注车型或咨询入口。'],
+      ['是否唤起关注车型', '提及客户看过或关注过的车型。'],
+      ['是否承接上次沟通', '承接客户此前表达过的需求或顾虑。'],
+    ]},
+    {key:'信息建立', aliases:['RULE_002'], desc:'围绕客户关注点补充关键信息，降低试驾决策成本', checks:[
+      ['是否回应客户关注点', '围绕空间、智驾、补能等关注点补充信息。'],
+      ['是否建立试驾价值', '说明为什么需要到店体验，而非只催促到店。'],
+      ['是否结合客户场景', '把信息与家庭、通勤、长途等用车场景关联。'],
+    ]},
+    {key:'封闭式邀约', aliases:['RULE_003'], desc:'使用明确、可选择的邀约方式推进试驾', checks:[
+      ['是否给出明确时间', '提供具体日期或时间段，而非只说“有空”。'],
+      ['是否使用二选一推进', '用两个可选时间降低客户决策成本。'],
+      ['是否绑定试驾动作', '明确邀请客户到店试驾，而非泛泛来看看。'],
+    ]},
+    {key:'异议处理', aliases:['RULE_004'], desc:'识别客户顾虑并给出具体回应', checks:[
+      ['是否识别异议类型', '区分忙、远、价格、竞品、暂不考虑等原因。'],
+      ['是否追问真实原因', '客户拒绝时继续澄清背后的阻碍。'],
+      ['是否给出替代方案', '提供改约、线上讲解、短时体验等方案。'],
+    ]},
+    {key:'约定确认', aliases:['RULE_005'], desc:'确认到店时间、门店地址、联系人与后续动作', checks:[
+      ['是否确认到店时间', '明确客户计划到店的日期和时间段。'],
+      ['是否确认门店地址', '同步门店地址或导航信息。'],
+      ['是否说明后续动作', '说明加微、发定位、再次联系等下一步。'],
+    ]},
+    {key:'探需覆盖', aliases:['RULE_006'], desc:'覆盖购车时间、预算、场景、竞品、充电条件等', checks:[
+      ['是否覆盖购车时间', '了解客户计划什么时候买车或换车。'],
+      ['是否覆盖预算', '了解客户预算或价格敏感点。'],
+      ['是否覆盖用车场景', '了解家庭人数、通勤、长途、补能等场景。'],
+    ]},
+    {key:'邀约结果', aliases:['RULE_007'], desc:'明确本通电话的邀约结果，形成可追踪的下一步状态', checks:[
+      ['是否明确结果状态', '标明邀约成功或邀约失败。'],
+      ['是否记录失败原因', '邀约失败时记录客户拒绝原因。'],
+      ['是否记录下一步动作', '明确后续联系、发资料、改约或无需跟进。'],
+    ]},
+  ];
+}
+
+function callSopRuleMeta(ruleName) {
+  const text = String(ruleName || '');
+  const hit = callSopRuleCatalog().find(item => {
+    const aliases = [item.key, ...(item.aliases || [])];
+    return aliases.some(alias => text === alias || text.includes(alias) || item.key.includes(text));
+  });
+  if (!hit && text === 'RULE_NULL') {
+    return {
+      key:'未归类质检项',
+      desc:'尚未映射到标准 SOP 的接通电话质量规则。',
+      checks:[
+        ['是否归入标准口径', '确认该规则是否应并入已有 SOP 环节。'],
+        ['是否影响客户体验', '判断该问题是否造成客户理解或推进断点。'],
+        ['是否需要新增规则', '必要时补充为新的质检规则或检查点。'],
+      ],
+    };
+  }
+  return hit || {
+    key:text || '未命名质检项',
+    desc:'接通电话中的关键沟通动作，按质检分层观察达成质量。',
+    checks:[
+      ['是否触达关键动作', '检查该 SOP 环节是否在通话中被明确执行。'],
+      ['是否表达清晰', '检查表达是否能让客户理解下一步安排。'],
+      ['是否形成闭环', '检查是否沉淀为可追踪的客户跟进动作。'],
+    ],
+  };
+}
+
+function callSopRuleDisplay(ruleName) {
+  const meta = callSopRuleMeta(ruleName);
+  return meta.key;
+}
+
+function callSopCanonicalRuleName(ruleName) {
+  const meta = callSopRuleMeta(ruleName);
+  return (meta.aliases || [])[0] || meta.key || String(ruleName || '-');
+}
+
+function callSopRuleCatalogIndex(ruleName) {
+  const text = String(ruleName || '');
+  const idx = callSopRuleCatalog().findIndex(item =>
+    [item.key, ...(item.aliases || [])].some(alias => text === alias || text.includes(alias) || item.key.includes(text))
+  );
+  return idx >= 0 ? idx : 999;
+}
+
+function callSopLevelBucket(label) {
+  const text = String(label || '');
+  if (text.includes('高质量') || text.includes('优秀')) return 'high';
+  if (text.includes('标准') || text.includes('良好')) return 'standard';
+  if (text.includes('基础') || text.includes('合格')) return 'basic';
+  if (text.includes('未达') || text.includes('未通过') || text.includes('失败')) return 'miss';
+  return 'miss';
+}
+
+function callSopEmptyDistribution(name='-') {
+  return {name, high:0, standard:0, basic:0, miss:0, total:0, achieved:0, achievedRate:0, rawValues:[]};
+}
+
+function callSopBuildDistributions(rows=[], nameKey) {
+  const grouped = new Map();
+  if (nameKey === 'ad.quality_rule') {
+    callSopRuleCatalog().forEach((meta, idx) => {
+      const name = (meta.aliases || [])[0] || meta.key;
+      grouped.set(name, {...callSopEmptyDistribution(name), catalogIndex:idx});
+    });
+  }
+  (rows || []).forEach(row => {
+    const rawName = row[nameKey] || '-';
+    const name = nameKey === 'ad.quality_rule' ? callSopCanonicalRuleName(rawName) : rawName;
+    const current = grouped.get(name) || {...callSopEmptyDistribution(name), catalogIndex:callSopRuleCatalogIndex(name)};
+    const bucket = callSopLevelBucket(row['ad.quality_score_level']);
+    const value = execReportValue(row, 'ad.quality_record_count');
+    current[bucket] += value;
+    current.total += value;
+    if (!current.rawValues.includes(rawName)) current.rawValues.push(rawName);
+    grouped.set(name, current);
+  });
+  return Array.from(grouped.values()).map(item => {
+    item.achieved = item.high + item.standard + item.basic;
+    item.achievedRate = item.total ? item.achieved / item.total * 100 : 0;
+    return item;
+  }).sort((a, b) => (a.catalogIndex ?? 999) - (b.catalogIndex ?? 999) || b.total - a.total);
+}
+
+async function callSopLoadAnalysis(filters=[]) {
+  const resp = await fetch('/api/da-tms/call-sop/diagnosis', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({filters}),
+  });
+  const data = await resp.json();
+  if (!resp.ok || data.error) throw new Error(data.error || `HTTP ${resp.status}`);
+  return data;
+}
+
+function callSopCategoryItemFromAnalysis(category={}) {
+  const total = Number(category.total || 0);
+  const high = Number(category.high || 0);
+  const standard = Number(category.standard || 0);
+  const basic = Number(category.basic || 0);
+  const miss = Number(category.miss || Math.max(0, total - high - standard - basic));
+  const hitCheckpointCount = Number(category.hitCheckpointCount || 0);
+  const totalCheckpointCount = Number(category.totalCheckpointCount || 0);
+  return {
+    name: category.code || category.name || '-',
+    high,
+    standard,
+    basic,
+    miss,
+    total,
+    achieved: high + standard + basic,
+    achievedRate: totalCheckpointCount ? hitCheckpointCount / totalCheckpointCount * 100 : Number(category.achievedRate || 0),
+    hitCheckpointCount,
+    totalCheckpointCount,
+    checkStats: (category.checks || []).map(item => ({
+      code:item.code,
+      name:item.name,
+      description:item.description,
+      total:Number(item.total || 0),
+      hit:Number(item.hit || 0),
+      rate:Number(item.rate || 0),
+      evidence:item.evidence || '',
+    })),
+    catalogIndex: callSopRuleCatalogIndex(category.code || category.name || ''),
+  };
+}
+
+function callSopItemsFromAnalysis(analysis) {
+  return (analysis?.categories || []).map(callSopCategoryItemFromAnalysis)
+    .sort((a, b) => (a.catalogIndex ?? 999) - (b.catalogIndex ?? 999) || b.total - a.total);
+}
+
+function callSopExpertRuleMapFromAnalysis(analysis) {
+  const result = new Map();
+  (analysis?.experts || []).forEach(expert => {
+    result.set(expert.name || '-', (expert.categories || []).map(callSopCategoryItemFromAnalysis));
+  });
+  return result;
+}
+
+function callSopExpertItemsFromAnalysis(analysis) {
+  return (analysis?.experts || []).map(expert => {
+    const categoryItems = (expert.categories || []).map(callSopCategoryItemFromAnalysis);
+    const hasOverallDistribution = ['high','standard','basic','miss']
+      .every(key => Object.prototype.hasOwnProperty.call(expert, key));
+    const high = hasOverallDistribution
+      ? Number(expert.high || 0)
+      : categoryItems.reduce((sum, item) => sum + Number(item.high || 0), 0);
+    const standard = hasOverallDistribution
+      ? Number(expert.standard || 0)
+      : categoryItems.reduce((sum, item) => sum + Number(item.standard || 0), 0);
+    const basic = hasOverallDistribution
+      ? Number(expert.basic || 0)
+      : categoryItems.reduce((sum, item) => sum + Number(item.basic || 0), 0);
+    const miss = hasOverallDistribution
+      ? Number(expert.miss || 0)
+      : categoryItems.reduce((sum, item) => sum + Number(item.miss || 0), 0);
+    const total = high + standard + basic + miss;
+    const hitCheckpointCount = Number(expert.hitCheckpointCount || 0);
+    const totalCheckpointCount = Number(expert.totalCheckpointCount || 0);
+    return {
+      name: expert.name || '-',
+      high,
+      standard,
+      basic,
+      miss,
+      total,
+      achieved: high + standard + basic,
+      achievedRate: totalCheckpointCount ? hitCheckpointCount / totalCheckpointCount * 100 : Number(expert.achievedRate || 0),
+      hitCheckpointCount,
+      totalCheckpointCount,
+    };
+  });
+}
+
+function callSopLevelGradeLabel(level) {
+  return ({high:'高质量达成', standard:'标准达成', basic:'基础达成', miss:'未达成'})[level] || '';
+}
+
+function callSopVersionLabel(value='') {
+  return String(value || 'v1.0').replace(/^call_sop_/, '');
+}
+
+function callSopDrillAttrs(drill={}) {
+  const clean = Object.fromEntries(Object.entries(drill || {}).filter(([, value]) => value !== undefined && value !== null && String(value) !== ''));
+  if (!Object.keys(clean).length) return '';
+  return `data-sop-drill="${escHtml(encodeURIComponent(JSON.stringify(clean)))}"`;
+}
+
+function callSopDrillFilters(baseFilters=[], drill={}) {
+  const extras = [];
+  if (drill.expert) extras.push(callReportDimensionFilter('ad.sales_expert', drill.expert));
+  if (drill.issue) extras.push(callReportDimensionFilter('ad.quality_issue_category', drill.issue));
+  return callReportMergedFilters(baseFilters, extras);
+}
+
+function callSopOpenDrillChooser(drill={}, baseFilters=[]) {
+  const filters = callSopDrillFilters(baseFilters, drill);
+  const parts = [drill.expert, drill.sop, drill.checkpoint, drill.issue].filter(Boolean);
+  const levelText = drill.grade || callSopLevelGradeLabel(drill.level) || drill.result || '全部';
+  const context = {
+    metricLabel: drill.checkpoint ? 'SOP小达成点样本' : drill.sop ? 'SOP达成样本' : drill.issue ? '质量问题通话' : '专家通话样本',
+    rowLabel: parts.join(' · ') || '全部',
+    columnLabel: levelText,
+    currentMember: drill.expert ? 'ad.sales_expert' : '',
+    contextMembers: drill.expert ? ['ad.sales_expert'] : [],
+    workbenchDrill: drill,
+  };
+  openCallReportDrillChooser(
+    'ad.quality_record_count',
+    encodeURIComponent(JSON.stringify(filters)),
+    encodeURIComponent(JSON.stringify(context))
+  );
+}
+
+function callSopBindDrillElements(root, baseFilters=[]) {
+  if (!root) return;
+  root.querySelectorAll('[data-sop-drill]').forEach(el => {
+    const activate = event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const encoded = el.getAttribute('data-sop-drill') || '';
+      const drill = callReportDecodePayload(encoded, {});
+      if (el.dataset.sopDirect === 'true') {
+        callSopOpenWorkbenchDrill(drill, baseFilters);
+        return;
+      }
+      callSopOpenDrillChooser(drill, baseFilters);
+    };
+    el.addEventListener('click', activate);
+    if (el.tagName !== 'BUTTON') {
+      el.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        activate(event);
+      });
+    }
+  });
+}
+
+function callSopSegmentHtml(value, total, cls, label, drill={}) {
+  if (!total || value <= 0) return '';
+  const pct = value / total * 100;
+  const shown = pct >= 7 ? `${Math.round(pct)}%` : '';
+  const nextDrill = {...drill, level:cls, grade:callSopLevelGradeLabel(cls)};
+  const attrs = callSopDrillAttrs(nextDrill);
+  return `<button type="button" class="sop-seg ${cls}" style="width:${pct.toFixed(3)}%" title="${escHtml(label)} ${escHtml(callReportNum(value))} 通，${escHtml(callReportRate(pct, 1))}" ${attrs}>${escHtml(shown)}</button>`;
+}
+
+function callSopStackHtml(item, drill={}) {
+  const total = Math.max(1, item.total || 0);
+  return `<div class="sop-stack">
+    ${callSopSegmentHtml(item.high, total, 'high', '高质量', drill)}
+    ${callSopSegmentHtml(item.standard, total, 'standard', '标准', drill)}
+    ${callSopSegmentHtml(item.basic, total, 'basic', '基础', drill)}
+    ${callSopSegmentHtml(item.miss, total, 'miss', '未达成', drill)}
+  </div>`;
+}
+
+function callSopCompactStackHtml(item, drill={}) {
+  const total = Math.max(1, item.total || 0);
+  return `<div class="sop-stack sop-compact-stack">
+    ${callSopSegmentHtml(item.high, total, 'high', '高质量', drill)}
+    ${callSopSegmentHtml(item.standard, total, 'standard', '标准', drill)}
+    ${callSopSegmentHtml(item.basic, total, 'basic', '基础', drill)}
+    ${callSopSegmentHtml(item.miss, total, 'miss', '未达成', drill)}
+  </div>`;
+}
+
+function callSopRuleRowsHtml(ruleItems, baseFilters=[], expandedIndex=null) {
+  const ordered = [...(ruleItems || [])].sort((a, b) => (a.catalogIndex ?? 999) - (b.catalogIndex ?? 999) || b.total - a.total);
+  return ordered.map((item, index) => {
+    const meta = callSopRuleMeta(item.name);
+    const active = index === expandedIndex;
+    const rowStat = item.totalCheckpointCount
+      ? `检查点命中 ${callReportNum(item.hitCheckpointCount)} / ${callReportNum(item.totalCheckpointCount)}`
+      : `达成通话 ${callReportNum(item.achieved)}，未达成通话 ${callReportNum(item.miss)}`;
+    return `<div class="sop-row ${active ? 'active' : ''}" data-sop-index="${index}">
+      <button type="button" class="sop-row-main" data-sop-toggle aria-expanded="${active ? 'true' : 'false'}">
+        <b>${escHtml(callSopRuleDisplay(item.name))}</b>
+        <strong>检查点命中率 ${escHtml(callReportRate(item.achievedRate, 0))}</strong>
+        <p>${escHtml(meta.desc)}</p>
+        <span class="sop-row-toggle">${active ? '收起小达成点' : '展开小达成点'}</span>
+      </button>
+      <div>
+        <div class="sop-row-stat"><span>${escHtml(rowStat)}</span><span>通话样本 ${escHtml(callReportNum(item.total))}</span></div>
+        ${callSopStackHtml(item, {sop:meta.key})}
+      </div>
+    </div>
+    ${active ? callSopCheckDetailHtml(item) : ''}`;
+  }).join('') || '<div class="text-muted p-3">暂无 SOP 质检规则分布。</div>';
+}
+
+function callSopCheckDetailHtml(item=null) {
+  if (!item) return '';
+  const meta = callSopRuleMeta(item.name);
+  const total = Math.max(1, item.total || 0);
+  const highPct = item.high / total * 100;
+  const standardPct = item.standard / total * 100;
+  const basicPct = item.basic / total * 100;
+  const derivedRates = item.total ? [
+    Math.min(98, item.achievedRate + highPct * 0.25),
+    Math.min(96, highPct + standardPct + basicPct * 0.5),
+    Math.max(0, item.achievedRate - (item.miss / total * 10)),
+  ] : [0, 0, 0];
+  const exactStats = Array.isArray(item.checkStats) ? item.checkStats : [];
+  const rows = (meta.checks || []).map((check, idx) => {
+    const exact = exactStats.find(stat => stat.name === check[0] || stat.code === `${item.name}_${String(idx + 1).padStart(2, '0')}`);
+    const rate = Math.max(0, Math.min(100, exact ? Number(exact.rate || 0) : (derivedRates[idx] ?? item.achievedRate)));
+    const accent = rate < 45 ? '#c84b4b' : rate < 65 ? '#d99042' : '#14806f';
+    return `<div class="sop-check-row sop-drillable" style="--exec-accent:${accent}" role="button" tabindex="0" ${callSopDrillAttrs({sop:meta.key, checkpoint:check[0], checkpointHit:'hit'})}>
+      <div><b>${escHtml(check[0])}</b><p>${escHtml(check[1])}</p></div>
+      <div class="sop-mini-track"><div class="sop-mini-fill" style="width:${rate.toFixed(1)}%"></div></div>
+      <strong style="color:${accent};text-align:right">${escHtml(callReportRate(rate, 0))}</strong>
+    </div>`;
+  }).join('');
+  return `<div class="sop-detail">
+    <div class="sop-detail-head"><span>${escHtml(callSopRuleDisplay(item.name))} · 3 个检查点</span><span>检查点命中率按各检查点在全部有效通话中的命中情况计算</span></div>
+    ${rows}
+  </div>`;
+}
+
+function callSopBuildExpertRuleMap(rows=[]) {
+  const grouped = new Map();
+  (rows || []).forEach(row => {
+    const expert = row['ad.sales_expert'] || '-';
+    if (!grouped.has(expert)) grouped.set(expert, []);
+    grouped.get(expert).push(row);
+  });
+  const result = new Map();
+  grouped.forEach((items, expert) => {
+    result.set(expert, callSopBuildDistributions(items, 'ad.quality_rule'));
+  });
+  return result;
+}
+
+function callSopExpertDetailHtml(expertName, expertRuleItems=[]) {
+  const rows = expertRuleItems.length ? expertRuleItems : callSopBuildDistributions([], 'ad.quality_rule');
+  const sopClassTotal = rows.length || callSopRuleCatalog().length;
+  return `<div class="sop-expert-detail">
+    <div class="sop-expert-detail-title"><span>${escHtml(expertName)} · ${escHtml(callReportNum(sopClassTotal))} 类 SOP 检查分布</span><em>检查点命中率</em></div>
+    <div class="sop-expert-sop-list">
+      ${rows.map(item => `<div class="sop-expert-sop-row">
+        <div class="sop-expert-sop-top"><span>${escHtml(callSopRuleMeta(item.name).key)}</span><span>${escHtml(callReportRate(item.achievedRate, 0))}</span></div>
+        ${callSopCompactStackHtml(item, {expert:expertName, sop:callSopRuleMeta(item.name).key})}
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+const CALL_SOP_EXPERT_MIN_SAMPLE = 5;
+
+function callSopSortedExpertItems(expertItems=[]) {
+  return [...(expertItems || [])]
+    .filter(item => item.name && item.name !== '-')
+    .sort((a, b) => {
+      const aEnough = Number(a.total || 0) >= CALL_SOP_EXPERT_MIN_SAMPLE;
+      const bEnough = Number(b.total || 0) >= CALL_SOP_EXPERT_MIN_SAMPLE;
+      if (aEnough !== bEnough) return bEnough - aEnough;
+      if (!aEnough) return b.total - a.total || b.achievedRate - a.achievedRate;
+      return b.achievedRate - a.achievedRate || b.total - a.total;
+    });
+}
+
+function callSopExpertCardsHtml(expertItems, expertRuleMap=new Map(), expandedExpert='') {
+  const rows = callSopSortedExpertItems(expertItems);
+  return rows.map(item => {
+    const active = item.name === expandedExpert;
+    const sampleWarning = Number(item.total || 0) < CALL_SOP_EXPERT_MIN_SAMPLE;
+    return `<div class="sop-expert-card ${active ? 'active' : ''}" data-expert="${escHtml(item.name)}">
+      <button type="button" class="sop-expert-toggle" data-expert-toggle aria-expanded="${active ? 'true' : 'false'}">
+        <span class="sop-expert-head"><b>${escHtml(item.name)}</b><span class="sop-expert-summary"><span>${escHtml(callReportNum(item.total))} 通</span>${sampleWarning ? '<span class="sop-expert-sample-warning">样本不足</span>' : ''}<strong>${escHtml(callReportRate(item.achievedRate, 0))}</strong></span></span>
+      </button>
+      ${callSopCompactStackHtml(item, {expert:item.name})}
+      ${active ? callSopExpertDetailHtml(item.name, expertRuleMap.get(item.name) || []) : ''}
+    </div>`;
+  }).join('') || '<div class="text-muted p-3">暂无专家分布。</div>';
+}
+
+function callSopIssueCardsHtml(issueRows=[], ruleItems=[], expertItems=[], summary={}) {
+  const topIssue = [...issueRows].sort((a, b) => execReportValue(b, 'ad.quality_record_count') - execReportValue(a, 'ad.quality_record_count'))[0] || {};
+  const weakRule = [...ruleItems].filter(item => item.total).sort((a, b) => a.achievedRate - b.achievedRate || b.total - a.total)[0] || {};
+  const expertCandidates = [...expertItems].filter(item => item.total && item.name !== '-');
+  const enoughSampleExperts = expertCandidates.filter(item => Number(item.total || 0) >= CALL_SOP_EXPERT_MIN_SAMPLE);
+  const weakExpert = [...(enoughSampleExperts.length ? enoughSampleExperts : expertCandidates)].sort((a, b) => a.achievedRate - b.achievedRate || b.miss - a.miss)[0] || {};
+  const issueName = topIssue['ad.quality_issue_category'] || '';
+  const weakSop = weakRule.name ? callSopRuleMeta(weakRule.name).key : '';
+  const lowQuality = Number(summary.lowQualityCallCount || 0);
+  const lowCoverage = Number(summary.lowCoverageCallCount || 0);
+  const overlap = Number(summary.overlappingProblemCallCount || 0);
+  const problemCalls = Number(summary.problemCallCount || Math.max(0, lowQuality + lowCoverage - overlap));
+  return `<div class="sop-issue-grid">
+    <button type="button" class="sop-issue-card" style="--exec-accent:#c84b4b" data-sop-direct="true" ${callSopDrillAttrs({problem:'quality', connected:'true', group:'problem'})}><b>优先处理问题</b><p>问题通话 ${escHtml(callReportNum(problemCalls))} 通：低质量 ${escHtml(callReportNum(lowQuality))} 通、低覆盖 ${escHtml(callReportNum(lowCoverage))} 通、两类重合 ${escHtml(callReportNum(overlap))} 通。${issueName ? `主要分类为 ${escHtml(issueName)}（${escHtml(callReportNum(topIssue['ad.quality_record_count'] || 0))} 通）。` : ''}</p><span class="sop-issue-link">按问题类型统一处理 →</span></button>
+    <button type="button" class="sop-issue-card" style="--exec-accent:#d99042" data-sop-direct="true" ${callSopDrillAttrs({sop:weakSop, level:'miss', grade:'未达成', connected:'true', group:'sop'})}><b>SOP 短板环节</b><p>${escHtml(weakRule.name ? callSopRuleDisplay(weakRule.name) : '暂无明显短板')} 检查点命中率 ${escHtml(callReportRate(weakRule.achievedRate || 0, 0))}，未达成 ${escHtml(callReportNum(weakRule.miss || 0))} 通。</p><span class="sop-issue-link">按短板环节统一处理 →</span></button>
+    <button type="button" class="sop-issue-card" style="--exec-accent:#14806f" data-sop-direct="true" ${callSopDrillAttrs({expert:weakExpert.name || '', connected:'true', group:'expert'})}><b>专家辅导对象</b><p>${escHtml(weakExpert.name || '暂无')} 检查点命中率 ${escHtml(callReportRate(weakExpert.achievedRate || 0, 0))}，已排除少于 ${CALL_SOP_EXPERT_MIN_SAMPLE} 通的小样本，建议结合 ASR 与质检证据复盘。</p><span class="sop-issue-link">查看该专家通话 →</span></button>
+  </div>`;
+}
+
+async function renderCallSopDiagnosisWidget(targetId, spec={}, widget={}) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  target.innerHTML = `<div class="sop-diagnosis-shell d-flex align-items-center justify-content-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>正在生成通话 SOP 诊断看板...</div>`;
+  const filters = callReportFilters(spec);
+  const store = (filters.find(item => item.member === 'ad.store')?.valueLabels && Object.values(filters.find(item => item.member === 'ad.store').valueLabels)[0])
+    || (filters.find(item => item.member === 'ad.store')?.values || [])[0]
+    || '当前门店';
+  const day = (filters.find(item => item.member === 'ad.date_day')?.values || [])[0] || '当前日期';
+  const baseMeasures = ['ad.quality_record_count','ad.phone_call_count','ad.pass_call_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_quality_call_count','ad.low_coverage_call_count','ad.missing_slot_count'];
+  const baseDrillFilters = callReportMergedFilters(filters);
+  try {
+    const [summaryRows, ruleLevelRows, expertLevelRows, expertRuleLevelRows, issueRows, sopAnalysis] = await Promise.all([
+      execReportLoad({measures:baseMeasures, dimensions:[], filters, limit:1000, enableAlerts:false}),
+      execReportLoad({measures:['ad.quality_record_count'], dimensions:['ad.quality_rule','ad.quality_score_level'], filters, order:{'ad.quality_record_count':'desc'}, limit:1000, enableAlerts:false}),
+      execReportLoad({measures:['ad.quality_record_count'], dimensions:['ad.sales_expert','ad.quality_score_level'], filters, order:{'ad.quality_record_count':'desc'}, limit:1000, enableAlerts:false}),
+      execReportLoad({measures:['ad.quality_record_count'], dimensions:['ad.sales_expert','ad.quality_rule','ad.quality_score_level'], filters, order:{'ad.quality_record_count':'desc'}, limit:3000, enableAlerts:false}),
+      execReportLoad({measures:['ad.quality_record_count'], dimensions:['ad.quality_issue_category'], filters, order:{'ad.quality_record_count':'desc'}, limit:20, enableAlerts:false}),
+      callSopLoadAnalysis(filters),
+    ]);
+    const summary = summaryRows[0] || {};
+    const sopSummary = sopAnalysis?.summary || {};
+    const totalCalls = Number(sopSummary.totalCalls || execReportValue(summary, 'ad.phone_call_count'));
+    const validCalls = Number(sopSummary.connectedCalls || execReportValue(summary, 'ad.quality_record_count'));
+    const pass = execReportValue(summary, 'ad.pass_call_count');
+    const lowQuality = sopSummary.lowQualityCallCount !== undefined
+      ? Number(sopSummary.lowQualityCallCount || 0)
+      : execReportValue(summary, 'ad.low_quality_call_count');
+    const lowCoverage = sopSummary.lowCoverageCallCount !== undefined
+      ? Number(sopSummary.lowCoverageCallCount || 0)
+      : execReportValue(summary, 'ad.low_coverage_call_count');
+    const overlappingProblems = Number(sopSummary.overlappingProblemCallCount || 0);
+    const problemCalls = sopSummary.problemCallCount !== undefined
+      ? Number(sopSummary.problemCallCount || 0)
+      : Math.max(0, lowQuality + lowCoverage - overlappingProblems);
+    const avgScore = sopSummary.avgQualityScore !== undefined
+      ? Number(sopSummary.avgQualityScore || 0)
+      : execReportValue(summary, 'ad.avg_call_quality_score');
+    const connectRate = totalCalls ? validCalls / totalCalls * 100 : 0;
+    const passRate = sopSummary.totalCheckpointCount ? Number(sopSummary.coverageRate || 0) * 100 : (validCalls ? pass / validCalls * 100 : 0);
+    const issueRate = sopSummary.qualityIssueRate !== undefined
+      ? Number(sopSummary.qualityIssueRate || 0) * 100
+      : (validCalls ? Math.min(100, problemCalls / validCalls * 100) : 0);
+    let ruleItems = callSopBuildDistributions(ruleLevelRows, 'ad.quality_rule');
+    let expertItems = callSopBuildDistributions(expertLevelRows, 'ad.sales_expert');
+    let expertRuleMap = callSopBuildExpertRuleMap(expertRuleLevelRows);
+    let qualityIssueRows = issueRows;
+    if (sopAnalysis?.categories?.length) {
+      ruleItems = callSopItemsFromAnalysis(sopAnalysis);
+      expertItems = callSopExpertItemsFromAnalysis(sopAnalysis);
+      expertRuleMap = callSopExpertRuleMapFromAnalysis(sopAnalysis);
+    }
+    if (Array.isArray(sopAnalysis?.issues)) {
+      qualityIssueRows = sopAnalysis.issues.map(item => ({
+        'ad.quality_issue_category': item.name || '未分类',
+        'ad.quality_record_count': Number(item.total || 0),
+      }));
+    }
+    const sortedExpertItems = callSopSortedExpertItems(expertItems);
+    const title = spec.view?.encoding?.reportTitle || '试驾前通话质量诊断';
+    if (!Number.isInteger(target.__sopExpandedIndex)) target.__sopExpandedIndex = null;
+    if (typeof target.__sopExpandedExpert !== 'string' || !sortedExpertItems.some(item => item.name === target.__sopExpandedExpert)) {
+      target.__sopExpandedExpert = sortedExpertItems[0]?.name || '';
+    }
+    target.innerHTML = `<div class="sop-diagnosis-shell">
+      <div class="sop-diagnosis-body">
+        <div class="sop-diagnosis-head">
+          <div class="sop-diagnosis-title"><h2>${escHtml(title)}</h2><span>通话SOP ${escHtml(callSopVersionLabel(sopAnalysis?.version))} · 有效接通口径</span></div>
+          <div class="sop-diagnosis-sub">${escHtml(day)} · ${escHtml(store)}</div>
+        </div>
+        <div class="sop-kpi-grid">
+          <div class="sop-kpi call-report-drillable" style="--exec-accent:#20332f" ${callReportDrillAttrs('ad.sop_total_call_count', baseDrillFilters, {metricLabel:'总通话量', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true})}><b>总通话量</b><span>本周期纳入试驾前通话质检范围的通话</span><strong>${escHtml(callReportNum(totalCalls || validCalls))}</strong></div>
+          <div class="sop-kpi call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.effective_connect_rate', baseDrillFilters, {metricLabel:'有效接通率', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true})}><b>有效接通率</b><span>接通且可用于 SOP 识别的通话占比</span><strong>${escHtml(callReportRate(connectRate))}</strong></div>
+          <div class="sop-kpi call-report-drillable" style="--exec-accent:#c84b4b" ${callReportDrillAttrs('ad.sop_checkpoint_pass_rate', baseDrillFilters, {metricLabel:'SOP 检查点总体命中率', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true})}><b>SOP 检查点总体命中率</b><span>命中检查点 / 全部检查点</span><strong>${escHtml(callReportRate(passRate))}</strong></div>
+          <div class="sop-kpi call-report-drillable" style="--exec-accent:#d99042" ${callReportDrillAttrs('ad.quality_issue_rate', baseDrillFilters, {metricLabel:'问题通话占比', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true})}><b>问题通话占比</b><span>${escHtml(callReportNum(problemCalls))} / ${escHtml(callReportNum(validCalls))} 通有效接通</span><strong>${escHtml(callReportRate(issueRate))}</strong></div>
+          <div class="sop-kpi call-report-drillable" style="--exec-accent:#20332f" ${callReportDrillAttrs('ad.avg_call_quality_score', baseDrillFilters, {metricLabel:'平均通话质量分', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true})}><b>平均通话质量分</b><span>接通电话质检平均分</span><strong>${escHtml(callReportNum(avgScore, 1))}</strong></div>
+        </div>
+        <section class="sop-panel mb-3">
+          <div class="sop-panel-head"><div><h3>优先行动</h3><p>问题通话已按低质量、低覆盖去重；点击卡片直接进入逐通复盘。</p></div></div>
+          ${callSopIssueCardsHtml(qualityIssueRows, ruleItems, expertItems, {
+            problemCallCount:problemCalls,
+            lowQualityCallCount:lowQuality,
+            lowCoverageCallCount:lowCoverage,
+            overlappingProblemCallCount:overlappingProblems,
+          })}
+        </section>
+        <div class="sop-board-grid">
+          <section class="sop-panel">
+            <div class="sop-panel-head">
+              <div><h3>有效接通通话 SOP 达成分布</h3><p>命中率按检查点计算；四色条按通话等级分布。点击环节查看 3 个检查点。</p></div>
+              <div class="sop-legend"><span><i class="sop-dot" style="--sop-color:#14806f"></i>高质量</span><span><i class="sop-dot" style="--sop-color:#4e7898"></i>标准</span><span><i class="sop-dot" style="--sop-color:#d4922e"></i>基础</span><span><i class="sop-dot" style="--sop-color:#e1e5e2"></i>未达成</span></div>
+            </div>
+            <div class="sop-list" data-sop-list></div>
+          </section>
+          <section class="sop-panel">
+            <div class="sop-panel-head">
+              <div><h3>销售专家 SOP 表现</h3><p>至少 ${CALL_SOP_EXPERT_MIN_SAMPLE} 通才参与正式排序；小样本仅展示参考。点击专家查看 8 类 SOP。</p></div>
+              <div class="sop-legend"><span><i class="sop-dot" style="--sop-color:#14806f"></i>高质量</span><span><i class="sop-dot" style="--sop-color:#4e7898"></i>标准</span><span><i class="sop-dot" style="--sop-color:#d4922e"></i>基础</span><span><i class="sop-dot" style="--sop-color:#e1e5e2"></i>未达成</span></div>
+            </div>
+            <div class="sop-expert-list" data-expert-list></div>
+          </section>
+        </div>
+      </div>
+    </div>`;
+    const renderSopRows = () => {
+      const list = target.querySelector('[data-sop-list]');
+      if (!list) return;
+      if (target.__sopExpandedIndex !== null && (!Number.isInteger(target.__sopExpandedIndex) || target.__sopExpandedIndex < 0 || target.__sopExpandedIndex >= ruleItems.length)) {
+        target.__sopExpandedIndex = null;
+      }
+      list.innerHTML = callSopRuleRowsHtml(ruleItems, baseDrillFilters, target.__sopExpandedIndex);
+      list.querySelectorAll('[data-sop-toggle]').forEach(button => {
+        const toggle = () => {
+          const nextIndex = Number(button.closest('.sop-row')?.dataset.sopIndex);
+          target.__sopExpandedIndex = target.__sopExpandedIndex === nextIndex ? null : nextIndex;
+          renderSopRows();
+        };
+        button.addEventListener('click', toggle);
+      });
+      callSopBindDrillElements(list, baseDrillFilters);
+    };
+    renderSopRows();
+    const renderExpertRows = () => {
+      const list = target.querySelector('[data-expert-list]');
+      if (!list) return;
+      if (target.__sopExpandedExpert && !sortedExpertItems.some(item => item.name === target.__sopExpandedExpert)) {
+        target.__sopExpandedExpert = sortedExpertItems[0]?.name || '';
+      }
+      list.innerHTML = callSopExpertCardsHtml(expertItems, expertRuleMap, target.__sopExpandedExpert);
+      list.querySelectorAll('[data-expert-toggle]').forEach(button => {
+        const toggle = () => {
+          const nextExpert = button.closest('.sop-expert-card')?.dataset.expert || '';
+          target.__sopExpandedExpert = target.__sopExpandedExpert === nextExpert ? '' : nextExpert;
+          renderExpertRows();
+        };
+        button.addEventListener('click', toggle);
+      });
+      callSopBindDrillElements(list, baseDrillFilters);
+    };
+    renderExpertRows();
+    callSopBindDrillElements(target.querySelector('.sop-issue-grid'), baseDrillFilters);
+    _dashboardWidgetResults[widget?.id || targetId] = {
+      rows:[summary, ...(sopAnalysis?.categories || []), ...(sopAnalysis?.experts || []), ...ruleLevelRows, ...expertLevelRows, ...expertRuleLevelRows, ...qualityIssueRows],
+      query:{measures:baseMeasures, dimensions:['ad.quality_rule','ad.quality_score_level','ad.sales_expert','ad.quality_issue_category'], filters, callSopSource:sopAnalysis?.source || 'semantic_fallback'},
+      name:widget.name || spec.name || title
+    };
+  } catch(e) {
+    target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
+  }
+}
+
+async function callSopLoadWorkbench(filters=[]) {
+  const resp = await fetch('/api/da-tms/call-sop/workbench', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({filters}),
+  });
+  const data = await resp.json();
+  if (!resp.ok || data.error) throw new Error(data.error || `HTTP ${resp.status}`);
+  return data;
+}
+
+function callWorkbenchTone(label) {
+  const text = String(label || '');
+  if (text.includes('失败') || text.includes('未接通') || text.includes('未达')) return 'bad';
+  if (text.includes('待跟进') || text.includes('基础')) return 'warn';
+  if (text.includes('全部')) return 'neutral';
+  return '';
+}
+
+function callWorkbenchOptionHtml(options=[], selected='') {
+  return (options || []).map(item => `<option value="${escHtml(item)}" ${item === selected ? 'selected' : ''}>${escHtml(item)}</option>`).join('');
+}
+
+function callWorkbenchRecordId(record={}) {
+  return String(record.qualityId ?? record.customerAccountId ?? '');
+}
+
+function callWorkbenchEvidenceList(record={}) {
+  return Array.isArray(record?.sopEvidence) ? record.sopEvidence : [];
+}
+
+function callWorkbenchUrlState() {
+  const params = new URLSearchParams(location.search);
+  return {
+    result: params.get('wbResult') || '',
+    grade: params.get('wbGrade') || '',
+    sop: params.get('wbSop') || '',
+    sopLevel: params.get('wbSopLevel') || '',
+    expert: params.get('wbExpert') || '',
+    issue: params.get('wbIssue') || '',
+    problem: params.get('wbProblem') || '',
+    connected: params.get('wbConnected') || '',
+    group: params.get('wbGroup') || '',
+    checkpoint: params.get('wbCheckpoint') || '',
+    checkpointHit: params.get('wbCheckpointHit') || '',
+  };
+}
+
+function callWorkbenchFiltersFromUrl(filters=[]) {
+  const params = new URLSearchParams(location.search);
+  const replacements = {
+    'ad.date_day': params.get('wbDate') || '',
+    'ad.store': params.get('wbStore') || '',
+    'ad.sales_expert': params.get('wbExpert') || '',
+    'ad.quality_issue_category': params.get('wbIssue') || '',
+  };
+  let next = (filters || []).map(filter => {
+    const value = replacements[filter.member];
+    return value ? {...filter, values:[value], valueLabels:{[value]: value}} : filter;
+  });
+  Object.entries(replacements).forEach(([member, value]) => {
+    if (!value || next.some(filter => filter.member === member)) return;
+    next.push(callReportDimensionFilter(member, value, member === 'ad.date_day' ? 'in' : 'equals'));
+  });
+  return next;
+}
+
+function callWorkbenchEvidenceForSop(record={}, sop='') {
+  const text = String(sop || '');
+  if (!text || text === '全部SOP') return null;
+  return callWorkbenchEvidenceList(record).find(item => item.name === text || item.code === text) || null;
+}
+
+function callWorkbenchFilteredRecords(records=[], state={}) {
+  return (records || []).filter(record => {
+    if (state.connected === 'true' && !record.connected) return false;
+    if (state.result && state.result !== '全部结果' && record.inviteResultLabel !== state.result) return false;
+    if (state.expert && record.expertName !== state.expert) return false;
+    if (state.issue && record.issueCategory !== state.issue) return false;
+    if (state.problem === 'quality' && !(Number(record.lowQualityCallCount || 0) > 0 || Number(record.lowCoverageCallCount || 0) > 0)) return false;
+    const hasSelectedSop = Boolean(state.sop && state.sop !== '全部SOP');
+    if (state.grade && state.grade !== '全部达成' && !hasSelectedSop && record.sopGradeLabel !== state.grade) return false;
+    const sopEvidence = callWorkbenchEvidenceForSop(record, state.sop);
+    if (hasSelectedSop) {
+      const primaryHit = record.primarySopCategory === state.sop;
+      if (!primaryHit && !sopEvidence) return false;
+      if (state.sopLevel && (!sopEvidence || sopEvidence.level !== state.sopLevel)) return false;
+    }
+    if (state.checkpoint) {
+      const evidenceRows = sopEvidence ? [sopEvidence] : callWorkbenchEvidenceList(record);
+      const checkpoint = evidenceRows.flatMap(item => item.checkpoints || [])
+        .find(item => item.name === state.checkpoint || item.code === state.checkpoint);
+      if (!checkpoint) return false;
+      if (state.checkpointHit === 'hit' && !checkpoint.hit) return false;
+      if (state.checkpointHit === 'miss' && checkpoint.hit) return false;
+    }
+    return true;
+  });
+}
+
+function callWorkbenchSopClass(item={}, selectedCode='') {
+  const active = String(item.code || item.name || '') === String(selectedCode || '');
+  const rate = Number(item.coverageRate || 0);
+  const hit = Number(item.hitCount || 0) > 0;
+  const cls = hit ? (rate >= .67 ? 'hit' : 'warn') : '';
+  return `${cls} ${active ? 'active' : ''}`.trim();
+}
+
+function callWorkbenchSelectedEvidence(record={}, selectedCode='') {
+  const rows = callWorkbenchEvidenceList(record);
+  if (!rows.length) return null;
+  return rows.find(item => String(item.code || item.name || '') === String(selectedCode || ''))
+    || rows.find(item => item.name === record.primarySopCategory)
+    || rows.find(item => Number(item.hitCount || 0) > 0)
+    || rows[0];
+}
+
+function callWorkbenchExactEvidence(record={}, selectedCode='') {
+  const code = String(selectedCode || '');
+  if (!code) return null;
+  return callWorkbenchEvidenceList(record).find(item => String(item.code || item.name || '') === code) || null;
+}
+
+function callWorkbenchProblemMeta(record={}) {
+  const lowQuality = Number(record.lowQualityCallCount || 0) > 0;
+  const lowCoverage = Number(record.lowCoverageCallCount || 0) > 0;
+  if (lowQuality && lowCoverage) return {key:'problem-both', label:'低质量 + 低覆盖', groupLabel:'问题类型 · 低质量且低覆盖', tone:'bad', order:0};
+  if (lowQuality) return {key:'problem-quality', label:'低质量', groupLabel:'问题类型 · 低质量', tone:'bad', order:1};
+  if (lowCoverage) return {key:'problem-coverage', label:'低覆盖', groupLabel:'问题类型 · 低覆盖', tone:'warn', order:2};
+  const issue = record.issueCategory || '其他问题';
+  return {key:`problem-${issue}`, label:issue, groupLabel:`问题类型 · ${issue}`, tone:'warn', order:3};
+}
+
+function callWorkbenchContextStatus(record={}, state={}) {
+  if (state.group === 'problem') return callWorkbenchProblemMeta(record);
+  if (state.group === 'sop') {
+    const evidence = callWorkbenchEvidenceForSop(record, state.sop);
+    const levelLabel = callSopLevelGradeLabel(evidence?.level) || '未达成';
+    const sopName = state.sop && state.sop !== '全部SOP' ? state.sop : (evidence?.name || record.primarySopCategory || 'SOP 短板');
+    return {label:`${sopName} · ${levelLabel}`, tone:callWorkbenchTone(levelLabel)};
+  }
+  return {label:record.sopGradeLabel || '-', tone:callWorkbenchTone(record.sopGradeLabel)};
+}
+
+function callWorkbenchParseTimeLabel(label='') {
+  const parts = String(label || '').split(':').map(v => Number(v));
+  if (parts.length === 3 && parts.every(Number.isFinite)) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2 && parts.every(Number.isFinite)) return parts[0] * 60 + parts[1];
+  return 0;
+}
+
+function callWorkbenchEvidenceLevelClass(item={}) {
+  const level = String(item.level || '');
+  if (level === 'standard') return 'standard';
+  if (level === 'basic') return 'basic';
+  if (level === 'miss') return 'miss';
+  return '';
+}
+
+function callWorkbenchTimelineHtml(record={}, selectedCode='') {
+  const evidence = callWorkbenchEvidenceList(record);
+  const duration = Math.max(1, Number(record.durationSeconds || 0), ...evidence.map(item => callWorkbenchParseTimeLabel(item.endLabel)));
+  const segments = evidence.map(item => {
+    if (!Number(item.hitCount || 0)) return '';
+    const start = callWorkbenchParseTimeLabel(item.startLabel);
+    const end = Math.max(start + 8, callWorkbenchParseTimeLabel(item.endLabel));
+    const left = Math.max(0, Math.min(98, start / duration * 100));
+    const width = Math.max(4, Math.min(100 - left, (end - start) / duration * 100));
+    const active = String(item.code || item.name || '') === String(selectedCode || '');
+    const code = String(item.code || item.name || '');
+    const label = `${item.name || 'SOP'} ${item.startLabel || ''}-${item.endLabel || ''}`;
+    return `<button type="button" class="call-workbench-timeline-seg ${callWorkbenchEvidenceLevelClass(item)} ${active ? 'active' : ''}" data-sop-code="${escHtml(code)}" style="left:${left.toFixed(1)}%;width:${width.toFixed(1)}%" title="${escHtml(label)}" aria-label="定位到 ${escHtml(label)}"></button>`;
+  }).join('');
+  return `<div class="call-workbench-timeline">${segments}</div>`;
+}
+
+function callWorkbenchSegmentActive(segment={}, evidence=null) {
+  if (!evidence) return false;
+  const text = String(segment.text || '');
+  const evText = String(evidence.asrText || '');
+  if (!text || !evText) return false;
+  if (text.includes(evText) || evText.includes(text)) return true;
+  const terms = evText.split(/[，。,.、\s]+/).filter(item => item.length >= 2).slice(0, 4);
+  return terms.some(term => text.includes(term));
+}
+
+function callWorkbenchAsrHtml(record={}, selectedEvidence=null) {
+  const segments = Array.isArray(record.segments) ? record.segments : [];
+  if (!segments.length) return '<div class="text-muted p-3">暂无 ASR 文本。</div>';
+  const evidenceLevel = callWorkbenchEvidenceLevelClass(selectedEvidence || {}) || 'high';
+  const matchedIndexes = segments.reduce((indexes, segment, index) => {
+    if (callWorkbenchSegmentActive(segment, selectedEvidence)) indexes.push(index);
+    return indexes;
+  }, []);
+  const evidenceStart = callWorkbenchParseTimeLabel(selectedEvidence?.startLabel || '');
+  const evidenceEnd = Math.max(evidenceStart, callWorkbenchParseTimeLabel(selectedEvidence?.endLabel || ''));
+  const hasEvidenceRange = Boolean(selectedEvidence?.startLabel || selectedEvidence?.endLabel);
+  const rangeIndexes = hasEvidenceRange ? segments.reduce((indexes, segment, index) => {
+    const offset = callWorkbenchParseTimeLabel(segment.offsetLabel || '');
+    if (offset >= evidenceStart && offset <= evidenceEnd) indexes.push(index);
+    return indexes;
+  }, []) : [];
+  const activeIndexes = rangeIndexes.length ? rangeIndexes : matchedIndexes;
+  const nearestIndex = indexes => indexes.reduce((best, index) => {
+    const distance = Math.abs(callWorkbenchParseTimeLabel(segments[index]?.offsetLabel || '') - evidenceStart);
+    return !best || distance < best.distance ? {index, distance} : best;
+  }, null)?.index ?? -1;
+  const anchorIndex = activeIndexes.length
+    ? nearestIndex(activeIndexes)
+    : (Number(selectedEvidence?.hitCount || 0) > 0 ? nearestIndex(segments.map((_, index) => index)) : -1);
+  return segments.map((segment, index) => {
+    const role = segment.role === 'customer' ? 'customer' : 'expert';
+    const anchor = index === anchorIndex;
+    const active = anchor || activeIndexes.includes(index);
+    return `<div class="call-workbench-segment" ${anchor ? 'data-workbench-evidence-anchor="true"' : ''}>
+      <div class="call-workbench-segment-time">${escHtml(segment.offsetLabel || '00:00')}</div>
+      <div class="call-workbench-bubble ${role} ${active ? `active evidence-${evidenceLevel}` : ''}">
+        <span class="call-workbench-role">${escHtml(segment.roleName || (role === 'customer' ? '客户' : '产品专家'))}</span>
+        <div>${escHtml(segment.text || '')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function callWorkbenchCheckpointsHtml(evidence=null) {
+  const checkpoints = Array.isArray(evidence?.checkpoints) ? evidence.checkpoints : [];
+  if (!checkpoints.length) return '<div class="text-muted">暂无小达成点明细。</div>';
+  return `<div class="call-workbench-checkpoints">${checkpoints.map(item => {
+    const hit = !!item.hit;
+    return `<div class="call-workbench-checkpoint ${hit ? 'hit' : ''}">
+      <i>${hit ? '✓' : '-'}</i>
+      <div><b>${escHtml(item.name || item.code || '-')}</b><span>${escHtml(item.description || item.evidence || '')}</span></div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function callWorkbenchDetailHtml(record=null, selectedCode='', state={}) {
+  if (!record) {
+    return `<div class="call-workbench-detail d-flex align-items-center justify-content-center text-muted">当前筛选下暂无通话。</div>`;
+  }
+  const evidenceRows = callWorkbenchEvidenceList(record);
+  const selectedEvidence = callWorkbenchSelectedEvidence(record, selectedCode);
+  const selectedEvidenceCode = String(selectedEvidence?.code || selectedEvidence?.name || '');
+  const achievedCount = evidenceRows.filter(item => Number(item.hitCount || 0) > 0).length;
+  const titleSopText = selectedEvidence ? `${selectedEvidence.name || '-'} · ${selectedEvidence.startLabel || '00:00'}-${selectedEvidence.endLabel || record.durationLabel || ''}` : '-';
+  const contextStatus = callWorkbenchContextStatus(record, state);
+  return `<div class="call-workbench-detail">
+    <div class="call-workbench-customer-head">
+      <div>
+        <div class="call-workbench-customer-title">
+          <span class="call-workbench-badge neutral">客户</span>
+          <b>${escHtml(record.customerDisplayName || '未知客户')}</b>
+          <span>用户ID ${escHtml(record.customerAccountId || '-')}</span>
+          <span>${escHtml(record.dateLabel || '-')} · ${escHtml(record.timeLabel || '')}</span>
+        </div>
+        <div class="call-workbench-card-meta mt-1">${escHtml(record.expertName || '-')} · ${escHtml(record.intentName || record.intentOriginalName || '未识别意图')}</div>
+      </div>
+      <div class="call-workbench-customer-meta">
+        <span class="call-workbench-badge ${callWorkbenchTone(record.inviteResultLabel)}">${escHtml(record.inviteResultLabel || '-')}</span>
+        <span class="call-workbench-badge ${escHtml(contextStatus.tone || '')}">${escHtml(contextStatus.label || '-')}</span>
+        <span class="call-workbench-badge neutral">${escHtml(record.wordCount || 0)}字 · ${escHtml(record.durationLabel || '-')}</span>
+      </div>
+    </div>
+    <div class="call-workbench-sopbar">
+      <div class="call-workbench-sopbar-head"><b>单通 SOP 概览</b><span>SOP 总评：${escHtml(record.sopGradeLabel || '-')} · ${achievedCount} / ${evidenceRows.length || 8}</span></div>
+      <div class="call-workbench-sop-pills">
+        ${evidenceRows.map(item => `<button class="call-workbench-sop-pill ${callWorkbenchSopClass(item, selectedEvidenceCode)}" type="button" data-sop-code="${escHtml(String(item.code || item.name || ''))}">${escHtml(item.name || '-')} ${Number(item.hitCount || 0) ? '✓' : '-'}</button>`).join('')}
+      </div>
+    </div>
+    <div class="call-workbench-audio">
+      <div class="call-workbench-audio-head"><div class="call-workbench-timeline-info"><span class="call-workbench-timeline-label"><i class="bi bi-diagram-3"></i>SOP 证据时序</span><span class="call-workbench-timeline-legend"><span><i></i>高质量</span><span><i class="standard"></i>标准</span><span><i class="basic"></i>基础</span><span><i class="neutral"></i>未定位</span></span><span class="call-workbench-timeline-note">彩色段为 ASR 命中证据</span></div><span>${escHtml(record.durationLabel || '-')}</span></div>
+      ${callWorkbenchTimelineHtml(record, selectedEvidenceCode)}
+    </div>
+    <div class="call-workbench-main">
+      <section class="call-workbench-asr">
+        <div class="call-workbench-section-title"><b>全量 ASR 文本</b><span>${escHtml(record.wordCount || 0)}字</span></div>
+        ${callWorkbenchAsrHtml(record, selectedEvidence)}
+      </section>
+      <section class="call-workbench-evidence">
+        <div class="call-workbench-section-title"><b>点选 SOP 相关信息</b><span>${escHtml(titleSopText)}</span></div>
+        <div class="call-workbench-evidence-card"><b>ASR 原文本</b><p>${escHtml(selectedEvidence?.asrText || '暂无命中证据。')}</p></div>
+        <div class="call-workbench-evidence-card"><b>做得好的点</b><p>${escHtml(selectedEvidence?.goodPoint || '暂无稳定命中证据。')}</p></div>
+        <div class="call-workbench-evidence-card"><b>做得不好的点</b><p>${escHtml(selectedEvidence?.badPoint || '暂无待补齐项。')}</p></div>
+        <div class="call-workbench-evidence-card"><b>小达成点</b>${callWorkbenchCheckpointsHtml(selectedEvidence)}</div>
+      </section>
+    </div>
+  </div>`;
+}
+
+function callWorkbenchListGroup(record={}, state={}) {
+  if (state.group === 'problem') {
+    const problem = callWorkbenchProblemMeta(record);
+    return {key:problem.key, label:problem.groupLabel, order:problem.order};
+  }
+  if (state.group === 'sop') {
+    const sop = state.sop && state.sop !== '全部SOP' ? state.sop : (record.primarySopCategory || '未归类 SOP');
+    return {key:`sop-${sop}`, label:`SOP 短板 · ${sop}`, order:0};
+  }
+  const expert = record.expertName || '-';
+  return {key:`expert-${expert}`, label:`产品专家 ${expert}`, order:0};
+}
+
+function callWorkbenchListHtml(records=[], selectedId='', state={}) {
+  if (!records.length) return '<div class="text-muted p-3">当前筛选下暂无通话。</div>';
+  const groups = new Map();
+  records.forEach(record => {
+    const group = callWorkbenchListGroup(record, state);
+    if (!groups.has(group.key)) groups.set(group.key, {...group, items:[]});
+    groups.get(group.key).items.push(record);
+  });
+  const showOwner = state.group === 'problem' || state.group === 'sop';
+  return Array.from(groups.values()).sort((a, b) => a.order - b.order || b.items.length - a.items.length || a.label.localeCompare(b.label, 'zh-CN')).map(group => `<div class="call-workbench-expert-group">
+    <div class="call-workbench-expert-head"><span>${escHtml(group.label)}</span><span>${group.items.length} 通</span></div>
+    ${[...group.items].sort((a, b) => {
+      if (state.group !== 'problem') return 0;
+      const gradeOrder = {'未达成':0, '基础达成':1, '标准达成':2, '高质量达成':3};
+      return (gradeOrder[a.sopGradeLabel] ?? 4) - (gradeOrder[b.sopGradeLabel] ?? 4)
+        || Number(a.qualityScore || 0) - Number(b.qualityScore || 0)
+        || Number(a.slotCoverageRate || 0) - Number(b.slotCoverageRate || 0);
+    }).map(record => {
+      const owner = showOwner ? `所属专家 ${record.expertName || '-'} · ` : '';
+      const id = callWorkbenchRecordId(record);
+      const contextStatus = callWorkbenchContextStatus(record, state);
+      return `<div class="call-workbench-call-card ${id === selectedId ? 'active' : ''}" data-call-id="${escHtml(id)}" role="button" tabindex="0">
+        <div class="call-workbench-call-card-top"><b>${escHtml(record.customerDisplayName || '未知客户')}</b><span class="call-workbench-badge ${escHtml(contextStatus.tone || '')}">${escHtml(contextStatus.label || '-')}</span></div>
+        <div class="call-workbench-card-meta">用户ID ${escHtml(record.customerAccountId || '-')}<br>${escHtml(owner)}${escHtml(record.dateLabel || '-')} · ${escHtml(record.wordCount || 0)}字 · ${escHtml(record.inviteResultLabel || '-')}</div>
+      </div>`;
+    }).join('')}
+  </div>`).join('');
+}
+
+function callWorkbenchRender(target, data={}, spec={}, widget={}) {
+  const state = target.__callWorkbenchState || {};
+  if (!target.__callWorkbenchUrlApplied) {
+    Object.assign(state, callWorkbenchUrlState());
+    target.__callWorkbenchUrlApplied = true;
+  }
+  state.result = state.result || '全部结果';
+  state.grade = state.grade || '全部达成';
+  state.sop = state.sop || '全部SOP';
+  target.__callWorkbenchState = state;
+  const records = Array.isArray(data.records) ? data.records : [];
+  const filteredRecords = callWorkbenchFilteredRecords(records, state);
+  if (state.selectedId && !filteredRecords.some(record => callWorkbenchRecordId(record) === state.selectedId)) {
+    state.selectedId = '';
+  }
+  if (!state.selectedId && filteredRecords.length) {
+    state.selectedId = callWorkbenchRecordId(filteredRecords[0]);
+  }
+  const selectedRecord = filteredRecords.find(record => callWorkbenchRecordId(record) === state.selectedId) || filteredRecords[0] || null;
+  const selectedSopStillExists = callWorkbenchExactEvidence(selectedRecord, state.selectedSop);
+  if (state.sop && state.sop !== '全部SOP' && selectedRecord && !selectedSopStillExists) {
+    const forced = callWorkbenchEvidenceList(selectedRecord).find(item => item.name === state.sop);
+    if (forced) state.selectedSop = String(forced.code || forced.name || '');
+  }
+  const selectedEvidence = callWorkbenchSelectedEvidence(selectedRecord, state.selectedSop);
+  state.selectedSop = String(selectedEvidence?.code || selectedEvidence?.name || state.selectedSop || '');
+  const summary = data.summary || {};
+  const options = data.filters || {};
+  const title = spec.view?.encoding?.reportTitle || '试驾邀约通话质检工作台';
+  const avgDuration = callReportNum(Number(summary.avgDurationSeconds || 0) / 60, 1);
+  const contextParts = [
+    `组织范围：${data.store || '当前门店'}`,
+    state.expert ? `专家：${state.expert}` : '',
+    state.issue ? `问题分类：${state.issue}` : '',
+    state.problem === 'quality' ? '范围：低质量或低覆盖问题通话' : '',
+    state.connected === 'true' ? '通话状态：有效接通' : '',
+    state.group === 'problem' ? '处理视图：按问题类型归类' : '',
+    state.group === 'sop' ? '处理视图：按 SOP 短板归类' : '',
+    state.sop && state.sop !== '全部SOP' ? `SOP：${state.sop}` : '',
+    state.checkpoint ? `小达成点：${state.checkpoint}` : '',
+    state.sopLevel ? `环节等级：${callSopLevelGradeLabel(state.sopLevel) || state.sopLevel}` : '',
+  ].filter(Boolean);
+  target.innerHTML = `<div class="call-workbench-shell">
+    <div class="call-workbench-body">
+      <div class="call-workbench-head">
+        <div class="call-workbench-title"><h2>${escHtml(title)}</h2><span>通话质检</span></div>
+        <div class="call-workbench-sub">${escHtml(data.day || '当前日期')} · ${escHtml(data.store || '当前门店')}</div>
+      </div>
+      <div class="call-workbench-kpis">
+        <div class="call-workbench-kpi" style="--exec-accent:#20332f"><b>总通话量</b><strong>${escHtml(callReportNum(summary.totalCalls || 0))}</strong><span>当前筛选范围</span></div>
+        <div class="call-workbench-kpi" style="--exec-accent:#14806f"><b>有效接通率</b><strong>${escHtml(callReportRate(Number(summary.connectRate || 0) * 100, 1))}</strong><span>${escHtml(callReportNum(summary.connectedCalls || 0))} 通可复盘</span></div>
+        <div class="call-workbench-kpi" style="--exec-accent:#4e7898"><b>平均通话时长</b><strong>${escHtml(avgDuration)} 分</strong><span>${escHtml(callReportNum(summary.avgWordCount || 0, 0))} 字/通</span></div>
+        <div class="call-workbench-kpi" style="--exec-accent:#d99042"><b>筛选后样本</b><strong>${escHtml(callReportNum(filteredRecords.length))}</strong><span>当前条件</span></div>
+      </div>
+      <div class="call-workbench-filterbar">
+        <div class="filter-chip" title="${escHtml(contextParts.join(' · '))}">${escHtml(contextParts.join(' · '))}</div>
+        <select data-workbench-filter="result">${callWorkbenchOptionHtml(options.resultOptions || ['全部结果'], state.result)}</select>
+        <select data-workbench-filter="grade">${callWorkbenchOptionHtml(options.gradeOptions || ['全部达成'], state.grade)}</select>
+        <select data-workbench-filter="sop">${callWorkbenchOptionHtml(options.sopOptions || ['全部SOP'], state.sop)}</select>
+      </div>
+      <div class="call-workbench-layout">
+        <aside class="call-workbench-panel call-workbench-list-panel">
+          <div class="call-workbench-list-head"><b>通话列表</b><span>${escHtml(callReportNum(filteredRecords.length))} / ${escHtml(callReportNum(records.length))} 通</span></div>
+          <div class="call-workbench-list">${callWorkbenchListHtml(filteredRecords, state.selectedId, state)}</div>
+        </aside>
+        <main class="call-workbench-panel">${callWorkbenchDetailHtml(selectedRecord, state.selectedSop, state)}</main>
+      </div>
+    </div>
+  </div>`;
+  target.querySelectorAll('[data-workbench-filter]').forEach(select => {
+    select.addEventListener('change', () => {
+      const key = select.dataset.workbenchFilter;
+      state[key] = select.value;
+      state.selectedId = '';
+      if (key === 'grade') state.sopLevel = '';
+      if (key === 'sop') {
+        state.selectedSop = '';
+        state.sopLevel = '';
+        state.checkpoint = '';
+        state.checkpointHit = '';
+      }
+      callWorkbenchRender(target, data, spec, widget);
+    });
+  });
+  target.querySelectorAll('.call-workbench-call-card').forEach(card => {
+    const activate = () => {
+      state.selectedId = card.dataset.callId || '';
+      if (state.sop === '全部SOP') state.selectedSop = '';
+      callWorkbenchRender(target, data, spec, widget);
+    };
+    card.addEventListener('click', activate);
+    card.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      activate();
+    });
+  });
+  target.querySelectorAll('.call-workbench-sop-pill').forEach(button => {
+    button.addEventListener('click', () => {
+      state.selectedSop = button.dataset.sopCode || '';
+      callWorkbenchRender(target, data, spec, widget);
+    });
+  });
+  target.querySelectorAll('.call-workbench-timeline-seg[data-sop-code]').forEach(button => {
+    button.addEventListener('click', () => {
+      state.selectedSop = button.dataset.sopCode || '';
+      callWorkbenchRender(target, data, spec, widget);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        target.querySelector('[data-workbench-evidence-anchor="true"]')?.scrollIntoView({behavior:'smooth', block:'center', inline:'nearest'});
+      }));
+    });
+  });
+  _dashboardWidgetResults[widget?.id || target.id] = {
+    rows: records,
+    query:{measures:['ad.quality_record_count'], dimensions:['ad.sales_expert','ad.quality_score_level','ad.intent'], filters:callReportFilters(spec), source:data.source},
+    name:widget.name || spec.name || title
+  };
+}
+
+async function renderCallSopWorkbenchWidget(targetId, spec={}, widget={}) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  target.innerHTML = `<div class="call-workbench-shell d-flex align-items-center justify-content-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>正在加载通话质检工作台...</div>`;
+  try {
+    const filters = callWorkbenchFiltersFromUrl(callReportFilters(spec));
+    const data = await callSopLoadWorkbench(filters);
+    callWorkbenchRender(target, data, spec, widget);
+  } catch(e) {
+    target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
+  }
+}
+
 function celnOverviewFilters(spec) {
   return callReportFilters(spec);
 }
@@ -7786,7 +9520,7 @@ function celnTrendSparkline(trend=[], accent='#14806f') {
   }));
   if (!points.length) {
     return `<svg class="celn-stage-sparkline" viewBox="0 0 180 34" preserveAspectRatio="none" aria-hidden="true">
-      <line x1="0" y1="24" x2="180" y2="24" stroke="${escHtml(accent)}" stroke-width="2" opacity=".28"></line>
+      <line x1="0" y1="24" x2="180" y2="24" stroke="${escHtml(accent)}" stroke-width="1.2" opacity=".28"></line>
     </svg>`;
   }
   const values = points.map(item => item.value);
@@ -7834,8 +9568,8 @@ function celnStageMetricNode(row={}, type='determination', filters=[]) {
     determination: {
       label: '阶段判断',
       count: Number(row.determinationCount || 0),
-      node: 'celn:Li-StageDetermination',
-      relation: 'celn:Li-DeterminesStage / celn:Li-HasStage',
+      node: 'celn:Demo-StageDetermination',
+      relation: 'celn:Demo-DeterminesStage / celn:Demo-HasStage',
       relationLabel: '阶段判断关系',
       table: 'celn_stage_determination',
       reason: `${stagePrefix} 的阶段判断用于说明用户为什么被归到这一层，店长可用它核对分层是否可信。`,
@@ -7844,8 +9578,8 @@ function celnStageMetricNode(row={}, type='determination', filters=[]) {
     evidence: {
       label: '阶段证据',
       count: Number(row.evidenceCount || 0),
-      node: 'celn:Li-Evidence',
-      relation: 'celn:Li-BasedOnEvidence',
+      node: 'celn:Demo-Evidence',
+      relation: 'celn:Demo-BasedOnEvidence',
       relationLabel: '证据支撑关系',
       table: 'celn_evidence / celn_determination_evidence',
       reason: `${stagePrefix} 的证据用于支撑阶段判断，帮助店长看到分层背后的标签、沟通和行为依据。`,
@@ -7854,8 +9588,8 @@ function celnStageMetricNode(row={}, type='determination', filters=[]) {
     task: {
       label: '跟进任务',
       count: Number(row.nextTaskCount || 0),
-      node: 'celn:Li-FollowUpTask',
-      relation: 'celn:Li-AssignedTo / celn:Li-HasFollowUpRecord',
+      node: 'celn:Demo-FollowUpTask',
+      relation: 'celn:Demo-AssignedTo / celn:Demo-HasFollowUpRecord',
       relationLabel: '任务承接关系',
       table: 'celn_follow_up_task',
       reason: `${stagePrefix} 的跟进任务用于承接业务关系，帮助店长确认这层用户有没有分配给销售专家继续推进。`,
@@ -7864,8 +9598,8 @@ function celnStageMetricNode(row={}, type='determination', filters=[]) {
     conversion: {
       label: '转化事件',
       count: Number(row.conversionCount || 0),
-      node: 'celn:Li-ConversionEvent',
-      relation: 'celn:Li-TracesTo / celn:Li-LeadsToConversion',
+      node: 'celn:Demo-ConversionEvent',
+      relation: 'celn:Demo-TracesTo / celn:Demo-LeadsToConversion',
       relationLabel: '转化追溯关系',
       table: 'celn_conversion_event / celn_conversion_trace',
       reason: `${stagePrefix} 的转化事件用于验证这一层用户是否形成订金、锁单、交付等经营结果。`,
@@ -7897,8 +9631,8 @@ function celnStageBusinessNode(row={}, filters=[]) {
   return {
     label: 'CELN阶段',
     count: Number(row.userCount || 0),
-    node: 'celn:Li-CELNStage',
-    relation: 'celn:Li-DeterminesStage / celn:Li-HasStage',
+    node: 'celn:Demo-CELNStage',
+    relation: 'celn:Demo-DeterminesStage / celn:Demo-HasStage',
     relationLabel: '用户分层关系',
     table: 'celn_stage / celn_stage_determination',
     stageCode,
@@ -7913,15 +9647,15 @@ function celnStageOntologyDependency(row={}) {
   const stageCode = String(row.stageCode || '').toUpperCase();
   const stageText = celnStageDisplayText(row);
   const individual = row.ontologyIndividual || {
-    C: 'celn:Li-C-Consider',
-    E: 'celn:Li-E-Evaluate',
-    L: 'celn:Li-L-Lead',
-    N: 'celn:Li-N-Negotiate',
+    C: 'celn:Demo-C-Consider',
+    E: 'celn:Demo-E-Evaluate',
+    L: 'celn:Demo-L-Lead',
+    N: 'celn:Demo-N-Negotiate',
   }[stageCode] || '-';
   return [
     `阶段个体：${graphTermText(individual)}`,
-    `本体节点：${graphTermText(row.ontologyClass || 'celn:Li-CELNStage')}`,
-    `关系：${graphTermText('celn:Li-DeterminesStage / celn:Li-HasStage')}`,
+    `本体节点：${graphTermText(row.ontologyClass || 'celn:Demo-CELNStage')}`,
+    `关系：${graphTermText('celn:Demo-DeterminesStage / celn:Demo-HasStage')}`,
     `物理表：${graphTermText('celn_stage / celn_stage_determination')}`,
     `业务含义：${stageText || '当前阶段'} 由阶段判断和证据链支撑，用于解释用户为什么归属当前 CELN 层级。`,
   ].join('\n');
@@ -8238,11 +9972,11 @@ function openCelnStageBusinessExplainFromChooser() {
 function callQualityOntologyPathStrip() {
   const nodes = [
     ['质检结果', 'call_record_judgement_results'],
-    ['销售专家', 'celn:Li-ProductExpert'],
-    ['话术槽位', 'celn:Li-UsesScript / Li-UsesStrategy'],
-    ['阶段证据', 'celn:Li-BasedOnEvidence'],
-    ['每日复盘', 'celn:Li-DailyReview'],
-    ['转化追溯', 'celn:Li-ConversionEvent'],
+    ['销售专家', 'celn:Demo-ProductExpert'],
+    ['话术槽位', 'celn:Demo-UsesScript / Demo-UsesStrategy'],
+    ['阶段证据', 'celn:Demo-BasedOnEvidence'],
+    ['每日复盘', 'celn:Demo-DailyReview'],
+    ['转化追溯', 'celn:Demo-ConversionEvent'],
   ];
   return `<div class="call-ontology-strip">${nodes.map((node, idx) => `${idx ? '<i class="bi bi-chevron-right"></i>' : ''}<span>${escHtml(node[0])} ${techNoteHint(node[1], `${node[0]}是电话质检映射到经营闭环时使用的业务图谱节点。`)}</span>`).join('')}</div>`;
 }
@@ -8332,16 +10066,16 @@ function callQualityOntologyHtml(insight, summary={}, baseDrillFilters=[], optio
   return `<div class="call-ontology-chain${compact ? ' compact' : ''}">
     <b><i class="bi bi-diagram-3 me-1"></i>电话质检已按 CELN 业务图谱解释</b>
     <p>${compact
-      ? `质检结果 → 销售专家 → 话术槽位 → 阶段证据 → 每日复盘/转化，用来解释电话质量如何影响跟进闭环 ${techNoteHint('call_record_judgement_results → celn:Li-FollowUpRecord → celn:Li-DailyReview', '这是店长复盘电话质量时最短、最常用的业务链路。')}`
-      : `电话质检记录来自统一质检结果表 ${techNoteHint('call_record_judgement_results')}，在业务语义上落到销售互动与跟进记录 ${techNoteHint('sales:Li-InteractionEvent / celn:Li-FollowUpRecord')}；店长从销售专家、客户意图、问题分类和质检规则下钻，本质是在检查跟进闭环 ${techNoteHint('Li-FollowUpTask → Li-FollowUpRecord → Li-TriggersStageChange → Li-DailyReview')}。`}</p>
+      ? `质检结果 → 销售专家 → 话术槽位 → 阶段证据 → 每日复盘/转化，用来解释电话质量如何影响跟进闭环 ${techNoteHint('call_record_judgement_results → celn:Demo-FollowUpRecord → celn:Demo-DailyReview', '这是店长复盘电话质量时最短、最常用的业务链路。')}`
+      : `电话质检记录来自统一质检结果表 ${techNoteHint('call_record_judgement_results')}，在业务语义上落到销售互动与跟进记录 ${techNoteHint('sales:Demo-InteractionEvent / celn:Demo-FollowUpRecord')}；店长从销售专家、客户意图、问题分类和质检规则下钻，本质是在检查跟进闭环 ${techNoteHint('Demo-FollowUpTask → Demo-FollowUpRecord → Demo-TriggersStageChange → Demo-DailyReview')}。`}</p>
   </div>
   <div class="call-ontology-grid${compact ? ' compact' : ''}">
-    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.quality_record_count', baseDrillFilters, {metricLabel:'质检通话', rowLabel:'全部', columnLabel:'业务图谱'})}><b>质检通话</b><strong>${escHtml(callReportNum(total))}</strong><span>电话事实口径 ${techNoteHint('call_record_judgement_results\nceln:Li-FollowUpRecord')}</span></div>
-    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#5f7f9f" ${callReportDrillAttrs('ad.celn_follow_up_node_count', baseDrillFilters, {metricLabel:'销售专家执行', rowLabel:'全部', columnLabel:'业务图谱'})}><b>销售专家执行</b><strong>${escHtml(callReportNum(taskCount))}</strong><span>任务分配给产品专家 ${techNoteHint('celn:Li-AssignedTo\nceln:Li-ProductExpert')}</span></div>
-    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#d99042" ${callReportDrillAttrs('ad.missing_slot_count', baseDrillFilters, {metricLabel:'话术/策略缺口', rowLabel:'全部', columnLabel:'业务图谱'})}><b>话术/策略缺口</b><strong>${escHtml(callReportNum(missing))}</strong><span>${escHtml(callReportNum(lowCoverage))} 通低覆盖 ${techNoteHint('celn:Li-UsesScript\nceln:Li-UsesStrategy')}</span></div>
-    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#c84b4b" ${callReportDrillAttrs('ad.low_quality_call_count', baseDrillFilters, {metricLabel:'低质量复盘', rowLabel:'全部', columnLabel:'业务图谱'})}><b>低质量复盘</b><strong>${escHtml(callReportNum(lowQuality))}</strong><span>进入店长复盘清单 ${techNoteHint('celn:Li-ReviewedBy\nceln:Li-DailyReview')}</span></div>
-    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#7d6a4a" ${callReportDrillAttrs('ad.stage_change_count', baseDrillFilters, {metricLabel:'阶段变更证据', rowLabel:'全部', columnLabel:'业务图谱'})}><b>阶段变更证据</b><strong>${escHtml(callReportNum(evidenceCount))}</strong><span>${escHtml(callReportNum(flowCount))} 条跟进记录触发阶段观察 ${techNoteHint('celn:Li-BasedOnEvidence\nceln:Li-TriggersStageChange')}</span></div>
-    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.celn_conversion_node_count', baseDrillFilters, {metricLabel:'转化追溯', rowLabel:'全部', columnLabel:'业务图谱'})}><b>转化追溯</b><strong>${escHtml(callReportNum(conversionCount))}</strong><span>L/N净变化 ${escHtml(Number(ln.change || 0) > 0 ? `+${callReportNum(ln.change)}` : callReportNum(ln.change || 0))} · 复盘 ${escHtml(callReportNum(reviewCount))} ${techNoteHint('celn:Li-TracesTo\nceln:Li-ConversionEvent')}</span></div>
+    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.quality_record_count', baseDrillFilters, {metricLabel:'质检通话', rowLabel:'全部', columnLabel:'业务图谱'})}><b>质检通话</b><strong>${escHtml(callReportNum(total))}</strong><span>电话事实口径 ${techNoteHint('call_record_judgement_results\nceln:Demo-FollowUpRecord')}</span></div>
+    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#5f7f9f" ${callReportDrillAttrs('ad.celn_follow_up_node_count', baseDrillFilters, {metricLabel:'销售专家执行', rowLabel:'全部', columnLabel:'业务图谱'})}><b>销售专家执行</b><strong>${escHtml(callReportNum(taskCount))}</strong><span>任务分配给产品专家 ${techNoteHint('celn:Demo-AssignedTo\nceln:Demo-ProductExpert')}</span></div>
+    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#d99042" ${callReportDrillAttrs('ad.missing_slot_count', baseDrillFilters, {metricLabel:'话术/策略缺口', rowLabel:'全部', columnLabel:'业务图谱'})}><b>话术/策略缺口</b><strong>${escHtml(callReportNum(missing))}</strong><span>${escHtml(callReportNum(lowCoverage))} 通低覆盖 ${techNoteHint('celn:Demo-UsesScript\nceln:Demo-UsesStrategy')}</span></div>
+    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#c84b4b" ${callReportDrillAttrs('ad.low_quality_call_count', baseDrillFilters, {metricLabel:'低质量复盘', rowLabel:'全部', columnLabel:'业务图谱'})}><b>低质量复盘</b><strong>${escHtml(callReportNum(lowQuality))}</strong><span>进入店长复盘清单 ${techNoteHint('celn:Demo-ReviewedBy\nceln:Demo-DailyReview')}</span></div>
+    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#7d6a4a" ${callReportDrillAttrs('ad.stage_change_count', baseDrillFilters, {metricLabel:'阶段变更证据', rowLabel:'全部', columnLabel:'业务图谱'})}><b>阶段变更证据</b><strong>${escHtml(callReportNum(evidenceCount))}</strong><span>${escHtml(callReportNum(flowCount))} 条跟进记录触发阶段观察 ${techNoteHint('celn:Demo-BasedOnEvidence\nceln:Demo-TriggersStageChange')}</span></div>
+    <div class="call-ontology-card call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.celn_conversion_node_count', baseDrillFilters, {metricLabel:'转化追溯', rowLabel:'全部', columnLabel:'业务图谱'})}><b>转化追溯</b><strong>${escHtml(callReportNum(conversionCount))}</strong><span>L/N净变化 ${escHtml(Number(ln.change || 0) > 0 ? `+${callReportNum(ln.change)}` : callReportNum(ln.change || 0))} · 复盘 ${escHtml(callReportNum(reviewCount))} ${techNoteHint('celn:Demo-TracesTo\nceln:Demo-ConversionEvent')}</span></div>
   </div>
   ${compact ? callQualityOntologyPathStrip() : callQualityOntologyExpandedHtml({
     total, lowQuality, lowCoverage, missing, flowCount, evidenceCount, taskCount, conversionCount, reviewCount, ln
@@ -8409,7 +10143,7 @@ function celnFormatTime(value) {
 
 async function openCelnStageCustomers(stageCode) {
   const ctx = _celnStoreInsightContext || {};
-  const store = ctx.store || '理想汽车滨州赛博汽车园零售中心';
+  const store = ctx.store || '小鹏汽车杭州演示体验中心';
   const stage = String(stageCode || '').toUpperCase();
   const stageRow = (ctx.distribution || []).find(item => item.stageCode === stage) || {};
   const titleEl = document.getElementById('pivot-drill-title');
@@ -8483,20 +10217,20 @@ async function openCelnCustomerDetail(customerId) {
           <div class="fw-semibold">${escHtml(item.stage_name || item.determined_stage_code || '-')} · 置信度 ${escHtml(callReportRate(Number(item.confidence_score || 0) * 100, 0))} · ${escHtml(item.judged_by_type || '-')}</div>
           <div class="text-muted">${escHtml(celnFormatTime(item.determination_time))} · ${Number(item.is_reviewable) ? '可复核' : '无需复核'}</div>
           <div class="mt-1">${escHtml(item.evidence_summary || item.remark || '暂无证据说明')}</div>
-          <div class="text-muted mt-1">判断证据链 ${techNoteHint('celn:Li-StageDetermination → celn:Li-BasedOnEvidence → celn:Li-Evidence')}</div>
+          <div class="text-muted mt-1">判断证据链 ${techNoteHint('celn:Demo-StageDetermination → celn:Demo-BasedOnEvidence → celn:Demo-Evidence')}</div>
         </div>`).join('') : '<div class="text-muted small">暂无阶段判断证据</div>'}
       </div>
       <div class="cell-insight-card mb-3">
         <div class="cell-insight-card-title">用户标签</div>
         ${(d.tags || []).length ? `<div class="d-flex flex-wrap gap-2">${(d.tags || []).map(tag => `<span class="badge bg-light text-dark border">${escHtml(tag.tag_name || tag.tag_code || '')}</span>`).join('')}</div>` : '<div class="text-muted small">暂无标签</div>'}
-        <div class="text-muted small mt-2">标签关系 ${techNoteHint('celn:Li-HasTag / celn:Li-TagAppliesToStage')}</div>
+        <div class="text-muted small mt-2">标签关系 ${techNoteHint('celn:Demo-HasTag / celn:Demo-TagAppliesToStage')}</div>
       </div>
       <div class="cell-insight-card mb-3">
         <div class="cell-insight-card-title">跟进任务</div>
         ${(d.tasks || []).length ? (d.tasks || []).map(task => `<div class="cell-insight-doc small">
           <div class="fw-semibold">${escHtml(task.task_status || '-')} · ${escHtml(task.expert_name || '-')}</div>
           <div class="text-muted">计划 ${escHtml(celnFormatTime(task.next_plan_time))} · 优先级 ${escHtml(task.priority ?? '-')} · ${escHtml(task.source_type || '')}</div>
-          <div class="text-muted mt-1">任务承接关系 ${techNoteHint('celn:Li-FollowUpTask → celn:Li-AssignedTo → celn:Li-ProductExpert')}</div>
+          <div class="text-muted mt-1">任务承接关系 ${techNoteHint('celn:Demo-FollowUpTask → celn:Demo-AssignedTo → celn:Demo-ProductExpert')}</div>
         </div>`).join('') : '<div class="text-muted small">暂无任务</div>'}
       </div>
       <div class="cell-insight-card">
@@ -8504,7 +10238,7 @@ async function openCelnCustomerDetail(customerId) {
         ${(d.followups || []).length ? (d.followups || []).map(item => `<div class="cell-insight-doc small">
           <div class="fw-semibold">${escHtml(item.expert_name || '-')} · ${escHtml(item.follow_up_method || '-')} · ${escHtml(item.stage_before || '-')}&rarr;${escHtml(item.stage_after || '-')}</div>
           <div class="text-muted">${escHtml(celnFormatTime(item.ended_at || item.started_at))} · ${escHtml(item.follow_up_result || '')}</div>
-          <div class="text-muted mt-1">阶段变化关系 ${techNoteHint('celn:Li-FollowUpRecord → celn:Li-TriggersStageChange')}</div>
+          <div class="text-muted mt-1">阶段变化关系 ${techNoteHint('celn:Demo-FollowUpRecord → celn:Demo-TriggersStageChange')}</div>
         </div>`).join('') : '<div class="text-muted small">暂无跟进记录</div>'}
       </div>
       <div class="cell-insight-card mt-3">
@@ -8512,7 +10246,7 @@ async function openCelnCustomerDetail(customerId) {
         ${(d.fcIdentifications || []).length ? (d.fcIdentifications || []).map(item => `<div class="cell-insight-doc small">
           <div class="fw-semibold">${escHtml(item.rule_name || 'FC规则')} · ${escHtml(item.fc_status || '-')}</div>
           <div class="text-muted">${escHtml(celnFormatTime(item.identification_time))} · ${escHtml(item.remark || '')}</div>
-          <div class="text-muted mt-1">FC识别关系 ${techNoteHint('celn:Li-FCIdentification → celn:Li-IdentifiedByRule → celn:Li-FCRule')}</div>
+          <div class="text-muted mt-1">FC识别关系 ${techNoteHint('celn:Demo-FCIdentification → celn:Demo-IdentifiedByRule → celn:Demo-FCRule')}</div>
         </div>`).join('') : '<div class="text-muted small">暂无FC识别记录</div>'}
       </div>`;
   } catch(e) {
@@ -8767,6 +10501,14 @@ async function renderExecutiveReportWidget(targetId, spec={}, widget={}) {
   const reportTemplate = (spec.view?.encoding || {}).reportTemplate;
   if (reportTemplate === 'call_quality_report') {
     await renderCallQualityReportWidget(targetId, spec, widget);
+    return;
+  }
+  if (reportTemplate === 'call_sop_diagnosis') {
+    await renderCallSopDiagnosisWidget(targetId, spec, widget);
+    return;
+  }
+  if (reportTemplate === 'call_sop_quality_workbench') {
+    await renderCallSopWorkbenchWidget(targetId, spec, widget);
     return;
   }
   if (reportTemplate === 'call_quality_ontology_context') {
@@ -9983,7 +11725,7 @@ function adhocSankeyDimensionOrder(member, value) {
   if (member === 'ad.celn_funnel_stage') {
     if (text === 'C Why Car') return 0;
     if (text === 'E Why Energy') return 1;
-    if (text === 'L Why Li Auto') return 2;
+    if (text === '品牌意向') return 2;
     if (text === 'N Why Now') return 3;
     if (text === '用户池总量') return 10;
     if (text === '当日跟进闭环') return 11;
@@ -11375,7 +13117,18 @@ function dashboardFilterDescription(filter) {
     if ((filter.periodMode || 'single') === 'single') return `${meta.singleLabel}：${labels[0] || ''}`;
     return `${meta.rangeLabel}-${dashboardTimeRangeLabel(filter.periodRangeType)}：${labels.join(' ~ ')}`;
   }
-  return `${filter.operator} ${(filter.values || []).join(',')}`;
+  const operatorLabel = {
+    equals:'等于',
+    not_equals:'不等于',
+    contains:'包含',
+    in:'属于',
+    between:'区间',
+    gte:'大于等于',
+    lte:'小于等于',
+    gt:'大于',
+    lt:'小于',
+  }[String(filter.operator || '').toLowerCase()] || filter.operator || '';
+  return `${operatorLabel} ${(filter.values || []).join('、')}`;
 }
 
 function dashboardAiFilterLabel(filter) {
@@ -11648,23 +13401,31 @@ function dashboardWidgetGraphDependencyHint(widget={}) {
   const defaults = {
     da_tms_store_day_expert_quality_pivot: {
       reason: '这张透视表用于店长按销售专家定位通话质量问题，所有电话质量指标必须回到真实质检结果和销售专家维度。',
-      deps: 'call_record_judgement_results\nad.sales_expert\nad.quality_record_count / ad.avg_call_quality_score / ad.avg_slot_coverage_rate / ad.low_quality_call_count / ad.low_coverage_call_count / ad.missing_slot_count\nceln:Li-FollowUpRecord → celn:Li-AssignedTo → celn:Li-ProductExpert'
+      deps: 'call_record_judgement_results\nad.sales_expert\nad.quality_record_count / ad.avg_call_quality_score / ad.avg_slot_coverage_rate / ad.low_quality_call_count / ad.low_coverage_call_count / ad.missing_slot_count\nceln:Demo-FollowUpRecord → celn:Demo-AssignedTo → celn:Demo-ProductExpert'
     },
     da_tms_call_quality_ontology_context: {
       reason: '这块把电话质检指标翻译成 CELN 经营闭环，说明电话质量如何影响跟进、阶段变化、复盘和转化。',
-      deps: 'call_record_judgement_results\nsales:Li-InteractionEvent / celn:Li-FollowUpRecord\nceln:Li-AssignedTo / celn:Li-UsesScript / celn:Li-BasedOnEvidence / celn:Li-TriggersStageChange / celn:Li-ReviewedBy / celn:Li-TracesTo'
+      deps: 'call_record_judgement_results\nsales:Demo-InteractionEvent / celn:Demo-FollowUpRecord\nceln:Demo-AssignedTo / celn:Demo-UsesScript / celn:Demo-BasedOnEvidence / celn:Demo-TriggersStageChange / celn:Demo-ReviewedBy / celn:Demo-TracesTo'
     },
     da_tms_call_quality_flow_sankey: {
       reason: '桑基图用于把全部质检通话从入口拆到质量分层和问题分类，帮助店长看清问题主要流向。',
       deps: 'call_record_judgement_results\nad.call_flow_total\nad.quality_score_level\nad.quality_issue_category\nad.quality_record_count'
     },
+    da_tms_call_sop_diagnosis_board: {
+      reason: 'SOP诊断看板用于让店长同时看总体通话质量、每个销售专家质量和接通电话中的质量问题。',
+      deps: 'call_record_judgement_results\nad.quality_rule / ad.quality_score_level / ad.sales_expert / ad.quality_issue_category\nad.quality_record_count / ad.pass_call_count / ad.low_quality_call_count / ad.low_coverage_call_count'
+    },
+    da_tms_call_sop_workbench: {
+      reason: '通话质检工作台用于从筛选后的电话样本下钻到单通 ASR、SOP 小达成点、邀约结果和质检证据。',
+      deps: 'call_record_judgement_results\ncall_asr_segments_json / call_sop_evidence_json / call_quality_detail_json\ninvite_result_label / sop_grade_label / primary_sop_category\nim_call_quality_fact.store_name / expert_name / activity_date'
+    },
     da_tms_quality_score_by_expert_bar: {
       reason: '排行图用于快速找出低分销售专家，决定谁需要优先回听、辅导和复盘。',
-      deps: 'call_record_judgement_results\nad.sales_expert\nad.avg_call_quality_score\nceln:Li-ProductExpert'
+      deps: 'call_record_judgement_results\nad.sales_expert\nad.avg_call_quality_score\nceln:Demo-ProductExpert'
     },
     da_tms_slot_coverage_by_intent_bar: {
       reason: '按客户意图看槽位覆盖，能判断某类沟通场景是否存在固定话术缺口。',
-      deps: 'call_record_judgement_results\nad.intent\nad.avg_slot_coverage_rate / ad.missing_slot_count\nceln:Li-UsesScript / celn:Li-UsesStrategy'
+      deps: 'call_record_judgement_results\nad.intent\nad.avg_slot_coverage_rate / ad.missing_slot_count\nceln:Demo-UsesScript / celn:Demo-UsesStrategy'
     },
     da_tms_low_coverage_heatmap: {
       reason: '热力图用于交叉定位销售专家和问题类型，快速发现低覆盖集中在哪些人、哪些沟通环节。',
@@ -11672,23 +13433,23 @@ function dashboardWidgetGraphDependencyHint(widget={}) {
     },
     da_tms_quality_worklist_table: {
       reason: '明细表用于从汇总指标下钻到客户意图和问题清单，支撑店长逐条安排复盘动作。',
-      deps: 'call_record_judgement_results\nad.sales_expert / ad.intent / ad.quality_issue_category\nad.avg_call_quality_score / ad.avg_slot_coverage_rate / ad.missing_slot_count\nceln:Li-FollowUpRecord'
+      deps: 'call_record_judgement_results\nad.sales_expert / ad.intent / ad.quality_issue_category\nad.avg_call_quality_score / ad.avg_slot_coverage_rate / ad.missing_slot_count\nceln:Demo-FollowUpRecord'
     },
     da_tms_celn_store_overview: {
       reason: '总览用于回答当前门店 CELN 分布、漏斗断点和电话质检联动，帮助店长判断经营优先级。',
-      deps: 'core:Li-Store\ncore:Li-Customer\nceln:Li-CELNStage / celn:Li-StageDetermination / celn:Li-FollowUpTask / celn:Li-FollowUpRecord / celn:Li-ConversionEvent / celn:Li-DailyReview\nad.celn_stage_user_count / ad.celn_ln_user_count / ad.celn_follow_up_node_count / ad.celn_conversion_node_count'
+      deps: 'core:Demo-Store\ncore:Demo-Customer\nceln:Demo-CELNStage / celn:Demo-StageDetermination / celn:Demo-FollowUpTask / celn:Demo-FollowUpRecord / celn:Demo-ConversionEvent / celn:Demo-DailyReview\nad.celn_stage_user_count / ad.celn_ln_user_count / ad.celn_follow_up_node_count / ad.celn_conversion_node_count'
     },
     da_tms_celn_store_flow_sankey: {
       reason: '桑基图用于把门店用户从 CELN 阶段推进拆到经营闭环节点，观察用户在哪一步流失或停滞。',
-      deps: 'core:Li-Customer\nceln:Li-CELNStage\nceln:Li-FollowUpTask → celn:Li-FollowUpRecord → celn:Li-TriggersStageChange\nad.celn_funnel_group / ad.celn_funnel_stage / ad.celn_funnel_count'
+      deps: 'core:Demo-Customer\nceln:Demo-CELNStage\nceln:Demo-FollowUpTask → celn:Demo-FollowUpRecord → celn:Demo-TriggersStageChange\nad.celn_funnel_group / ad.celn_funnel_stage / ad.celn_funnel_count'
     },
     da_tms_celn_funnel_pivot: {
       reason: '透视表用于按门店漏斗阶段和分组核对数量，便于从总览继续拆到阶段明细。',
-      deps: 'core:Li-Store\nceln:Li-CELNStage\nad.celn_funnel_group / ad.celn_funnel_stage\nad.celn_funnel_count / ad.celn_stage_user_count / ad.celn_ln_user_count'
+      deps: 'core:Demo-Store\nceln:Demo-CELNStage\nad.celn_funnel_group / ad.celn_funnel_stage\nad.celn_funnel_count / ad.celn_stage_user_count / ad.celn_ln_user_count'
     },
     da_tms_celn_funnel_detail_table: {
       reason: '明细表用于定位异常漏斗节点和建议动作，支撑店长下钻到客户名单和跟进详情。',
-      deps: 'core:Li-Customer\nceln:Li-StageDetermination / celn:Li-Evidence / celn:Li-HasTag / celn:Li-FollowUpTask / celn:Li-DailyReview\nad.customer_name / ad.celn_stage_code / ad.quality_question / ad.expected_next_action'
+      deps: 'core:Demo-Customer\nceln:Demo-StageDetermination / celn:Demo-Evidence / celn:Demo-HasTag / celn:Demo-FollowUpTask / celn:Demo-DailyReview\nad.customer_name / ad.celn_stage_code / ad.quality_question / ad.expected_next_action'
     },
   };
   const info = defaults[key];
@@ -11721,6 +13482,9 @@ function renderDashboardCanvas() {
   widgets.forEach(widget => {
     const item = document.createElement('div');
     item.className = _dashboardViewMode ? 'dashboard-view-grid-item' : 'grid-stack-item';
+    const widgetSpec = widget.spec || (_adhocSaved || []).find(saved => saved.id === widget.adhocId)?.spec || {};
+    const isReportWidget = widgetSpec.view?.type === 'chart' && widgetSpec.view?.chartType === 'executive_report';
+    if (isReportWidget) item.classList.add('dashboard-report-widget');
     item.setAttribute('gs-x', widget.layout?.x ?? 0);
     item.setAttribute('gs-y', widget.layout?.y ?? 0);
     item.setAttribute('gs-w', widget.layout?.w ?? 6);
@@ -11733,7 +13497,11 @@ function renderDashboardCanvas() {
       item.style.gridColumn = `${colStart} / span ${Math.min(w, 13 - colStart)}`;
       const itemHeight = Math.max(220, h * 110);
       if (_dashboardViewMode) {
-        item.style.height = `${itemHeight}px`;
+        if (isReportWidget) {
+          item.style.minHeight = `${itemHeight}px`;
+        } else {
+          item.style.height = `${itemHeight}px`;
+        }
       } else {
         item.style.minHeight = `${itemHeight}px`;
       }
@@ -11984,6 +13752,7 @@ async function loadDashboardSpec(id, options={}) {
   _dashboardState.widgets = _dashboardState.widgets || [];
   _dashboardState.aiInsightEnabled = Boolean(_dashboardState.aiInsightEnabled);
   document.getElementById('dashboard-name').value = d.name || d.id;
+  if (_dashboardStandaloneView) document.title = `${d.name || d.id} · InsightMind`;
   if (!options.skipPersist) dashboardPersistDraft();
   renderDashboardAiToggle();
   renderDashboardFilters();

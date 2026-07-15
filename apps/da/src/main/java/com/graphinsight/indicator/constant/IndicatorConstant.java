@@ -59,9 +59,9 @@ public class IndicatorConstant {
     public static final Integer TOP_DEPT_ID = -1;
 
     /**
-     * 运营架构理想汽车部门ID
+     * 运营架构根部门 ID
      */
-    public static final String OPERATE_LIXIANG_DEPT_ID = "0";
+    public static final String OPERATE_ROOT_DEPT_ID = "0";
 
 
     /**

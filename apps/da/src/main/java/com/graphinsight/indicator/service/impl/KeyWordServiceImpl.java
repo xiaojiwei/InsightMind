@@ -446,12 +446,9 @@ public class KeyWordServiceImpl implements KeyWordService {
         value = value.replaceAll("个", "");
         value = value.replaceAll("份", "");
 
-//        value = value.replaceAll("L9", "X01");
-        value = value.replaceAll("L9", "理想9");
-        value = value.replaceAll("L8", "X02");
-        value = value.replaceAll("L7", "X03");
-        value = value.replaceAll("理想one 2020", "M01A");
-        value = value.replaceAll("理想one 2021", "M01B");
+        value = value.replaceAll("G9", "XP01");
+        value = value.replaceAll("G6", "XP02");
+        value = value.replaceAll("X9", "XP03");
 
         return value;
 

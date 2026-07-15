@@ -1,11 +1,11 @@
 """Generate TPC-DS sample data locally — no network needed."""
 import os
 import random
-import mysql.connector
+import pymysql
 from datetime import date, timedelta, datetime
 
 random.seed(42)
-conn = mysql.connector.connect(
+conn = pymysql.connect(
     host=os.getenv("TPCDS_DB_HOST", os.getenv("MYSQL_HOST", "127.0.0.1")),
     port=int(os.getenv("TPCDS_DB_PORT", os.getenv("MYSQL_PORT", "3306"))),
     user=os.getenv("TPCDS_DB_USER", os.getenv("MYSQL_USER", "root")),

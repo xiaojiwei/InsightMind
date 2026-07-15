@@ -30,11 +30,11 @@ The current workflow is usually:
 - Optional: an OpenAI-compatible LLM gateway for translation, NLQ fallback,
   or LLM business KG generation.
 
-For the TPC-DS demo used in local development, the repository includes checked-in
-demo assets under `../../demo/default/ad/output`. AD restores them into
-`output/` automatically when they are missing. Prepare a MySQL database named
-`tpcds` and load `tpcds_schema.sql` plus sample data if you want real query
-results.
+For the default call-quality demo used in local development, the repository
+includes checked-in assets under `../../demo/default/ad/output`. AD restores
+them into `output/` automatically when they are missing. The database bootstrap
+creates 54 fully synthetic calls for `小鹏汽车杭州演示体验中心`; no production
+customer, employee, transcript or store data is included.
 
 ## Install
 
@@ -149,12 +149,14 @@ From the repository root:
 ./scripts/insightmind.sh restart
 ```
 
-This restores the default data-source KG, business KG, saved Ad-Hoc components,
-and dashboards from `demo/default/ad/output`. The default dashboard can be opened
-at:
+This restores the data-source KG, call-quality business KG, saved Ad-Hoc
+components, three dashboards, synthetic call records and pivot alert rules.
+Open:
 
 ```text
-http://localhost:8080/?dashboard=dash_web_sales_overview#tab-dashboard
+http://localhost:8080/dashboard/view/dash_da_tms_call_sop_diagnosis
+http://localhost:8080/dashboard/view/dash_da_tms_call_sop_workbench
+http://localhost:8080/dashboard/view/dash_da_tms_call_monitor_alert
 ```
 
 ## Run From CLI
@@ -249,7 +251,7 @@ Run PYTHONPATH=. pytest before committing code changes.
 
 ## Can A Fresh Clone Start?
 
-A fresh clone can install dependencies, restore the default demo assets, and
-start the web UI after Python dependencies are installed. Real query results
-require a local MySQL demo database initialized with `scripts/init-demo-db.sh`.
-LLM-dependent features require user-provided LLM environment variables.
+A fresh clone can install dependencies, initialize the deterministic demo
+database with `scripts/init-demo-db.sh`, restore the checked-in assets, and open
+all three call-quality dashboards. These dashboard paths do not require an LLM.
+Other LLM-dependent features still require user-provided environment variables.

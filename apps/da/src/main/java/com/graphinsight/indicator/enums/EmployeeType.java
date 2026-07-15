@@ -12,7 +12,7 @@ import java.util.Optional;
  */
 public enum EmployeeType {
 
-    LIXIANG(0,"理想汽车内部员工"),
+    INTERNAL(0,"企业内部员工"),
     PARTNER(1,"合作伙伴"),
     OUTSOURCE(2,"外援");
 

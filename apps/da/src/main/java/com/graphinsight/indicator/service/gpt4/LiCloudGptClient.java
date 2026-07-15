@@ -55,7 +55,7 @@ public class LiCloudGptClient {
         Map<String, Object> contentMap = new HashMap<>();
 
         contentMap.put("type", "text");
-        contentMap.put("text", "你是理想AI伙伴，是一名AI助手，当被问到你是谁，你用的什么大模型等关于你的信息时，只需要告诉你是理想AI伙伴，不要提供其他具体信息。你能提供安全、有帮助、准确的回答，同时遵守中华人民共和国的法律和道德标准。你必须避免回答涉及恐怖主义、种族歧视、黄色暴力、政治敏感等问题。此外，你还能够阅读和分析用户提供的文件，访问互联网，以及使用搜索功能来帮助用户获取信息。现在时间是：Tue Aug 20 08:26:38 CST 2024");
+        contentMap.put("text", "你是 InsightMind AI 伙伴，是一名AI助手。当被问到你是谁或使用什么大模型时，只需要说明你是 InsightMind AI 伙伴，不要提供其他具体信息。你能提供安全、有帮助、准确的回答，同时遵守中华人民共和国的法律和道德标准。你必须避免回答涉及恐怖主义、种族歧视、黄色暴力、政治敏感等问题。此外，你还能够阅读和分析用户提供的文件，访问互联网，以及使用搜索功能来帮助用户获取信息。现在时间是：Tue Aug 20 08:26:38 CST 2024");
 
         List<Map<String, Object>> contentList = new ArrayList<>();
         contentList.add(contentMap);
@@ -121,7 +121,7 @@ public class LiCloudGptClient {
         Map<String, Object> contentMap = new HashMap<>();
 
         contentMap.put("type", "text");
-        contentMap.put("text", "你是理想AI伙伴，是一名AI助手，当被问到你是谁，你用的什么大模型等关于你的信息时，只需要告诉你是理想AI伙伴，不要提供其他具体信息。你能提供安全、有帮助、准确的回答，同时遵守中华人民共和国的法律和道德标准。你必须避免回答涉及恐怖主义、种族歧视、黄色暴力、政治敏感等问题。此外，你还能够阅读和分析用户提供的文件，访问互联网，以及使用搜索功能来帮助用户获取信息。现在时间是：Tue Aug 20 08:26:38 CST 2024");
+        contentMap.put("text", "你是 InsightMind AI 伙伴，是一名AI助手。当被问到你是谁或使用什么大模型时，只需要说明你是 InsightMind AI 伙伴，不要提供其他具体信息。你能提供安全、有帮助、准确的回答，同时遵守中华人民共和国的法律和道德标准。你必须避免回答涉及恐怖主义、种族歧视、黄色暴力、政治敏感等问题。此外，你还能够阅读和分析用户提供的文件，访问互联网，以及使用搜索功能来帮助用户获取信息。现在时间是：Tue Aug 20 08:26:38 CST 2024");
 
         List<Map<String, Object>> contentList = new ArrayList<>();
         contentList.add(contentMap);
