@@ -5651,6 +5651,7 @@ function adhocBuildPivotConfig(extraFilters=[]) {
   adhocSyncPivotEncodingFromControls();
   const measureMembers = _adhocState.query.measures || [];
   const pivotSettings = _adhocState.settings || {};
+  const dimensionDisplayNames = pivotSettings.dimensionDisplayNames || {};
   const pivotTotalMember = pivotSettings.showTotalCallCountColumn
     ? (pivotSettings.totalCallCountMember || 'ad.quality_record_count')
     : '';
@@ -5665,12 +5666,12 @@ function adhocBuildPivotConfig(extraFilters=[]) {
   const rows = rowMembers.map(member => {
     const meta = adhocFindDimension(member);
     const code = adhocDimensionCodeForMeasures(member, measureMembers);
-    return meta ? {code, name:meta.title || meta.name || code} : null;
+    return meta ? {code, name:dimensionDisplayNames[code] || meta.title || meta.name || code} : null;
   }).filter(Boolean);
   const columns = columnMembers.map(member => {
     const meta = adhocFindDimension(member);
     const code = adhocDimensionCodeForMeasures(member, measureMembers);
-    return meta ? {code, name:meta.title || meta.name || code} : null;
+    return meta ? {code, name:dimensionDisplayNames[code] || meta.title || meta.name || code} : null;
   }).filter(Boolean);
   const filters = [...(_adhocState.query.filters || []), ...extraFilters]
     .map(filter => adhocFilterToPivot(filter, measureMembers))
