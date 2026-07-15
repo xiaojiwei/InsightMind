@@ -3,7 +3,33 @@ from pathlib import Path
 from kg_builder.alerts import annotate_semantic_result
 
 
-def test_semantic_result_marks_self_and_path_alerts(tmp_path: Path):
+def test_semantic_result_marks_self_and_path_alerts(tmp_path: Path, monkeypatch):
+    from kg_builder.alerts import indicator_alerts
+
+    monkeypatch.setattr(
+        indicator_alerts,
+        "_persisted_query_rules",
+        lambda *_args, **_kwargs: [
+            {
+                "id": 1,
+                "type": "self",
+                "measure": "ad.sales",
+                "measureCode": "MEAS_sales",
+                "operator": "statistical",
+                "dimensions": {},
+                "enabled": True,
+            },
+            {
+                "id": 2,
+                "type": "path",
+                "measure": "ad.sales",
+                "measureCode": "MEAS_sales",
+                "operator": "fluctuation",
+                "dimensions": {},
+                "enabled": True,
+            },
+        ],
+    )
     result = {
         "data": [
             {"ad.city": "全国", "ad.sales": 100},
@@ -26,8 +52,24 @@ def test_semantic_result_marks_self_and_path_alerts(tmp_path: Path):
     assert any(a["type"] == "path" for row in annotated["data"] for a in row.get("__alerts", []))
 
 
-def test_semantic_result_marks_expression_internal_alert(tmp_path: Path):
+def test_semantic_result_marks_expression_internal_alert(tmp_path: Path, monkeypatch):
     from kg_builder.alerts import indicator_alerts
+
+    monkeypatch.setattr(
+        indicator_alerts,
+        "_persisted_query_rules",
+        lambda *_args, **_kwargs: [
+            {
+                "id": 3,
+                "type": "expression",
+                "measure": "ad.c",
+                "measureCode": "MEAS_c",
+                "operator": "statistical",
+                "dimensions": {},
+                "enabled": True,
+            }
+        ],
+    )
 
     ttl = tmp_path / "indicator-data.ttl"
     ttl.write_text("", encoding="utf-8")
