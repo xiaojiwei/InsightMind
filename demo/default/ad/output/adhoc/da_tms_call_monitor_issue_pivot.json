@@ -1,0 +1,80 @@
+{
+  "id": "da_tms_call_monitor_issue_pivot",
+  "name": "监控预警｜问题类型责任人透视",
+  "description": "按问题类型与销售专家交叉定位问题通话；低质量、关键信息覆盖不足和下一步动作未完成达到阈值时高亮，便于店长直接锁定责任人与问题类型。",
+  "query": {
+    "measures": [
+      "ad.quality_record_count"
+    ],
+    "dimensions": [
+      "ad.quality_issue_category"
+    ],
+    "filters": [
+      {
+        "kind": "dimension",
+        "member": "ad.date_day",
+        "operator": "in",
+        "values": [
+          "2026-07-02"
+        ]
+      },
+      {
+        "kind": "dimension",
+        "member": "ad.store",
+        "operator": "equals",
+        "values": [
+          "小鹏汽车杭州演示体验中心"
+        ]
+      }
+    ],
+    "order": {
+      "ad.quality_record_count": "desc"
+    },
+    "limit": 1000
+  },
+  "view": {
+    "type": "pivot",
+    "chartType": "auto",
+    "encoding": {
+      "pivotColumns": [
+        "ad.sales_expert"
+      ],
+      "pivotHeatmapEnabled": true,
+      "pivotHeatmapLowColor": "#fffaf3",
+      "pivotHeatmapHighColor": "#d99042",
+      "pivotRowSubtotal": false,
+      "pivotColumnSubtotal": false,
+      "pivotGrandTotal": true,
+      "pivotCalcMode": "value",
+      "pivotMovingWindow": 3,
+      "pivotTopNEnabled": false,
+      "pivotTopN": 20,
+      "pivotTopNOthers": true
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": true,
+    "anomalyFocusMode": true,
+    "dimensionDisplayNames": {
+      "DIM_quality_issue_category": "问题类型",
+      "DIM_sales_expert": "销售专家"
+    },
+    "visibleMeasureCodes": [
+      "MEAS_quality_record_count"
+    ],
+    "measureDisplayNames": {
+      "MEAS_quality_record_count": "问题通话数"
+    }
+  },
+  "drill": {
+    "mode": "path",
+    "path": [
+      "ad.quality_rule",
+      "ad.intent",
+      "ad.date_day"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc",
+  "updatedAt": "2026-07-15 10:30:00"
+}

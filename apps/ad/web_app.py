@@ -1155,7 +1155,10 @@ async def quality_fk():
 
 # ── Business KG ──────────────────────────────────────────────────────────── #
 
-_DATA_AGENT_URL = "http://localhost:8091/bi/v1/datasource/query"
+_DATA_AGENT_URL = os.getenv(
+    "DATA_AGENT_URL",
+    "http://localhost:8091/bi/v1/datasource/query",
+).rstrip("/")
 
 
 def _build_valid_test_cases(turtle_str: str, blog) -> list:
@@ -7329,7 +7332,7 @@ def _da_tms_engine():
     url = URL.create(
         "mysql+pymysql",
         username=os.getenv("DA_TMS_MYSQL_USER", "root"),
-        password=os.getenv("DA_TMS_MYSQL_PASSWORD", "123456"),
+        password=os.getenv("DA_TMS_MYSQL_PASSWORD", "root"),
         host=os.getenv("DA_TMS_MYSQL_HOST", "127.0.0.1"),
         port=int(os.getenv("DA_TMS_MYSQL_PORT", "3306")),
         database=os.getenv("DA_TMS_MYSQL_DATABASE", "da_tms"),
@@ -7341,6 +7344,669 @@ def _da_tms_engine():
 @functools.lru_cache(maxsize=1)
 def _cached_da_tms_engine():
     return _da_tms_engine()
+
+
+def _da_call_sop_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Read call-SOP source rows through the DA service boundary."""
+    filters = list(payload.get("filters") or [])
+    members = {
+        str(item.get("member") or item.get("code") or "")
+        for item in filters
+        if isinstance(item, dict)
+    }
+    if payload.get("date") and "ad.date_day" not in members:
+        filters.append({"member": "ad.date_day", "operator": "in", "values": [str(payload["date"])]})
+    if payload.get("store") and "ad.store" not in members:
+        filters.append({"member": "ad.store", "operator": "equals", "values": [str(payload["store"])]})
+    url = f"{_da_graph_base_url()}/indicator/api/v1/call-sop/records"
+    result = _pivot_da_post(url, {"filters": filters})
+    data = result.get("data") if isinstance(result, dict) else None
+    rows = data.get("rows") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("DA 通话 SOP 查询未返回 rows")
+    return [dict(row) for row in rows if isinstance(row, dict)]
+
+
+def _call_sop_filter_value(payload: dict[str, Any], member: str, fallback: str) -> str:
+    for item in payload.get("filters") or []:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("member") or item.get("code") or "") != member:
+            continue
+        values = item.get("values")
+        if isinstance(values, list) and values:
+            return str(values[0])
+        if values not in (None, ""):
+            return str(values)
+    direct_key = "date" if member == "ad.date_day" else "store"
+    return str(payload.get(direct_key) or fallback)
+
+
+_CALL_SOP_RECORD_FILTER_COLUMNS = {
+    "ad.date_day": "f.activity_date",
+    "ad.store": "f.store_name",
+    "ad.store_city": "f.store_city",
+    "ad.store_manager": "f.manager_name",
+    "ad.sales_expert": "f.expert_name",
+    "ad.intent": "COALESCE(j.intent_name, f.intent_name)",
+    "ad.quality_score_level": "f.quality_score_level",
+    "ad.quality_issue_category": "f.issue_category",
+    "ad.quality_pass": "f.quality_pass_label",
+    "ad.call_flow_total": "f.call_flow_total",
+    "ad.quality_rule": "COALESCE(r.sop_category_name, r.sop_category_code, f.rule_id)",
+}
+
+
+def _call_sop_record_filter_conditions(payload: dict[str, Any]) -> tuple[list[str], dict[str, Any], bool]:
+    """Build the same supported filter scope for diagnosis and workbench data."""
+    where: list[str] = []
+    params: dict[str, Any] = {}
+    uses_rule = False
+    for idx, item in enumerate(payload.get("filters") or []):
+        if not isinstance(item, dict):
+            continue
+        member = str(item.get("member") or item.get("code") or "")
+        column = _CALL_SOP_RECORD_FILTER_COLUMNS.get(member)
+        if not column:
+            continue
+        uses_rule = uses_rule or member == "ad.quality_rule"
+        values = item.get("values")
+        if values is None and item.get("value") is not None:
+            values = [item.get("value")]
+        if not isinstance(values, list):
+            values = [values]
+        clean = [str(value) for value in values if value not in (None, "")]
+        if not clean:
+            continue
+        operator = str(item.get("operator") or "in").lower()
+        if operator in {"not_equals", "neq", "!="}:
+            key = f"scope_{idx}_0"
+            params[key] = clean[0]
+            where.append(f"{column} <> :{key}")
+        elif operator == "contains":
+            key = f"scope_{idx}_0"
+            params[key] = f"%{clean[0]}%"
+            where.append(f"{column} LIKE :{key}")
+        else:
+            keys = []
+            for pos, value in enumerate(clean):
+                key = f"scope_{idx}_{pos}"
+                params[key] = value
+                keys.append(f":{key}")
+            where.append(f"{column} IN ({', '.join(keys)})")
+
+    seen = {
+        str(item.get("member") or item.get("code") or "")
+        for item in payload.get("filters") or []
+        if isinstance(item, dict)
+    }
+    if "ad.date_day" not in seen:
+        params["default_day"] = _call_sop_filter_value(payload, "ad.date_day", "2026-07-02")
+        where.append("f.activity_date = :default_day")
+    if "ad.store" not in seen:
+        params["default_store"] = _call_sop_filter_value(payload, "ad.store", "小鹏汽车杭州演示体验中心")
+        where.append("f.store_name = :default_store")
+    return where, params, uses_rule
+
+
+def _call_sop_json_load(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    try:
+        return json.loads(str(value))
+    except Exception:
+        return None
+
+
+def _call_sop_empty_category(item: dict[str, Any]) -> dict[str, Any]:
+    checkpoints = item.get("checkpoints") or []
+    return {
+        "code": item.get("code"),
+        "name": item.get("name"),
+        "description": item.get("description"),
+        "total": 0,
+        "high": 0,
+        "standard": 0,
+        "basic": 0,
+        "miss": 0,
+        "hitCheckpointCount": 0,
+        "totalCheckpointCount": 0,
+        "coverageRate": 0,
+        "checks": [
+            {
+                "code": checkpoint.get("code"),
+                "name": checkpoint.get("name"),
+                "description": checkpoint.get("description"),
+                "total": 0,
+                "hit": 0,
+                "rate": 0,
+                "evidence": "",
+            }
+            for checkpoint in checkpoints
+        ],
+    }
+
+
+def _call_sop_add_category(target: dict[str, Any], category: dict[str, Any]) -> None:
+    level = str(category.get("level") or "miss")
+    if level not in {"high", "standard", "basic", "miss"}:
+        level = "miss"
+    target["total"] += 1
+    target[level] += 1
+    target["hitCheckpointCount"] += int(category.get("hit_count") or 0)
+    target["totalCheckpointCount"] += int(category.get("total_count") or 0)
+    check_map = {item.get("code"): item for item in target.get("checks") or []}
+    for checkpoint in category.get("checkpoints") or []:
+        check_stat = check_map.get(checkpoint.get("code"))
+        if not check_stat:
+            continue
+        check_stat["total"] += 1
+        if checkpoint.get("hit"):
+            check_stat["hit"] += 1
+            if not check_stat.get("evidence"):
+                check_stat["evidence"] = str(checkpoint.get("evidence") or "")[:120]
+
+
+def _call_sop_finalize_category(item: dict[str, Any]) -> dict[str, Any]:
+    total = int(item.get("total") or 0)
+    hit = int(item.get("hitCheckpointCount") or 0)
+    check_total = int(item.get("totalCheckpointCount") or 0)
+    item["achieved"] = int(item.get("high") or 0) + int(item.get("standard") or 0) + int(item.get("basic") or 0)
+    item["achievedRate"] = (hit / check_total * 100) if check_total else 0
+    item["coverageRate"] = hit / check_total if check_total else 0
+    item["miss"] = total - item["achieved"] if total else int(item.get("miss") or 0)
+    for checkpoint in item.get("checks") or []:
+        c_total = int(checkpoint.get("total") or 0)
+        c_hit = int(checkpoint.get("hit") or 0)
+        checkpoint["rate"] = c_hit / c_total * 100 if c_total else 0
+    return item
+
+
+def _call_sop_diagnosis(payload: dict[str, Any]) -> dict[str, Any]:
+    from kg_builder.call_sop import (
+        SOP_VERSION,
+        analyze_call_sop_record,
+        catalog_payload,
+        overall_grade_level,
+    )
+
+    day = _call_sop_filter_value(payload, "ad.date_day", "2026-07-02")
+    store = _call_sop_filter_value(payload, "ad.store", "小鹏汽车杭州演示体验中心")
+    catalog = catalog_payload()
+    category_template = {item["code"]: item for item in catalog}
+    categories = {item["code"]: _call_sop_empty_category(item) for item in catalog}
+    experts: dict[str, dict[str, Any]] = {}
+    total_calls = 0
+    connected_calls = 0
+    hit_total = 0
+    checkpoint_total = 0
+    fallback_count = 0
+    problem_call_count = 0
+    low_quality_call_count = 0
+    low_coverage_call_count = 0
+    overlapping_problem_call_count = 0
+    issue_counts: dict[str, int] = {}
+    quality_score_total = 0.0
+    quality_score_count = 0
+    slot_coverage_total = 0.0
+    slot_coverage_count = 0
+    rows = _da_call_sop_records(payload)
+    for row in rows:
+        total_calls += 1
+        analysis = _call_sop_json_load(row.get("sop_checkpoints_json"))
+        if (
+            not isinstance(analysis, dict)
+            or str(row.get("sop_analysis_version") or "") != SOP_VERSION
+            or str(analysis.get("version") or "") != SOP_VERSION
+        ):
+            analysis = analyze_call_sop_record(row)
+            fallback_count += 1
+        if not analysis.get("connected"):
+            continue
+        connected_calls += 1
+        hit_total += int(analysis.get("hit_checkpoint_count") or 0)
+        checkpoint_total += int(analysis.get("total_checkpoint_count") or 0)
+        if row.get("total_score") is not None:
+            quality_score_total += float(row.get("total_score") or 0)
+            quality_score_count += 1
+        if row.get("slot_coverage_rate") is not None:
+            slot_coverage_total += float(row.get("slot_coverage_rate") or 0)
+            slot_coverage_count += 1
+        is_low_quality = int(row.get("low_quality_call_count") or 0) > 0
+        is_low_coverage = int(row.get("low_coverage_call_count") or 0) > 0
+        low_quality_call_count += 1 if is_low_quality else 0
+        low_coverage_call_count += 1 if is_low_coverage else 0
+        overlapping_problem_call_count += 1 if is_low_quality and is_low_coverage else 0
+        is_problem_call = is_low_quality or is_low_coverage
+        if is_problem_call:
+            problem_call_count += 1
+            issue_name = str(row.get("issue_category") or "未分类")
+            issue_counts[issue_name] = issue_counts.get(issue_name, 0) + 1
+        expert_name = str(row.get("expert_name") or row.get("specialist_id") or "-")
+        if expert_name not in experts:
+            experts[expert_name] = {
+                "name": expert_name,
+                "specialistId": row.get("specialist_id"),
+                "total": 0,
+                "hitCheckpointCount": 0,
+                "totalCheckpointCount": 0,
+                "coverageRate": 0,
+                "high": 0,
+                "standard": 0,
+                "basic": 0,
+                "miss": 0,
+                "categories": {item["code"]: _call_sop_empty_category(item) for item in catalog},
+            }
+        expert = experts[expert_name]
+        expert["total"] += 1
+        expert["hitCheckpointCount"] += int(analysis.get("hit_checkpoint_count") or 0)
+        expert["totalCheckpointCount"] += int(analysis.get("total_checkpoint_count") or 0)
+        overall_level = overall_grade_level(
+            row.get("sop_grade_label"),
+            float(analysis.get("coverage_rate") or 0),
+            True,
+        )
+        expert[overall_level] += 1
+        for category in analysis.get("categories") or []:
+            code = category.get("code")
+            if code not in category_template:
+                continue
+            _call_sop_add_category(categories[code], category)
+            _call_sop_add_category(expert["categories"][code], category)
+
+    category_rows = [_call_sop_finalize_category(categories[item["code"]]) for item in catalog]
+    expert_rows = []
+    for expert in experts.values():
+        check_total = int(expert.get("totalCheckpointCount") or 0)
+        hit = int(expert.get("hitCheckpointCount") or 0)
+        expert["coverageRate"] = hit / check_total if check_total else 0
+        expert["achievedRate"] = expert["coverageRate"] * 100
+        expert["categories"] = [
+            _call_sop_finalize_category(expert["categories"][item["code"]])
+            for item in catalog
+        ]
+        expert_rows.append(expert)
+    expert_rows.sort(key=lambda item: (-float(item.get("coverageRate") or 0), -int(item.get("total") or 0), str(item.get("name") or "")))
+    return {
+        "source": "DA /indicator/api/v1/call-sop/records",
+        "version": SOP_VERSION,
+        "day": day,
+        "store": store,
+        "fallbackComputedRows": fallback_count,
+        "summary": {
+            "totalCalls": total_calls,
+            "connectedCalls": connected_calls,
+            "connectRate": connected_calls / total_calls if total_calls else 0,
+            "hitCheckpointCount": hit_total,
+            "totalCheckpointCount": checkpoint_total,
+            "coverageRate": hit_total / checkpoint_total if checkpoint_total else 0,
+            "problemCallCount": problem_call_count,
+            "lowQualityCallCount": low_quality_call_count,
+            "lowCoverageCallCount": low_coverage_call_count,
+            "overlappingProblemCallCount": overlapping_problem_call_count,
+            "qualityIssueRate": problem_call_count / connected_calls if connected_calls else 0,
+            "avgQualityScore": quality_score_total / quality_score_count if quality_score_count else 0,
+            "avgSlotCoverageRate": slot_coverage_total / slot_coverage_count if slot_coverage_count else 0,
+        },
+        "categories": category_rows,
+        "experts": expert_rows,
+        "issues": [
+            {"name": name, "total": total}
+            for name, total in sorted(issue_counts.items(), key=lambda item: (-item[1], item[0]))
+        ],
+    }
+
+
+@app.post("/api/da-tms/call-sop/diagnosis")
+async def da_tms_call_sop_diagnosis(request: Request):
+    try:
+        payload = await request.json()
+        return await asyncio.to_thread(_call_sop_diagnosis, payload)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+def _call_workbench_date_label(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "-"
+    return text[5:10] if len(text) >= 10 else text
+
+
+def _call_workbench_time_label(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if "T" in text:
+        text = text.split("T", 1)[1]
+    elif " " in text:
+        text = text.split(" ", 1)[1]
+    return text[:5]
+
+
+def _call_workbench_duration_label(seconds: Any) -> str:
+    try:
+        duration = max(0, int(seconds or 0))
+    except Exception:
+        duration = 0
+    return f"{duration // 60:02d}:{duration % 60:02d}"
+
+
+def _call_sop_workbench(payload: dict[str, Any]) -> dict[str, Any]:
+    from kg_builder.call_quality_workspace import WORKSPACE_VERSION, build_workspace_payload
+    from kg_builder.call_sop import SOP_VERSION, catalog_payload
+
+    day = _call_sop_filter_value(payload, "ad.date_day", "2026-07-02")
+    store = _call_sop_filter_value(payload, "ad.store", "小鹏汽车杭州演示体验中心")
+    catalog = catalog_payload()
+    catalog_names = [str(item.get("name") or "") for item in catalog if item.get("name")]
+    fallback_count = 0
+    rows = _da_call_sop_records(payload)
+
+    records: list[dict[str, Any]] = []
+    result_counts: dict[str, int] = {}
+    grade_counts: dict[str, int] = {}
+    expert_counts: dict[str, int] = {}
+    connected_calls = 0
+    duration_total = 0
+    word_total = 0
+
+    for row in rows:
+        segments = _call_sop_json_load(row.get("call_asr_segments_json"))
+        evidence = _call_sop_json_load(row.get("call_sop_evidence_json"))
+        detail = _call_sop_json_load(row.get("call_quality_detail_json"))
+        analysis = _call_sop_json_load(row.get("sop_checkpoints_json"))
+        analysis_is_current = (
+            isinstance(analysis, dict)
+            and str(row.get("sop_analysis_version") or "") == SOP_VERSION
+            and str(analysis.get("version") or "") == SOP_VERSION
+        )
+        if (
+            not isinstance(segments, list)
+            or not isinstance(evidence, list)
+            or not isinstance(detail, dict)
+            or not analysis_is_current
+            or str(row.get("call_workspace_version") or "") != WORKSPACE_VERSION
+        ):
+            source_record = dict(row)
+            if analysis_is_current:
+                source_record["sop_analysis"] = analysis
+            computed = build_workspace_payload(source_record)
+            segments = computed.get("segments") or []
+            evidence = computed.get("sopEvidence") or []
+            detail = computed.get("detail") or {}
+            analysis = source_record.get("sop_analysis") or _call_sop_json_load(source_record.get("sop_checkpoints_json"))
+            if not analysis_is_current:
+                from kg_builder.call_sop import analyze_call_sop_record
+                analysis = analyze_call_sop_record(source_record)
+            fallback_count += 1
+
+        duration = int(row.get("call_duration_seconds") or detail.get("durationSeconds") or 0)
+        word_count = int(row.get("call_word_count") or detail.get("wordCount") or 0)
+        result = str(row.get("invite_result_label") or detail.get("inviteResultLabel") or "未识别")
+        grade = str(row.get("sop_grade_label") or detail.get("sopGradeLabel") or row.get("quality_score_level") or "未识别")
+        primary_sop = str(row.get("primary_sop_category") or detail.get("primarySopCategory") or "")
+        expert_name = str(row.get("expert_name") or row.get("specialist_id") or "-")
+        customer_id = str(row.get("customer_account_id") or "")
+        customer_display_name = str(detail.get("customerDisplayName") or (f"客户{customer_id[-4:]}" if customer_id else "未知客户"))
+        latest_time = row.get("latest_conversation_time")
+        record = {
+            "qualityId": row.get("quality_id"),
+            "activityDate": row.get("activity_date"),
+            "storeName": row.get("store_name"),
+            "expertName": expert_name,
+            "specialistId": row.get("specialist_id"),
+            "customerAccountId": customer_id,
+            "customerDisplayName": customer_display_name,
+            "latestConversationTime": latest_time,
+            "dateLabel": _call_workbench_date_label(latest_time or row.get("activity_date")),
+            "timeLabel": _call_workbench_time_label(latest_time),
+            "intentName": row.get("intent_name") or row.get("grouped_intent_name"),
+            "intentOriginalName": row.get("intent_original_name"),
+            "actualNextAction": row.get("actual_next_action"),
+            "issueCategory": row.get("issue_category"),
+            "qualityScore": float(row.get("total_score") or 0),
+            "slotCoverageRate": float(row.get("slot_coverage_rate") or 0),
+            "lowQualityCallCount": int(row.get("low_quality_call_count") or 0),
+            "lowCoverageCallCount": int(row.get("low_coverage_call_count") or 0),
+            "missingSlotCount": int(row.get("missing_slot_count") or 0),
+            "connected": bool(analysis.get("connected")) if isinstance(analysis, dict) else result != "未接通",
+            "wordCount": word_count,
+            "durationSeconds": duration,
+            "durationLabel": detail.get("durationLabel") or _call_workbench_duration_label(duration),
+            "inviteResultLabel": result,
+            "sopGradeLabel": grade,
+            "primarySopCategory": primary_sop,
+            "segments": segments,
+            "sopEvidence": evidence,
+            "detail": detail,
+        }
+        records.append(record)
+        result_counts[result] = result_counts.get(result, 0) + 1
+        grade_counts[grade] = grade_counts.get(grade, 0) + 1
+        expert_counts[expert_name] = expert_counts.get(expert_name, 0) + 1
+        if record["connected"]:
+            connected_calls += 1
+        duration_total += duration
+        word_total += word_count
+
+    result_order = ["全部结果", "邀约成功", "待跟进", "邀约失败", "未接通"]
+    grade_order = ["全部达成", "高质量达成", "标准达成", "基础达成", "未达成"]
+    return {
+        "source": "DA /indicator/api/v1/call-sop/records",
+        "version": WORKSPACE_VERSION,
+        "day": day,
+        "store": store,
+        "fallbackComputedRows": fallback_count,
+        "summary": {
+            "totalCalls": len(records),
+            "connectedCalls": connected_calls,
+            "connectRate": connected_calls / len(records) if records else 0,
+            "avgDurationSeconds": duration_total / len(records) if records else 0,
+            "avgWordCount": word_total / len(records) if records else 0,
+            "resultCounts": result_counts,
+            "gradeCounts": grade_counts,
+            "expertCounts": expert_counts,
+        },
+        "filters": {
+            "resultOptions": [item for item in result_order if item == "全部结果" or item in result_counts],
+            "gradeOptions": [item for item in grade_order if item == "全部达成" or item in grade_counts],
+            "sopOptions": ["全部SOP", *catalog_names],
+        },
+        "records": records,
+    }
+
+
+@app.post("/api/da-tms/call-sop/workbench")
+async def da_tms_call_sop_workbench(request: Request):
+    try:
+        payload = await request.json()
+        return await asyncio.to_thread(_call_sop_workbench, payload)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+_CALL_SOP_DRILL_DIMENSIONS = {
+    "ad.date_day": ("f.activity_date", "日期"),
+    "ad.store": ("f.store_name", "门店"),
+    "ad.store_city": ("f.store_city", "城市"),
+    "ad.store_manager": ("f.manager_name", "店长"),
+    "ad.sales_expert": ("f.expert_name", "销售专家"),
+    "ad.intent": ("f.intent_name", "客户意图"),
+    "ad.quality_score_level": ("f.quality_score_level", "质量分层"),
+    "ad.quality_issue_category": ("f.issue_category", "问题分类"),
+    "ad.quality_pass": ("f.quality_pass_label", "质检通过"),
+    "ad.call_flow_total": ("f.call_flow_total", "电话流向"),
+    "ad.quality_rule": ("COALESCE(r.sop_category_name, r.sop_category_code, f.rule_id)", "质检规则"),
+}
+
+
+def _call_sop_filter_conditions(filters: list[dict[str, Any]]) -> tuple[list[str], dict[str, Any]]:
+    where: list[str] = []
+    params: dict[str, Any] = {}
+    for idx, item in enumerate(filters or []):
+        if not isinstance(item, dict):
+            continue
+        member = str(item.get("member") or item.get("code") or "")
+        column = _CALL_SOP_DRILL_DIMENSIONS.get(member, ("", ""))[0]
+        if not column:
+            continue
+        values = item.get("values")
+        if values is None and item.get("value") is not None:
+            values = [item.get("value")]
+        if not isinstance(values, list):
+            values = [values]
+        clean = [str(value) for value in values if value not in (None, "")]
+        if not clean:
+            continue
+        operator = str(item.get("operator") or "equals").lower()
+        if operator in {"in", "equals", "eq", "="}:
+            keys = []
+            for pos, value in enumerate(clean):
+                key = f"f_{idx}_{pos}"
+                params[key] = value
+                keys.append(f":{key}")
+            where.append(f"{column} IN ({', '.join(keys)})")
+        elif operator in {"not_equals", "neq", "!="}:
+            key = f"f_{idx}_0"
+            params[key] = clean[0]
+            where.append(f"{column} <> :{key}")
+    return where, params
+
+
+def _call_sop_kpi_drill(payload: dict[str, Any]) -> dict[str, Any]:
+    member = str(payload.get("dimension") or "")
+    dimension = _CALL_SOP_DRILL_DIMENSIONS.get(member)
+    if not dimension:
+        raise ValueError(f"暂不支持按 {member or '-'} 计算有效接通率")
+    _, dimension_label = dimension
+    limit = max(1, min(int(payload.get("limit") or 200), 500))
+    rows = _da_call_sop_records(payload)
+    dimension_fields = {
+        "ad.date_day": "activity_date",
+        "ad.store": "store_name",
+        "ad.store_city": "store_city",
+        "ad.store_manager": "manager_name",
+        "ad.sales_expert": "expert_name",
+        "ad.intent": "intent_name",
+        "ad.quality_score_level": "quality_score_level",
+        "ad.quality_issue_category": "issue_category",
+        "ad.quality_pass": "quality_pass_label",
+        "ad.call_flow_total": "call_flow_total",
+        "ad.quality_rule": "quality_rule",
+    }
+    field = dimension_fields[member]
+    groups: dict[str, dict[str, float]] = {}
+    unconnected_terms = ("无法接听", "语音留言", "未接通", "未建立对话", "空号", "关机")
+    for row in rows:
+        value = row.get(field)
+        if member == "ad.intent" and not value:
+            value = row.get("grouped_intent_name")
+        key = str(value or "-")
+        group = groups.setdefault(key, {
+            "total_calls": 0,
+            "connected_calls": 0,
+            "quality_score_total": 0,
+            "quality_score_count": 0,
+            "slot_coverage_total": 0,
+            "slot_coverage_count": 0,
+            "sop_hit_checkpoint_count": 0,
+            "sop_total_checkpoint_count": 0,
+            "low_quality_call_count": 0,
+            "low_coverage_call_count": 0,
+            "quality_issue_call_count": 0,
+            "missing_slot_count": 0,
+        })
+        group["total_calls"] += 1
+        flag = row.get("sop_connected_flag")
+        connected = bool(int(flag)) if flag is not None else not any(
+            term in str(row.get("aggregated_content") or "") for term in unconnected_terms
+        )
+        if not connected:
+            continue
+        group["connected_calls"] += 1
+        if row.get("total_score") is not None:
+            group["quality_score_total"] += float(row.get("total_score") or 0)
+            group["quality_score_count"] += 1
+        if row.get("slot_coverage_rate") is not None:
+            group["slot_coverage_total"] += float(row.get("slot_coverage_rate") or 0)
+            group["slot_coverage_count"] += 1
+        group["sop_hit_checkpoint_count"] += float(row.get("sop_hit_checkpoint_count") or 0)
+        group["sop_total_checkpoint_count"] += float(row.get("sop_total_checkpoint_count") or 0)
+        low_quality = float(row.get("low_quality_call_count") or 0) > 0
+        low_coverage = float(row.get("low_coverage_call_count") or 0) > 0
+        group["low_quality_call_count"] += 1 if low_quality else 0
+        group["low_coverage_call_count"] += 1 if low_coverage else 0
+        group["quality_issue_call_count"] += 1 if low_quality or low_coverage else 0
+        group["missing_slot_count"] += float(row.get("missing_slot_count") or 0)
+
+    grouped_rows = sorted(
+        groups.items(),
+        key=lambda item: (-item[1]["connected_calls"], -item[1]["total_calls"], item[0]),
+    )[:limit]
+    data = []
+    for dim_value, row in grouped_rows:
+        total = float(row["total_calls"])
+        connected = float(row["connected_calls"])
+        hit_total = float(row["sop_hit_checkpoint_count"])
+        checkpoint_total = float(row["sop_total_checkpoint_count"])
+        data.append({
+            member: dim_value,
+            "ad.sop_total_call_count": total,
+            "ad.quality_record_count": total,
+            "ad.effective_connect_rate": connected / total if total else 0,
+            "ad.connected_call_count": connected,
+            "ad.phone_call_count": total,
+            "ad.sop_checkpoint_pass_rate": hit_total / checkpoint_total if checkpoint_total else 0,
+            "ad.sop_hit_checkpoint_count": hit_total,
+            "ad.sop_total_checkpoint_count": checkpoint_total,
+            "ad.quality_issue_rate": min(
+                1.0,
+                float(row["quality_issue_call_count"]) / connected
+            ) if connected else 0,
+            "ad.quality_issue_call_count": float(row["quality_issue_call_count"]),
+            "ad.avg_call_quality_score": (
+                float(row["quality_score_total"]) / float(row["quality_score_count"])
+                if row["quality_score_count"] else 0
+            ),
+            "ad.avg_slot_coverage_rate": (
+                float(row["slot_coverage_total"]) / float(row["slot_coverage_count"])
+                if row["slot_coverage_count"] else 0
+            ),
+            "ad.low_quality_call_count": float(row["low_quality_call_count"]),
+            "ad.low_coverage_call_count": float(row["low_coverage_call_count"]),
+            "ad.missing_slot_count": float(row["missing_slot_count"]),
+        })
+    return {
+        "dimension": member,
+        "dimensionLabel": dimension_label,
+        "rows": data,
+        "source": "DA /indicator/api/v1/call-sop/records",
+    }
+
+
+@app.post("/api/da-tms/call-sop/connect-rate-drill")
+async def da_tms_call_sop_connect_rate_drill(request: Request):
+    try:
+        payload = await request.json()
+        return await asyncio.to_thread(_call_sop_kpi_drill, payload)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.post("/api/da-tms/call-sop/kpi-drill")
+async def da_tms_call_sop_kpi_drill(request: Request):
+    try:
+        payload = await request.json()
+        return await asyncio.to_thread(_call_sop_kpi_drill, payload)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
 
 
 def _jsonable_value(value: Any) -> Any:
@@ -7370,13 +8036,13 @@ def _celn_stage_code(raw: str) -> str:
 def _celn_store_insight(payload: dict[str, Any]) -> dict[str, Any]:
     from sqlalchemy import text
 
-    store = str(payload.get("store") or payload.get("storeName") or "理想汽车滨州赛博汽车园零售中心").strip()
+    store = str(payload.get("store") or payload.get("storeName") or "小鹏汽车杭州演示体验中心").strip()
     day = str(payload.get("date") or payload.get("day") or "2026-07-02").strip()
     engine = _cached_da_tms_engine()
     stage_meta = {
         "C": {"name": "C-考虑", "theme": "Why Car", "focus": "确认购车动机与车型兴趣"},
         "E": {"name": "E-评估", "theme": "Why Energy", "focus": "对比竞品、补齐体验与价格信息"},
-        "L": {"name": "L-意向", "theme": "Why Li Auto", "focus": "推进试驾、报价、金融方案和下一步动作"},
+        "L": {"name": "品牌意向", "theme": "品牌意向", "focus": "推进试驾、报价、金融方案和下一步动作"},
         "N": {"name": "N-谈判", "theme": "Why Now", "focus": "锁定时效、政策、权益和成交动作"},
     }
     with engine.connect() as conn:
@@ -7620,12 +8286,12 @@ def _celn_store_insight(payload: dict[str, Any]) -> dict[str, Any]:
             "theme": stage_meta[code]["theme"],
             "focus": stage_meta[code]["focus"],
             "ontologyIndividual": {
-                "C": "celn:Li-C-Consider",
-                "E": "celn:Li-E-Evaluate",
-                "L": "celn:Li-L-Lead",
-                "N": "celn:Li-N-Negotiate",
+                "C": "celn:Demo-C-Consider",
+                "E": "celn:Demo-E-Evaluate",
+                "L": "celn:Demo-L-Lead",
+                "N": "celn:Demo-N-Negotiate",
             }[code],
-            "ontologyClass": "celn:Li-CELNStage",
+            "ontologyClass": "celn:Demo-CELNStage",
             "userCount": count,
             "ratio": (count / total) if total else 0,
             "fcCandidateCount": int(row.get("fc_candidate_count") or 0),
@@ -7666,19 +8332,19 @@ def _celn_store_insight(payload: dict[str, Any]) -> dict[str, Any]:
         "stageFlows": stage_flow,
         "ln": {"current": ln_current, "previous": ln_prev, "change": ln_change, "direction": direction},
         "businessGraph": {
-            "ontology": "理想汽车 CELN 用户分层与跟进闭环业务场景本体",
+            "ontology": "小鹏汽车 CELN 用户分层与跟进闭环业务场景本体",
             "storeManagers": [row.get("manager_name") for row in manager_rows if row.get("manager_name")],
             "coreQuestion": "查询某用户当前处于 CELN 的哪个阶段，并追溯阶段判断、证据、标签、跟进闭环和转化结果。",
             "path": [
-                {"node": "core:Li-Store", "label": "门店", "relation": "celn:Li-CoversStore / celn:Li-BelongsToStore", "table": "celn_store", "count": 1},
-                {"node": "core:Li-Customer", "label": "用户", "relation": "celn:Li-HasStage", "table": "celn_customer", "count": total},
-                {"node": "celn:Li-CELNStage", "label": "CELN阶段", "relation": "celn:Li-DeterminesStage", "table": "celn_stage / celn_stage_determination", "count": sum(int((r or {}).get("determination_count") or 0) for r in determination_rows)},
-                {"node": "celn:Li-Evidence", "label": "判断证据", "relation": "celn:Li-BasedOnEvidence", "table": "celn_evidence / celn_determination_evidence", "count": sum(int((r or {}).get("evidence_count") or 0) for r in determination_rows)},
-                {"node": "celn:Li-Tag", "label": "标签", "relation": "celn:Li-HasTag / celn:Li-TagAppliesToStage", "table": "celn_tag / celn_customer_tag", "count": sum(int(row.get("tag_count") or 0) for row in tag_rows)},
-                {"node": "celn:Li-FollowUpTask", "label": "跟进任务", "relation": "celn:Li-AssignedTo / celn:Li-HasFollowUpRecord", "table": "celn_follow_up_task", "count": sum(int((r or {}).get("next_task_count") or 0) for r in task_rows)},
-                {"node": "celn:Li-FollowUpRecord", "label": "跟进记录", "relation": "celn:Li-TriggersStageChange", "table": "celn_follow_up_record", "count": sum(int(row.get("count") or 0) for row in stage_flow)},
-                {"node": "celn:Li-ConversionEvent", "label": "转化事件", "relation": "celn:Li-TracesTo / celn:Li-LeadsToConversion", "table": "celn_conversion_event / celn_conversion_trace", "count": sum(int((r or {}).get("conversion_count") or 0) for r in conversion_rows)},
-                {"node": "celn:Li-DailyReview", "label": "每日复盘", "relation": "celn:Li-HasInventory / celn:Li-ProducesKnowledge", "table": "celn_daily_review / celn_customer_inventory", "count": len(review_rows)},
+                {"node": "core:Demo-Store", "label": "门店", "relation": "celn:Demo-CoversStore / celn:Demo-BelongsToStore", "table": "celn_store", "count": 1},
+                {"node": "core:Demo-Customer", "label": "用户", "relation": "celn:Demo-HasStage", "table": "celn_customer", "count": total},
+                {"node": "celn:Demo-CELNStage", "label": "CELN阶段", "relation": "celn:Demo-DeterminesStage", "table": "celn_stage / celn_stage_determination", "count": sum(int((r or {}).get("determination_count") or 0) for r in determination_rows)},
+                {"node": "celn:Demo-Evidence", "label": "判断证据", "relation": "celn:Demo-BasedOnEvidence", "table": "celn_evidence / celn_determination_evidence", "count": sum(int((r or {}).get("evidence_count") or 0) for r in determination_rows)},
+                {"node": "celn:Demo-Tag", "label": "标签", "relation": "celn:Demo-HasTag / celn:Demo-TagAppliesToStage", "table": "celn_tag / celn_customer_tag", "count": sum(int(row.get("tag_count") or 0) for row in tag_rows)},
+                {"node": "celn:Demo-FollowUpTask", "label": "跟进任务", "relation": "celn:Demo-AssignedTo / celn:Demo-HasFollowUpRecord", "table": "celn_follow_up_task", "count": sum(int((r or {}).get("next_task_count") or 0) for r in task_rows)},
+                {"node": "celn:Demo-FollowUpRecord", "label": "跟进记录", "relation": "celn:Demo-TriggersStageChange", "table": "celn_follow_up_record", "count": sum(int(row.get("count") or 0) for row in stage_flow)},
+                {"node": "celn:Demo-ConversionEvent", "label": "转化事件", "relation": "celn:Demo-TracesTo / celn:Demo-LeadsToConversion", "table": "celn_conversion_event / celn_conversion_trace", "count": sum(int((r or {}).get("conversion_count") or 0) for r in conversion_rows)},
+                {"node": "celn:Demo-DailyReview", "label": "每日复盘", "relation": "celn:Demo-HasInventory / celn:Demo-ProducesKnowledge", "table": "celn_daily_review / celn_customer_inventory", "count": len(review_rows)},
             ],
             "tagBreakdown": tag_rows,
             "dailyReviews": review_rows,
@@ -7686,8 +8352,8 @@ def _celn_store_insight(payload: dict[str, Any]) -> dict[str, Any]:
         "agentPush": {
             "title": f"{store} CELN每日变化",
             "severity": severity,
-            "message": f"{latest_key} L/N 合计 {int(ln_current)}；基于 celn:Li-TriggersStageChange 统计今日阶段流转，L净{stage_net.get('L', 0):+d}、N净{stage_net.get('N', 0):+d}，L/N净{int(ln_change):+d}。请重点查看 L-意向与 N-谈判用户名单、阶段判断证据、跟进记录和下一步计划。",
-            "schedule": "每日 09:00 以 celn:Li-DailyReview 生成主动推送；外部通道可接飞书/企微/Webhook。",
+            "message": f"{latest_key} L/N 合计 {int(ln_current)}；基于 celn:Demo-TriggersStageChange 统计今日阶段流转，L净{stage_net.get('L', 0):+d}、N净{stage_net.get('N', 0):+d}，L/N净{int(ln_change):+d}。请重点查看 L-意向与 N-谈判用户名单、阶段判断证据、跟进记录和下一步计划。",
+            "schedule": "每日 09:00 以 celn:Demo-DailyReview 生成主动推送；外部通道可接飞书/企微/Webhook。",
         },
     }
 
@@ -7702,7 +8368,7 @@ async def da_tms_celn_store_insight(request: Request):
 
 
 @app.get("/api/da-tms/celn/customers")
-async def da_tms_celn_customers(store: str = "理想汽车滨州赛博汽车园零售中心", stage: str = "", limit: int = 100):
+async def da_tms_celn_customers(store: str = "小鹏汽车杭州演示体验中心", stage: str = "", limit: int = 100):
     from sqlalchemy import text
 
     try:
@@ -8448,7 +9114,7 @@ def _dashboard_ai_local_interpretation(payload: dict[str, Any]) -> str:
                     lines.append(f"- **{name}**：「{high[0]}」占比较高，说明这类客户或节点是当前经营重点，需要确认承接动作是否跟上。")
                 found = True
             if avg and low and low[1] < avg * 0.5:
-                if any(key in str(low[0]) for key in ("FC", "确认", "转化", "交付", "N Why Now", "L Why Li Auto")):
+                if any(key in str(low[0]) for key in ("FC", "确认", "转化", "交付", "N Why Now", "品牌意向")):
                     lines.append(f"- **{name}**：「{low[0]}」偏弱，可能是客户临门推进不足，需要补齐试驾、报价、权益确认或成交下一步。")
                 else:
                     lines.append(f"- **{name}**：「{low[0]}」偏低，建议下钻看是否存在客户未跟进、话术缺口或责任人不清。")
@@ -8527,12 +9193,43 @@ async def dashboard_ai_interpret(request: Request):
         }
 
 
+_PIVOT_CALL_SOP_RULE_LABELS = {
+    "RULE_000": "自我介绍",
+    "RULE_001": "回忆唤起",
+    "RULE_002": "信息建立",
+    "RULE_003": "封闭式邀约",
+    "RULE_004": "异议处理",
+    "RULE_005": "约定确认",
+    "RULE_006": "探需覆盖",
+    "RULE_007": "邀约结果",
+}
+
+_PIVOT_QUALITY_LEVEL_LABELS = {
+    "优秀 >80": "高质量达成",
+    "良好 61-80": "标准达成",
+    "合格 51-60": "基础达成",
+    "未通过 <=50": "未达成",
+}
+
+
+def _pivot_dimension_display_value(code: str, value: Any) -> str:
+    """Keep pivot labels business-readable while preserving raw filter values."""
+    raw = str(value or "")
+    if code == "DIM_quality_rule":
+        return _PIVOT_CALL_SOP_RULE_LABELS.get(raw, raw)
+    if code == "DIM_quality_score_level":
+        return _PIVOT_QUALITY_LEVEL_LABELS.get(raw, raw)
+    return raw
+
+
 def _pivot_path(axis: list[dict[str, str]], values: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
             "code": item["code"],
             "name": item["name"],
-            "value": values.get(item["code"], {}).get("value", ""),
+            "value": _pivot_dimension_display_value(
+                item["code"], values.get(item["code"], {}).get("value", "")
+            ),
             "filterValue": values.get(item["code"], {}).get("filterValue", ""),
             "viewType": values.get(item["code"], {}).get("viewType", 0),
         }

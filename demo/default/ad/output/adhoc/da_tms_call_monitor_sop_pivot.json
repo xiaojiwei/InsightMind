@@ -1,0 +1,81 @@
+{
+  "id": "da_tms_call_monitor_sop_pivot",
+  "name": "监控预警｜SOP短板预警透视",
+  "description": "按 SOP 环节与达成等级交叉展示质检通话数；未达成通话集中时直接标红，可点击单元格下钻到对应通话及质检证据。",
+  "query": {
+    "measures": [
+      "ad.quality_record_count"
+    ],
+    "dimensions": [
+      "ad.quality_rule"
+    ],
+    "filters": [
+      {
+        "kind": "dimension",
+        "member": "ad.date_day",
+        "operator": "in",
+        "values": [
+          "2026-07-02"
+        ]
+      },
+      {
+        "kind": "dimension",
+        "member": "ad.store",
+        "operator": "equals",
+        "values": [
+          "小鹏汽车杭州演示体验中心"
+        ]
+      }
+    ],
+    "order": {
+      "ad.quality_record_count": "desc"
+    },
+    "limit": 1000
+  },
+  "view": {
+    "type": "pivot",
+    "chartType": "auto",
+    "encoding": {
+      "pivotColumns": [
+        "ad.quality_score_level"
+      ],
+      "pivotHeatmapEnabled": false,
+      "pivotHeatmapLowColor": "#fff7ed",
+      "pivotHeatmapHighColor": "#c84b4b",
+      "pivotRowSubtotal": false,
+      "pivotColumnSubtotal": false,
+      "pivotGrandTotal": true,
+      "pivotCalcMode": "value",
+      "pivotMovingWindow": 3,
+      "pivotTopNEnabled": false,
+      "pivotTopN": 10,
+      "pivotTopNOthers": true
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": true,
+    "anomalyFocusMode": true,
+    "dimensionDisplayNames": {
+      "DIM_quality_rule": "SOP环节",
+      "DIM_quality_score_level": "检查点达成等级"
+    },
+    "visibleMeasureCodes": [
+      "MEAS_quality_record_count"
+    ],
+    "measureDisplayNames": {
+      "MEAS_quality_record_count": "通话数"
+    }
+  },
+  "drill": {
+    "mode": "path",
+    "path": [
+      "ad.sales_expert",
+      "ad.quality_issue_category",
+      "ad.intent",
+      "ad.date_day"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc",
+  "updatedAt": "2026-07-15 10:30:00"
+}

@@ -223,8 +223,8 @@ public class COALoginManager {
             });
             Department company = new Department();
             company.setDepartmentId(IndicatorConstant.TOP_DEPT_ID);
-            company.setFullname("理想汽车");
-            company.setNamePath("理想汽车");
+            company.setFullname("演示汽车公司");
+            company.setNamePath("演示汽车公司");
             company.setCompanyId(48);
             company.setDeptLevel(IndicatorConstant.TOP_DEPT_LEVEL);
             company.setIdPath(IndicatorConstant.TOP_DEPT_ID.toString());

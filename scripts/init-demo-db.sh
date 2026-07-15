@@ -11,6 +11,12 @@ MYSQL_PASSWORD="${MYSQL_PASSWORD:-root}"
 
 TPCDS_DB="${TPCDS_DB:-tpcds}"
 DA_DB="${DA_DB:-indbtest}"
+DA_TMS_DB="${DA_TMS_DB:-da_tms}"
+
+AD_PYTHON_BIN="${AD_PYTHON:-$ROOT_DIR/apps/ad/venv/bin/python}"
+if [[ ! -x "$AD_PYTHON_BIN" ]]; then
+  AD_PYTHON_BIN="$(command -v python3 || command -v python)"
+fi
 
 mysql_args=(
   "-h${MYSQL_HOST}"
@@ -29,11 +35,6 @@ sed "s/^USE tpcds;$/USE ${TPCDS_DB};/" "$ROOT_DIR/apps/ad/tpcds_schema.sql" | ru
 echo "Generating deterministic TPC-DS sample data"
 (
   cd "$ROOT_DIR/apps/ad"
-  AD_PYTHON_BIN="${AD_PYTHON:-./venv/bin/python}"
-  if [[ ! -x "$AD_PYTHON_BIN" ]]; then
-    AD_PYTHON_BIN="$(command -v python3 || command -v python)"
-  fi
-
   TPCDS_DB_HOST="$MYSQL_HOST" \
   TPCDS_DB_PORT="$MYSQL_PORT" \
   TPCDS_DB_USER="$MYSQL_USER" \
@@ -42,10 +43,35 @@ echo "Generating deterministic TPC-DS sample data"
     "$AD_PYTHON_BIN" tpcds_data.py
 )
 
+echo "Recreating sanitized call-quality demo database: $DA_TMS_DB"
+(
+  cd "$ROOT_DIR/apps/ad"
+  "$AD_PYTHON_BIN" demo_call_sop_data.py \
+    --host "$MYSQL_HOST" \
+    --port "$MYSQL_PORT" \
+    --user "$MYSQL_USER" \
+    --password "$MYSQL_PASSWORD" \
+    --database "$DA_TMS_DB"
+)
+
 echo "Creating DA metadata database: $DA_DB"
 run_mysql -e "CREATE DATABASE IF NOT EXISTS \`${DA_DB}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 run_mysql "$DA_DB" < "$ROOT_DIR/apps/da/schema.sql"
 
+echo "Installing demo alert rules"
+(
+  cd "$ROOT_DIR/apps/ad"
+  ALERT_DB_HOST="$MYSQL_HOST" \
+  ALERT_DB_PORT="$MYSQL_PORT" \
+  ALERT_DB_USER="$MYSQL_USER" \
+  ALERT_DB_PASSWORD="$MYSQL_PASSWORD" \
+  ALERT_DB_NAME="$TPCDS_DB" \
+  ALERT_SEED_DEMO_RULES=1 \
+  PYTHONPATH=. \
+    "$AD_PYTHON_BIN" -c "from kg_builder.alerts.models import init_db; init_db()"
+)
+
 echo "Demo databases are ready:"
 echo "  TPC-DS business data: $TPCDS_DB"
+echo "  Call-quality demo:    $DA_TMS_DB (54 fully synthetic calls)"
 echo "  DA metadata:          $DA_DB"

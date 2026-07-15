@@ -67,7 +67,7 @@ _ONTOLOGY_PREAMBLE = """\
 # ═══════════════════════════════════════════════════════════════════════════
 
 <http://indicator.insightmind.com/ontology> a owl:Ontology ;
-    rdfs:label "理想汽车指标平台业务知识图谱本体"@zh ;
+    rdfs:label "InsightMind 演示业务知识图谱本体"@zh ;
     owl:versionInfo "1.1.0" .
 
 # ═══════════════════════════════════════
