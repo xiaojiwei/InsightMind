@@ -17,6 +17,7 @@ tree so they can also be used directly during development:
 - `apps/ad/tpcds_schema.sql`
 - `apps/ad/tpcds_data.py`
 - `apps/ad/demo_call_sop_data.py` — 54 fully synthetic call-quality records.
+- `apps/ad/demo_celn_data.py` — synthetic CELN funnel and drill-down records for Smart Insight.
 - `apps/da/schema.sql`
 
 To initialize a fresh local demo:
@@ -28,9 +29,10 @@ To initialize a fresh local demo:
 ```
 
 The initializer recreates the local `tpcds` and `da_tms` demo databases, loads
-the DA metadata database, and installs the checked-in pivot alert rules.  The
-call transcripts, customer IDs, employees and store are synthetic and use the
-fictional demo scope `小鹏汽车杭州演示体验中心`.
+the DA metadata database, and installs the checked-in pivot alert rules. The
+call transcripts, CELN customers, stage evidence, employees, store and
+conversion events are synthetic and use the fictional demo scope
+`小鹏汽车杭州演示体验中心`.
 
 After both services start, open the three ready-to-use dashboards:
 
