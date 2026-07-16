@@ -54,6 +54,17 @@ echo "Recreating sanitized call-quality demo database: $DA_TMS_DB"
     --database "$DA_TMS_DB"
 )
 
+echo "Installing sanitized CELN Smart Insight demo data"
+(
+  cd "$ROOT_DIR/apps/ad"
+  "$AD_PYTHON_BIN" demo_celn_data.py \
+    --host "$MYSQL_HOST" \
+    --port "$MYSQL_PORT" \
+    --user "$MYSQL_USER" \
+    --password "$MYSQL_PASSWORD" \
+    --database "$DA_TMS_DB"
+)
+
 echo "Creating DA metadata database: $DA_DB"
 run_mysql -e "CREATE DATABASE IF NOT EXISTS \`${DA_DB}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 run_mysql "$DA_DB" < "$ROOT_DIR/apps/da/schema.sql"
@@ -74,4 +85,5 @@ echo "Installing demo alert rules"
 echo "Demo databases are ready:"
 echo "  TPC-DS business data: $TPCDS_DB"
 echo "  Call-quality demo:    $DA_TMS_DB (54 fully synthetic calls)"
+echo "  CELN Smart Insight:   $DA_TMS_DB (synthetic funnel and drill data)"
 echo "  DA metadata:          $DA_DB"
