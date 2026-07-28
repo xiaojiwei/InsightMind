@@ -12,7 +12,6 @@ import java.util.Set;
  *  Mapper 接口
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-01-25
  */
 @DS("mysql")

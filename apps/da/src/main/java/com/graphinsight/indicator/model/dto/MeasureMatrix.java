@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Author: lixiaolong
  * Date: 2022/8/9
  * Desc: 指标基础信息
  */

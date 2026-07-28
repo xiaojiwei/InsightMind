@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * @Author: lixiaolong
  * @Description: 模型字段信息
  * @Date: 2021/11/22
  */

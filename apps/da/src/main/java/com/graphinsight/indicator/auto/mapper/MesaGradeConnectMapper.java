@@ -9,7 +9,6 @@ import com.graphinsight.indicator.auto.entity.MesaGradeConnect;
  * 指标等级关联表 Mapper 接口
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-16
  */
 @DS("mysql")

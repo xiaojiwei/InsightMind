@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
  *  Mapper 接口
  * </p>
  *
- * @author lixiaolong5
  * @since 2023-01-04
  */
 public interface TableHistogramMapper extends BaseMapper<TableHistogram> {

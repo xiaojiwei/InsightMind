@@ -33,7 +33,7 @@ The current workflow is usually:
 For the default call-quality demo used in local development, the repository
 includes checked-in assets under `../../demo/default/ad/output`. AD restores
 them into `output/` automatically when they are missing. The database bootstrap
-creates 54 fully synthetic calls for `小鹏汽车杭州演示体验中心`; no production
+creates 54 fully synthetic calls for `特斯拉汽车杭州演示体验中心`; no production
 customer, employee, transcript or store data is included.
 
 ## Install

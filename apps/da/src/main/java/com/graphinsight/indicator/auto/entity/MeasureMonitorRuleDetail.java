@@ -17,7 +17,6 @@ import java.util.List;
  * 告警详情
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-10-11
  */
 @Data

@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.exception;
 
 /**
- * Author: lixiaolong
  * Date: 2022/2/11
  * Desc:
  */

@@ -9,7 +9,6 @@ import org.junit.Test;
 import java.io.File;
 
 /**
- * Author: lixiaolong
  * Date: 2022/12/15
  * Desc:
  */
@@ -18,7 +17,7 @@ public class PearsonCorrelationSimilarityTest {
     @Test
     public void demo() throws Exception{
 
-        DataModel model = new FileDataModel(new File("/Users/lixiaolong5/Desktop/user.csv"));
+        DataModel model = new FileDataModel(new File("src/test/resources/user.csv"));
 
         ItemSimilarity similarity = new PearsonCorrelationSimilarity(model);
         double v = similarity.itemSimilarity(101, 101);

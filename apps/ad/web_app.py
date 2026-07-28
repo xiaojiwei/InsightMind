@@ -9,6 +9,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import datetime
 import math
 import functools
 import json
@@ -42,6 +43,7 @@ TEMPLATES = Jinja2Templates(directory=str(BASE_DIR / "kg_builder" / "web" / "tem
 # ── Alert management ──────────────────────────────────────────────────────── #
 from kg_builder.alerts import alerts_router, init_db, get_db
 from kg_builder.alerts import scheduler as alert_scheduler
+from kg_builder.utils.http_client import urlopen as _urlopen
 
 # app.include_router(alerts_router)  -- deferred after app creation
 
@@ -1157,7 +1159,7 @@ async def quality_fk():
 
 _DATA_AGENT_URL = os.getenv(
     "DATA_AGENT_URL",
-    "http://localhost:8091/bi/v1/datasource/query",
+    "http://127.0.0.1:8091/bi/v1/datasource/query",
 ).rstrip("/")
 
 
@@ -1309,7 +1311,7 @@ def _test_bkg_queries(turtle_str: str, blog,
         )
         err_msg = None
         try:
-            with _ureq.urlopen(req, timeout=15) as resp:
+            with _urlopen(req, timeout=15) as resp:
                 raw_body = resp.read().decode("utf-8")
                 result   = _json.loads(raw_body)
                 if result.get("code") != 200:
@@ -2037,7 +2039,7 @@ def _bkg_refine_worker(user_prompt: str, target_file: str, auto_empty_dim: bool 
         )
         t0 = _time.time()
         try:
-            with urllib.request.urlopen(req2, timeout=1200) as resp:
+            with _urlopen(req2, timeout=1200) as resp:
                 data = _json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as he:
             err_body = he.read().decode("utf-8", errors="replace")[:600]
@@ -2681,6 +2683,33 @@ async def business_kg_measures(file: str = ""):
     return {"measures": measures, "total": len(measures)}
 
 
+def _select_nlq_suggestion_candidates(
+    items: list[dict[str, Any]],
+    live_tables: set[str],
+    preferred_codes: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    """Prefer candidates backed by live tables, then stable demo-friendly codes."""
+    selected = items
+    if live_tables:
+        live_items = [item for item in items if set(item.get("tables") or ()) & live_tables]
+        if live_items:
+            selected = live_items
+
+    preferred_rank = {code: index for index, code in enumerate(preferred_codes)}
+    return sorted(
+        selected,
+        key=lambda item: (
+            preferred_rank.get(str(item.get("code") or ""), len(preferred_rank)),
+            str(item.get("name") or ""),
+        ),
+    )
+
+
+NLQ_DEMO_INSIGHT_QUESTIONS = (
+    "请分析最近4周平均电话质量分下降的原因",
+)
+
+
 @app.get("/api/nlq/suggestions")
 async def nlq_suggestions(file: str = ""):
     """Generate default natural-language questions from the selected business KG TTL."""
@@ -2743,8 +2772,80 @@ async def nlq_suggestions(file: str = ""):
             "tables": tables,
         })
 
-    measures.sort(key=lambda x: x["name"])
-    dims.sort(key=lambda x: x["name"])
+    live_tables: set[str] = set()
+    live_table_check_succeeded = False
+    table_groups: dict[tuple[str, int, str, str, str], set[str]] = {}
+    for tbl in g.subjects(RDF.type, _u("DwTable")):
+        table_name = _val(tbl, "tableName")
+        schema_name = _val(tbl, "schemaName")
+        conn_node = g.value(tbl, _u("hasConnection"))
+        if not table_name or conn_node is None:
+            continue
+        host = _val(conn_node, "host") or "127.0.0.1"
+        try:
+            port = int(_val(conn_node, "port") or 3306)
+        except (TypeError, ValueError):
+            port = 3306
+        user = _val(conn_node, "dbUser") or "root"
+        password = _val(conn_node, "dbPassword")
+        database = _val(conn_node, "dbName") or schema_name
+        if database:
+            table_groups.setdefault((host, port, user, password, database), set()).add(table_name)
+
+    try:
+        import pymysql
+        for (host, port, user, password, database), candidate_tables in table_groups.items():
+            conn = None
+            try:
+                conn = pymysql.connect(
+                    host=host,
+                    port=port,
+                    user=user,
+                    password=password,
+                    database=database,
+                    charset="utf8mb4",
+                    connect_timeout=2,
+                    read_timeout=3,
+                    write_timeout=3,
+                )
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s",
+                        (database,),
+                    )
+                    existing = {str(row[0]) for row in cur.fetchall()}
+                live_tables.update(candidate_tables & existing)
+                live_table_check_succeeded = True
+            except Exception:
+                continue
+            finally:
+                if conn is not None:
+                    conn.close()
+    except Exception:
+        pass
+
+    if not live_table_check_succeeded:
+        live_tables = set()
+
+    measures = _select_nlq_suggestion_candidates(
+        measures,
+        live_tables,
+        (
+            "MEAS_quality_record_count",
+            "MEAS_avg_call_quality_score",
+            "MEAS_pass_call_count",
+        ),
+    )
+    dims = _select_nlq_suggestion_candidates(
+        dims,
+        live_tables,
+        (
+            "DIM_date_day",
+            "DIM_store",
+            "DIM_sales_expert",
+            "DIM_quality_issue_category",
+        ),
+    )
 
     primary_measure = measures[0] if measures else {"name": "核心指标", "tables": set()}
     second_measure = measures[1] if len(measures) > 1 else primary_measure
@@ -2907,6 +3008,7 @@ async def nlq_suggestions(file: str = ""):
             f"按{first_dim['name']}统计{primary_measure['name']}",
             f"按{second_dim['name']}统计{second_measure['name']}",
         ]),
+        ("洞察归因", list(NLQ_DEMO_INSIGHT_QUESTIONS)),
         ("属性检索", entity_examples[:4]),
         ("图谱解释", [
             f"解释{primary_measure['name']}有哪些可分析维度",
@@ -3115,7 +3217,7 @@ async def business_kg_generate_hint(file: str = ""):
         method="POST",
     )
     try:
-        with _ureq.urlopen(req, timeout=120) as resp:
+        with _urlopen(req, timeout=120) as resp:
             data = _json.loads(resp.read().decode("utf-8"))
         content = data["choices"][0]["message"]["content"]
         # 去除部分模型的思考标签
@@ -3770,7 +3872,7 @@ def _validate_bkg_iter(ttl_path: Path):
         try:
             req = _ureq.Request(_DATA_AGENT_URL, data=payload,
                                 headers={"Content-Type": "application/json"}, method="POST")
-            with _ureq.urlopen(req, timeout=20) as resp:
+            with _urlopen(req, timeout=20) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             if data.get("code") == 200 and data.get("data") and data["data"].get("cellList"):
                 row = data["data"]["cellList"][0]
@@ -3807,7 +3909,7 @@ def _validate_bkg_iter(ttl_path: Path):
                 try:
                     req = _ureq.Request(_DATA_AGENT_URL, data=payload,
                                         headers={"Content-Type": "application/json"}, method="POST")
-                    with _ureq.urlopen(req, timeout=20) as resp:
+                    with _urlopen(req, timeout=20) as resp:
                         data = json.loads(resp.read().decode("utf-8"))
                     if data.get("code") == 200 and data.get("data") and data["data"].get("cellList"):
                         row = data["data"]["cellList"][0]
@@ -4110,7 +4212,7 @@ async def business_kg_validate_fix(req: BkgFixRequest):
     try:
         dr = _ureq.Request(_DATA_AGENT_URL, data=payload,
                            headers={"Content-Type": "application/json"}, method="POST")
-        with _ureq.urlopen(dr, timeout=20) as resp:
+        with _urlopen(dr, timeout=20) as resp:
             d = json.loads(resp.read().decode("utf-8"))
         if d.get("code") == 200 and d.get("data") and d["data"].get("cellList"):
             row = d["data"]["cellList"][0]
@@ -4717,7 +4819,7 @@ def _fetch_integration_schema(system_url: str) -> dict[str, Any]:
                 headers={"Accept": "application/json", "User-Agent": "InsightMind-Integration-Discovery/1.0"},
                 method="GET",
             )
-            with urllib.request.urlopen(req, timeout=6) as resp:
+            with _urlopen(req, timeout=6) as resp:
                 content_type = resp.headers.get("content-type", "")
                 raw = resp.read(300_000)
             text = raw.decode("utf-8", errors="replace")
@@ -4862,7 +4964,7 @@ def _llm_integration_plan(plan: dict[str, Any], system_url: str, discovery: dict
         headers=llm_request_headers(cfg),
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=50) as resp:
+    with _urlopen(req, timeout=50) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
     try:
@@ -6535,7 +6637,7 @@ async def nlq_interpret(req: NLQInterpretRequest):
                 method="POST",
             )
         try:
-            with urllib.request.urlopen(request, timeout=90) as resp:
+            with _urlopen(request, timeout=90) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")[:800]
@@ -6747,7 +6849,7 @@ def _pivot_da_post(url: str, payload: dict[str, Any]) -> dict[str, Any]:
         method="POST",
     )
     try:
-        with url_request.urlopen(request, timeout=120) as response:
+        with _urlopen(request, timeout=120) as response:
             result = json.loads(response.read().decode("utf-8"))
     except url_error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:1000]
@@ -7051,7 +7153,7 @@ def _da_compatible_dimension_relations(measure_code: str) -> dict[str, dict[str,
         f"{_uparse.quote(str(measure_code), safe='')}/compatible-dimensions"
     )
     try:
-        with _ureq.urlopen(url, timeout=4) as resp:
+        with _urlopen(url, timeout=4) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
     except (_uerr.URLError, TimeoutError, json.JSONDecodeError, OSError):
         return {}
@@ -7444,7 +7546,7 @@ def _call_sop_record_filter_conditions(payload: dict[str, Any]) -> tuple[list[st
         params["default_day"] = _call_sop_filter_value(payload, "ad.date_day", "2026-07-02")
         where.append("f.activity_date = :default_day")
     if "ad.store" not in seen:
-        params["default_store"] = _call_sop_filter_value(payload, "ad.store", "小鹏汽车杭州演示体验中心")
+        params["default_store"] = _call_sop_filter_value(payload, "ad.store", "特斯拉汽车杭州演示体验中心")
         where.append("f.store_name = :default_store")
     return where, params, uses_rule
 
@@ -7533,7 +7635,7 @@ def _call_sop_diagnosis(payload: dict[str, Any]) -> dict[str, Any]:
     )
 
     day = _call_sop_filter_value(payload, "ad.date_day", "2026-07-02")
-    store = _call_sop_filter_value(payload, "ad.store", "小鹏汽车杭州演示体验中心")
+    store = _call_sop_filter_value(payload, "ad.store", "特斯拉汽车杭州演示体验中心")
     catalog = catalog_payload()
     category_template = {item["code"]: item for item in catalog}
     categories = {item["code"]: _call_sop_empty_category(item) for item in catalog}
@@ -7668,22 +7770,68 @@ async def da_tms_call_sop_diagnosis(request: Request):
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
-def _call_workbench_date_label(value: Any) -> str:
-    text = str(value or "").strip()
+def _call_workbench_datetime_parts(value: Any) -> tuple[int, int, int, int, int, int] | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime.datetime):
+        return value.year, value.month, value.day, value.hour, value.minute, value.second
+    if isinstance(value, datetime.date):
+        return value.year, value.month, value.day, 0, 0, 0
+    if isinstance(value, (list, tuple)) and len(value) >= 3:
+        try:
+            parts = [int(item) for item in value[:6]]
+            parts.extend([0] * (6 - len(parts)))
+            return tuple(parts[:6])
+        except (TypeError, ValueError):
+            return None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            timestamp = float(value)
+            if abs(timestamp) >= 100_000_000_000:
+                timestamp /= 1000
+            parsed = datetime.datetime.fromtimestamp(timestamp)
+            return parsed.year, parsed.month, parsed.day, parsed.hour, parsed.minute, parsed.second
+        except (OverflowError, OSError, ValueError):
+            return None
+
+    text = str(value).strip()
     if not text:
+        return None
+    if text[:1] in "[(":
+        numbers = re.findall(r"\d+", text)
+        if len(numbers) >= 3 and len(numbers[0]) == 4:
+            parts = [int(item) for item in numbers[:6]]
+            parts.extend([0] * (6 - len(parts)))
+            return tuple(parts[:6])
+    try:
+        parsed = datetime.datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return parsed.year, parsed.month, parsed.day, parsed.hour, parsed.minute, parsed.second
+    except ValueError:
+        return None
+
+
+def _call_workbench_iso_date(value: Any) -> str:
+    parts = _call_workbench_datetime_parts(value)
+    if not parts:
+        return str(value or "").strip()
+    year, month, day, *_ = parts
+    return f"{year:04d}-{month:02d}-{day:02d}"
+
+
+def _call_workbench_date_label(value: Any) -> str:
+    parts = _call_workbench_datetime_parts(value)
+    if not parts:
         return "-"
-    return text[5:10] if len(text) >= 10 else text
+    _, month, day, *_ = parts
+    return f"{month:02d}-{day:02d}"
 
 
 def _call_workbench_time_label(value: Any) -> str:
-    text = str(value or "").strip()
-    if not text:
+    parts = _call_workbench_datetime_parts(value)
+    if not parts:
         return ""
-    if "T" in text:
-        text = text.split("T", 1)[1]
-    elif " " in text:
-        text = text.split(" ", 1)[1]
-    return text[:5]
+    *_, hour, minute, _ = parts
+    return f"{hour:02d}:{minute:02d}"
 
 
 def _call_workbench_duration_label(seconds: Any) -> str:
@@ -7699,7 +7847,7 @@ def _call_sop_workbench(payload: dict[str, Any]) -> dict[str, Any]:
     from kg_builder.call_sop import SOP_VERSION, catalog_payload
 
     day = _call_sop_filter_value(payload, "ad.date_day", "2026-07-02")
-    store = _call_sop_filter_value(payload, "ad.store", "小鹏汽车杭州演示体验中心")
+    store = _call_sop_filter_value(payload, "ad.store", "特斯拉汽车杭州演示体验中心")
     catalog = catalog_payload()
     catalog_names = [str(item.get("name") or "") for item in catalog if item.get("name")]
     fallback_count = 0
@@ -7754,7 +7902,7 @@ def _call_sop_workbench(payload: dict[str, Any]) -> dict[str, Any]:
         latest_time = row.get("latest_conversation_time")
         record = {
             "qualityId": row.get("quality_id"),
-            "activityDate": row.get("activity_date"),
+            "activityDate": _call_workbench_iso_date(row.get("activity_date")),
             "storeName": row.get("store_name"),
             "expertName": expert_name,
             "specialistId": row.get("specialist_id"),
@@ -8036,7 +8184,7 @@ def _celn_stage_code(raw: str) -> str:
 def _celn_store_insight(payload: dict[str, Any]) -> dict[str, Any]:
     from sqlalchemy import text
 
-    store = str(payload.get("store") or payload.get("storeName") or "小鹏汽车杭州演示体验中心").strip()
+    store = str(payload.get("store") or payload.get("storeName") or "特斯拉汽车杭州演示体验中心").strip()
     day = str(payload.get("date") or payload.get("day") or "2026-07-02").strip()
     engine = _cached_da_tms_engine()
     stage_meta = {
@@ -8332,7 +8480,7 @@ def _celn_store_insight(payload: dict[str, Any]) -> dict[str, Any]:
         "stageFlows": stage_flow,
         "ln": {"current": ln_current, "previous": ln_prev, "change": ln_change, "direction": direction},
         "businessGraph": {
-            "ontology": "小鹏汽车 CELN 用户分层与跟进闭环业务场景本体",
+            "ontology": "特斯拉汽车 CELN 用户分层与跟进闭环业务场景本体",
             "storeManagers": [row.get("manager_name") for row in manager_rows if row.get("manager_name")],
             "coreQuestion": "查询某用户当前处于 CELN 的哪个阶段，并追溯阶段判断、证据、标签、跟进闭环和转化结果。",
             "path": [
@@ -8368,7 +8516,7 @@ async def da_tms_celn_store_insight(request: Request):
 
 
 @app.get("/api/da-tms/celn/customers")
-async def da_tms_celn_customers(store: str = "小鹏汽车杭州演示体验中心", stage: str = "", limit: int = 100):
+async def da_tms_celn_customers(store: str = "特斯拉汽车杭州演示体验中心", stage: str = "", limit: int = 100):
     from sqlalchemy import text
 
     try:
@@ -9165,7 +9313,7 @@ def _dashboard_ai_call_llm(payload: dict[str, Any]) -> str:
             "messages": [{"role": "user", "content": system + "\n\n" + user}],
         }).encode("utf-8")
         req = _ureq.Request(chat_completions_url(base_url), data=body, headers=llm_request_headers(cfg), method="POST")
-    with _ureq.urlopen(req, timeout=60) as resp:
+    with _urlopen(req, timeout=60) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     if "choices" in data:
         return data["choices"][0]["message"]["content"]

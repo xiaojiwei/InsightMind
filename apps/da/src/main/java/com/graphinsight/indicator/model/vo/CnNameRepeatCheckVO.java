@@ -7,7 +7,6 @@ import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 
 /**
- * Author: lixiaolong
  * Date: 2022/3/1
  * Desc:
  */

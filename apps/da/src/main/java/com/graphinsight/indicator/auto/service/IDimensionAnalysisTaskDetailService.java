@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
  * 多维分析任务详情表 服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-07-05
  */
 public interface IDimensionAnalysisTaskDetailService extends IService<DimensionAnalysisTaskDetail> {

@@ -14,7 +14,6 @@ import java.util.Set;
  * 指标表 Mapper 接口
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-16
  */
 @DS("mysql")

@@ -9,7 +9,6 @@ import com.graphinsight.indicator.model.dto.UserDTO;
 import java.util.List;
 
 /**
- * Author: lixiaolong
  * Date: 2022/5/17
  * Desc:
  */

@@ -10,7 +10,6 @@ import java.io.Serializable;
  * 告警接收人
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-10-17
  */
 @Data

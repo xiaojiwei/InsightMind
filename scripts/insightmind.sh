@@ -37,7 +37,17 @@ fi
 
 JAVA_BIN="${INSIGHTMIND_JAVA:-/Library/Java/JavaVirtualMachines/jdk1.8.0_321.jdk/Contents/Home/bin/java}"
 if [[ ! -x "$JAVA_BIN" ]]; then
-  JAVA_BIN="$(command -v java)"
+  for candidate in \
+    /opt/homebrew/opt/openjdk@11/bin/java \
+    /opt/homebrew/Cellar/openjdk@11/*/libexec/openjdk.jdk/Contents/Home/bin/java \
+    /usr/local/opt/openjdk@11/bin/java \
+    /usr/local/Cellar/openjdk@11/*/libexec/openjdk.jdk/Contents/Home/bin/java \
+    "$(command -v java 2>/dev/null || true)"; do
+    if [[ -x "$candidate" ]]; then
+      JAVA_BIN="$candidate"
+      break
+    fi
+  done
 fi
 
 DA_JAR="$DA_DIR/target/da-indicator-0.0.1-SNAPSHOT.jar"
@@ -244,7 +254,7 @@ start_da() {
   da_mysql_password="${da_mysql_password:-root}"
   da_mysql_url="${INSIGHTMIND_DA_MYSQL_URL:-jdbc:mysql://127.0.0.1:3306/indbtest?allowMultiQueries=true&useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&autoReconnect=true&failOverReadOnly=false&maxReconnects=30&initialTimeout=2&connectTimeout=3000}"
 
-  submit_job "$DA_LABEL" "$DA_LOG" "cd '$DA_DIR' && exec '$JAVA_BIN' -jar '$DA_JAR' --spring.config.additional-location='file:$DA_DIR/application-local.yml' --spring.profiles.active=dev --server.port='$DA_PORT' --spring.datasource.dynamic.primary=mysql --spring.datasource.dynamic.datasource.mysql.url='$da_mysql_url' --spring.datasource.dynamic.datasource.mysql.driver-class-name=com.mysql.cj.jdbc.Driver --spring.datasource.dynamic.datasource.mysql.username='$da_mysql_user' --spring.datasource.dynamic.datasource.mysql.password='$da_mysql_password' --indicator.graph.data-path='$KG_PATH'"
+  submit_job "$DA_LABEL" "$DA_LOG" "cd '$DA_DIR' && exec '$JAVA_BIN' -jar '$DA_JAR' --spring.config.additional-location='file:$DA_DIR/application-local.yml' --spring.profiles.active=dev --server.port='$DA_PORT' --spring.datasource.dynamic.primary=mysql --spring.datasource.dynamic.datasource.mysql.url='$da_mysql_url' --spring.datasource.dynamic.datasource.mysql.driver-class-name=com.mysql.cj.jdbc.Driver --spring.datasource.dynamic.datasource.mysql.username='$da_mysql_user' --spring.datasource.dynamic.datasource.mysql.password='$da_mysql_password' --indicator.graph.data-path='$KG_PATH' --insightmind.external-org-sync.enabled=false"
   echo "Started DA -> http://localhost:$DA_PORT"
   echo "DA log: $DA_LOG"
   wait_for_port "DA" "$DA_PORT"

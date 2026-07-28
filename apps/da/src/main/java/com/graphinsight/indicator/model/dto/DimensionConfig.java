@@ -5,7 +5,6 @@ import com.graphinsight.indicator.auto.entity.DwTable;
 import lombok.Data;
 
 /**
- * Author: lixiaolong
  * Date: 2022/8/1
  * Desc:
  */
@@ -69,4 +68,3 @@ public class DimensionConfig {
 
 
 }
-

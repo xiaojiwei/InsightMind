@@ -12,7 +12,6 @@ import java.io.Serializable;
  * 指标自然日关联表
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-08-22
  */
 @Data

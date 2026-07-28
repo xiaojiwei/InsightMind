@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Author: lixiaolong
  * Date: 2022/11/28
  * Desc: 指标平台授权接口
  */

@@ -9,7 +9,6 @@ import com.graphinsight.indicator.auto.entity.MeasureMonitor;
  * 指标预警表 服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-10-11
  */
 @DS("mysql")

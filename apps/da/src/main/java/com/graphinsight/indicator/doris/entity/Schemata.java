@@ -10,7 +10,6 @@ import java.io.Serializable;
  * SCHEMA
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-17
  */
 @Data

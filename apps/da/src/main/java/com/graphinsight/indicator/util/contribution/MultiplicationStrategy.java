@@ -5,7 +5,6 @@ import com.graphinsight.indicator.util.contribution.bean.ContributionCalculation
 import java.math.BigDecimal;
 
 /**
- * Author: lixiaolong
  * Date: 2022/6/14
  * Desc:
  */

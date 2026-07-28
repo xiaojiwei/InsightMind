@@ -82,8 +82,8 @@ public class WordDictService {
         // 全量维度值
         List<DimAllValuesInfo> dimensionValueList = dimAllValuesMapper.selectAllDimList();
         for (DimAllValuesInfo dimVItem : dimensionValueList) {
-            if (dimVItem.getValueFormatText().contains("小鹏汽车")) {
-                String text = dimVItem.getValueFormatText().replace("小鹏汽车", "");
+            if (dimVItem.getValueFormatText().contains("特斯拉汽车")) {
+                String text = dimVItem.getValueFormatText().replace("特斯拉汽车", "");
                 Value textV = new Value(text, "kw", "1000");
                 INIT_VALUSE_LIST.add(textV);
             }

@@ -6,7 +6,6 @@ import lombok.Data;
 import javax.validation.constraints.NotNull;
 
 /**
- * @Author: lixiaolong
  * @Description: 指标、血缘基本信息
  * @Date: 2021/11/23
  */

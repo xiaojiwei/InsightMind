@@ -5,7 +5,6 @@ import com.graphinsight.indicator.exception.IndicatorParamNotValidException;
 import lombok.Data;
 
 /**
- * Author: lixiaolong
  * Date: 2022/3/10
  * Desc:
  */

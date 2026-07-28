@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.enums;
 
 /**
- * Author: lixiaolong
  * Date: 2022/2/21
  * Desc:
  */

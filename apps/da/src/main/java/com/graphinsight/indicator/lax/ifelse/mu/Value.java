@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.lax.ifelse.mu;
 
 /**
- * Author: lixiaolong
  * Date: 2023/6/6
  * Desc:
  */

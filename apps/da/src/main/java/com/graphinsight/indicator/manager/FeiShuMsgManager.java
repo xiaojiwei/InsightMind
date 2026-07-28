@@ -19,7 +19,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @Author: lixiaolong
  * @Description: 飞书消息
  * @Date: 2021/10/13
  */
@@ -103,7 +102,6 @@ public class FeiShuMsgManager {
 
     public void sendTextMessageByEmail(String email,String context,boolean retry) throws Exception {
 //        // TODO 测试，暂时写死
-//        email = "lixiaolong5@graphinsight.com";
         String url="https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=email";
         Map<String,Object> param = new HashMap<>();
         param.put("msg_type","interactive");
@@ -135,7 +133,6 @@ public class FeiShuMsgManager {
 
     public void sendTextMessageByEmail(String email,String context, String msgType ,boolean retry) throws Exception {
 //        // TODO 测试，暂时写死
-//        email = "lixiaolong5@graphinsight.com";
         String url="https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=email";
         Map<String,Object> param = new HashMap<>();
         param.put("msg_type",msgType);

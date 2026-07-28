@@ -6,7 +6,6 @@ import com.graphinsight.indicator.exception.IndicatorParamNotValidException;
 import java.util.Objects;
 
 /**
- * Author: lixiaolong
  * Date: 2022/6/22
  * Desc:
  */

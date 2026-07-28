@@ -7,7 +7,6 @@ import java.math.BigDecimal;
 import java.util.Objects;
 
 /**
- * Author: lixiaolong
  * Date: 2022/6/14
  * Desc: 贡献度计算策略类
  */

@@ -20,7 +20,6 @@ import javax.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 
 /**
- * @Author: lixiaolong
  * @Description: 日志切面
  * @Date: 2021/11/16
  */

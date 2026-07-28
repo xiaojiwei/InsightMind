@@ -11,7 +11,6 @@ import java.util.List;
  *  Mapper 接口
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-02-15
  */
 @DS("mysql")

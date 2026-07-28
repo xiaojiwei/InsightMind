@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * @Author: lixiaolong
  * @Description: 缓存切面
  * @Date: 2021/11/23
  */

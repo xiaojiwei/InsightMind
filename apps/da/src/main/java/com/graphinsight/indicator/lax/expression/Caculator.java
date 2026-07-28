@@ -7,7 +7,6 @@ import org.antlr.v4.runtime.CommonTokenStream;
 import java.math.BigDecimal;
 
 /**
- * Author: lixiaolong
  * Date: 2023/6/1
  * Desc:
  */

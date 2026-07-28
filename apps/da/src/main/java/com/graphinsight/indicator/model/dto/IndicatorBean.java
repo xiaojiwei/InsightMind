@@ -4,7 +4,6 @@ import com.graphinsight.indicator.enums.FieldType;
 import lombok.Data;
 
 /**
- * Author: lixiaolong
  * Date: 2023/8/3
  * Desc:
  */

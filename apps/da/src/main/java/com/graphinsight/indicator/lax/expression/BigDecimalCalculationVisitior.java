@@ -7,7 +7,6 @@ import java.math.MathContext;
 import java.util.Objects;
 
 /**
- * Author: lixiaolong
  * Date: 2023/6/1
  * Desc:
  */

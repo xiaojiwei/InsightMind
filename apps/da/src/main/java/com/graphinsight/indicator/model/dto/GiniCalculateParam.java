@@ -5,7 +5,6 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * Author: lixiaolong
  * Date: 2022/7/6
  * Desc: 基尼系数计算参数
  */

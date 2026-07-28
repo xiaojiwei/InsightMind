@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
  * 门户表 前端控制器
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-10-24
  */
 @RestController

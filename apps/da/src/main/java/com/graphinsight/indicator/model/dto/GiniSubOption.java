@@ -3,7 +3,6 @@ package com.graphinsight.indicator.model.dto;
 import lombok.Data;
 
 /**
- * Author: lixiaolong
  * Date: 2022/7/6
  * Desc: 基尼系数维度下的分项值
  */

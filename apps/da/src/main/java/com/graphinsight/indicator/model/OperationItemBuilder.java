@@ -3,7 +3,6 @@ package com.graphinsight.indicator.model;
 import com.graphinsight.indicator.enums.SqlAggFunType;
 
 /**
- * @Author: lixiaolong
  * @Description:
  * @Date: 2021/11/25
  */

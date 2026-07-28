@@ -12,7 +12,6 @@ import java.io.Serializable;
  * 数仓物理表
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-16
  */
 @Data

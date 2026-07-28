@@ -3,7 +3,6 @@ package com.graphinsight.indicator.lax.measopt;
 import java.math.BigDecimal;
 
 /**
- * Author: lixiaolong
  * Date: 2023/6/5
  * Desc:
  */

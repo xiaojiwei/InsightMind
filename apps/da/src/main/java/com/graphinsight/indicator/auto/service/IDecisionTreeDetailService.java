@@ -9,7 +9,6 @@ import com.graphinsight.indicator.auto.entity.DecisionTreeDetail;
  * 决策树详情表 服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-06-13
  */
 @DS("mysql")

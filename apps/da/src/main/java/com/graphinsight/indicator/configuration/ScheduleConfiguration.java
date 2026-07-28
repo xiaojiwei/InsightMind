@@ -7,7 +7,6 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import java.util.concurrent.Executors;
 
 /**
- * Author: lixiaolong
  * Date: 2022/9/8
  * Desc:
  */

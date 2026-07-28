@@ -10,7 +10,6 @@ import java.util.List;
  * 多维分析查询任务列表 服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-07-05
  */
 public interface IDimensionAnalysisTaskService extends IService<DimensionAnalysisTask> {

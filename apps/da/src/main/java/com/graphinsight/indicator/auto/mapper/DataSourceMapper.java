@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
  * 数据源表 Mapper 接口
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-09-09
  */
 public interface DataSourceMapper extends BaseMapper<DataSource> {

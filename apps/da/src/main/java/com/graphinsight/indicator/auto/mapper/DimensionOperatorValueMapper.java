@@ -9,7 +9,6 @@ import com.graphinsight.indicator.auto.entity.DimensionOperatorValue;
  *  Mapper 接口
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-02-11
  */
 @DS("mysql")

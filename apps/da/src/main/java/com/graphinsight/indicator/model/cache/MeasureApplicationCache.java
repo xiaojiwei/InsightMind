@@ -3,7 +3,6 @@ package com.graphinsight.indicator.model.cache;
 import lombok.Data;
 
 /**
- * Author: lixiaolong
  * Date: 2022/3/15
  * Desc:
  */

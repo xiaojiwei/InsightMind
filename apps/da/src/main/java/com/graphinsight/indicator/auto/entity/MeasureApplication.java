@@ -12,7 +12,6 @@ import java.io.Serializable;
  * 指标应用表
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-16
  */
 @Data

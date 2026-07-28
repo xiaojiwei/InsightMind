@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.constant;
 
 /**
- * @Author: lixiaolong
  * @Description:
  * @Date: 2021/12/13
  */

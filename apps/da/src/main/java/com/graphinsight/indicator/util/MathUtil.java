@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.util;
 
 /**
- * Author: lixiaolong
  * Date: 2022/7/7
  * Desc:
  */

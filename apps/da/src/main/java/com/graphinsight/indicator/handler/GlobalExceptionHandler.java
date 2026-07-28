@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 /**
- * @Author: lixiaolong
  * @Description: 参数异常处理类
  * @Date: 2021/11/16
  */

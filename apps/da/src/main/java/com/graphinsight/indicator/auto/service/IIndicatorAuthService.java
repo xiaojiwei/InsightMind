@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
  * 授权表 服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-11-28
  */
 public interface IIndicatorAuthService extends IService<IndicatorAuth> {

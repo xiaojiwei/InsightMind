@@ -16,7 +16,6 @@ import java.util.Stack;
 import java.util.stream.Collectors;
 
 /**
- * Author: lixiaolong
  * Date: 2022/11/8
  * Desc: 中缀表达式解析
  */

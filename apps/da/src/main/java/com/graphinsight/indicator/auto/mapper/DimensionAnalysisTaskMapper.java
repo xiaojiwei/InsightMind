@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
  * 多维分析查询任务列表 Mapper 接口
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-07-05
  */
 public interface DimensionAnalysisTaskMapper extends BaseMapper<DimensionAnalysisTask> {

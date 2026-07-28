@@ -12,7 +12,6 @@ import lombok.EqualsAndHashCode;
  * 数据源表
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-09-09
  */
 @Data

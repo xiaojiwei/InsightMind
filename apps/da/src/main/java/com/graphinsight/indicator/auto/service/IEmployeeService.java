@@ -14,7 +14,6 @@ import java.util.List;
  *  服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-05-25
  */
 @DS("mysql")

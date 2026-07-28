@@ -9,7 +9,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
  *  服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-12-15
  */
 @DS("mysql")

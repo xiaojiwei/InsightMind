@@ -16,7 +16,8 @@ def test_demo_call_sop_dataset_is_complete_and_sanitized():
     assert len({row["quality_id"] for row in rows}) == len(rows)
 
     payload = json.dumps(rows, ensure_ascii=False, default=str)
-    assert "小鹏汽车" in payload
+    assert "特斯拉汽车" in payload
+    assert "小" + "鹏汽车" not in payload
     assert "理" + "想" not in payload
     assert "Li" + " Auto" not in payload
 

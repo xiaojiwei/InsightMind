@@ -5,7 +5,6 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 /**
- * Author: lixiaolong
  * Date: 2022/11/28
  * Desc: 授权对象
  */

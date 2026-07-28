@@ -6,7 +6,6 @@ import com.graphinsight.indicator.model.vo.DecisionTreeFrontNodeType;
 import java.util.Objects;
 
 /**
- * Author: lixiaolong
  * Date: 2022/6/14
  * Desc:
  */

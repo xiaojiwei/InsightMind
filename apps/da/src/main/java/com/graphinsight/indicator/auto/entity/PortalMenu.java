@@ -12,7 +12,6 @@ import java.io.Serializable;
  * 菜单表
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-10-24
  */
 @Data

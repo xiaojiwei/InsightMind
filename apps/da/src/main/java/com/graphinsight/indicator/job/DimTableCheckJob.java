@@ -23,7 +23,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Author: lixiaolong
  * Date: 2022/3/5
  * Desc:
  */
@@ -54,7 +53,7 @@ public class DimTableCheckJob {
                         // 发送飞书消息
                         Map<String,String> contextMap = new HashMap<>();
                         contextMap.put("text",JSON.toJSONString(res));
-                        feiShuMsgManager.sendTextMessageByEmail("lixiaolong5@graphinsight.com", JSON.toJSONString(contextMap), "text", true);
+                        feiShuMsgManager.sendTextMessageByEmail("notifications@graphinsight.com", JSON.toJSONString(contextMap), "text", true);
                     }
                 } else {
                     log.info("已有其他进程同步，本进程跳过处理");

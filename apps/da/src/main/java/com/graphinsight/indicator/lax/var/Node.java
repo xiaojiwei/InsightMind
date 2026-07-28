@@ -3,7 +3,6 @@ package com.graphinsight.indicator.lax.var;
 import lombok.Data;
 
 /**
- * Author: lixiaolong
  * Date: 2023/6/5
  * Desc:
  */

@@ -717,6 +717,16 @@
       min-height:0;
       overflow:visible;
     }
+    body.dashboard-standalone-view .dashboard-report-widget .dashboard-view-grid-item-content { padding:0; }
+    body.dashboard-standalone-view .dashboard-report-widget .dashboard-widget { border:0; }
+    body.dashboard-standalone-view .dashboard-report-widget .dashboard-widget-header {
+      height:32px;
+      justify-content:flex-end;
+      border-bottom:1px solid #dce2dd;
+      background:#f7f9f7;
+    }
+    body.dashboard-standalone-view .dashboard-report-widget .dashboard-widget-header > span { display:none !important; }
+    body.dashboard-standalone-view .dashboard-report-widget .dashboard-widget-body { padding:0; }
     body.dashboard-standalone-view .app-sidebar,
     body.dashboard-standalone-view .app-topbar,
     body.dashboard-standalone-view nav.navbar,
@@ -4617,6 +4627,16 @@ const CALL_REPORT_VIRTUAL_MEASURES = {
     dependencies: [],
     format: 'ratio_percent',
   },
+  'ad.avg_call_duration_seconds': {
+    label: '平均通话时长',
+    dependencies: ['ad.quality_record_count'],
+    format: 'duration_minutes',
+  },
+  'ad.filtered_call_count': {
+    label: '筛选后样本',
+    dependencies: ['ad.quality_record_count'],
+    format: 'count',
+  },
 };
 
 function callReportVirtualMeasure(member) {
@@ -6209,27 +6229,31 @@ function ensureAdhocAlertStyles() {
     button.sop-issue-card:focus-visible{outline:2px solid #14806f;outline-offset:2px}
     .sop-issue-card b{display:block;color:#20332f;margin-bottom:7px}.sop-issue-card p{margin:0;color:#65746f;line-height:1.55}
     .sop-issue-link{display:block;margin-top:8px;color:#14806f;font-size:11px;font-weight:850}
-    .call-workbench-shell{height:100%;overflow:auto;background:#efeee8;color:#20332f;font-size:12px;line-height:1.42}
-    .call-workbench-body{padding:14px clamp(12px,1.6vw,24px) 24px;max-width:none;width:100%;box-sizing:border-box}
-    .call-workbench-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px;border-bottom:1px solid #d1d7d2;padding-bottom:10px}
+    .call-workbench-shell{height:100%;overflow:auto;background:#f2f4f1;color:#20332f;font-size:12px;line-height:1.42}
+    .call-workbench-body{padding:12px clamp(12px,1.6vw,24px) 24px;max-width:none;width:100%;box-sizing:border-box}
+    .call-workbench-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;border-bottom:1px solid #d1d7d2;padding-bottom:10px}
     .call-workbench-title{display:flex;align-items:center;gap:10px;min-width:0}
     .call-workbench-title h2{margin:0;color:#1b3430;font-size:20px;font-weight:850;letter-spacing:0}
     .call-workbench-title span{display:inline-flex;align-items:center;color:#2d6388;background:#dfeaf0;border:1px solid #c5d8e2;padding:3px 9px;font-size:12px;font-weight:800;white-space:nowrap}
     .call-workbench-sub{color:#74817d;font-size:12px;white-space:nowrap}
     .call-workbench-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:10px}
-    .call-workbench-kpi{background:#fff;border:1px solid #dce2dd;border-radius:7px;padding:10px 12px;min-height:78px;box-shadow:0 10px 24px rgba(27,43,38,.05)}
+    .call-workbench-kpi{display:block;width:100%;background:#fff;border:1px solid #dce2dd;border-radius:7px;padding:10px 12px;min-height:78px;box-shadow:0 10px 24px rgba(27,43,38,.05);text-align:left;font:inherit;color:inherit}
+    button.call-workbench-kpi{cursor:pointer;transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+    button.call-workbench-kpi:hover{border-color:#82b8ae;box-shadow:0 0 0 2px rgba(20,128,111,.13),0 10px 24px rgba(27,43,38,.05);transform:translateY(-1px)}
+    button.call-workbench-kpi:focus-visible{outline:2px solid #14806f;outline-offset:2px}
     .call-workbench-kpi b{display:block;color:#253b38;font-size:12px;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .call-workbench-kpi strong{display:block;color:var(--exec-accent,#14806f);font-size:22px;line-height:1.05;font-weight:850}
     .call-workbench-kpi span{display:block;color:#74817d;font-size:11px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .call-workbench-filterbar{display:grid;grid-template-columns:minmax(260px,1.25fr) repeat(3,minmax(150px,.5fr));gap:10px;background:#fff;border:1px solid #dce2dd;border-radius:8px;padding:10px 12px;margin-bottom:12px;box-shadow:0 10px 24px rgba(27,43,38,.05)}
+    .call-workbench-filterbar{position:sticky;top:0;z-index:12;display:grid;grid-template-columns:minmax(260px,1.25fr) repeat(3,minmax(150px,.5fr));gap:10px;background:rgba(255,255,255,.97);border:1px solid #dce2dd;border-radius:8px;padding:9px 12px;margin-bottom:10px;box-shadow:0 8px 20px rgba(27,43,38,.08);backdrop-filter:blur(8px)}
     .call-workbench-filterbar .filter-chip{display:flex;align-items:center;min-width:0;border:1px solid #dce2dd;border-radius:7px;background:#fbfffd;padding:0 11px;color:#40534f;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .call-workbench-filterbar select{height:38px;border:1px solid #dce2dd;border-radius:7px;background:#fbfffd;color:#20332f;font-weight:760;padding:0 10px;min-width:0}
-    .call-workbench-layout{display:grid;grid-template-columns:minmax(270px,.75fr) minmax(0,2.25fr);gap:12px;align-items:stretch;min-height:760px}
+    .call-workbench-filter-control{display:grid;grid-template-rows:auto 34px;gap:3px;min-width:0;color:#74817d;font-size:10px;font-weight:800}
+    .call-workbench-filterbar select{height:34px;border:1px solid #dce2dd;border-radius:7px;background:#fbfffd;color:#20332f;font-weight:760;padding:0 10px;min-width:0}
+    .call-workbench-layout{display:grid;grid-template-columns:minmax(300px,.78fr) minmax(0,2.22fr);gap:12px;align-items:start;min-height:760px}
     .call-workbench-panel{background:#fff;border:1px solid #dce2dd;border-radius:8px;box-shadow:0 10px 24px rgba(27,43,38,.05);overflow:hidden;min-width:0}
-    .call-workbench-list-panel{display:flex;flex-direction:column;min-height:760px}
+    .call-workbench-list-panel{position:sticky;top:64px;display:flex;flex-direction:column;height:min(820px,calc(100vh - 92px));min-height:620px;max-height:820px}
     .call-workbench-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid #dce2dd}
     .call-workbench-list-head b{color:#20332f;font-size:14px}.call-workbench-list-head span{color:#74817d;font-size:11px;white-space:nowrap}
-    .call-workbench-list{display:grid;gap:10px;padding:12px;overflow:auto;align-content:start}
+    .call-workbench-list{display:grid;flex:1 1 auto;min-height:0;gap:10px;padding:12px;overflow:auto;align-content:start}
     .call-workbench-expert-group{display:grid;gap:8px}
     .call-workbench-expert-head{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#20332f;font-weight:850}
     .call-workbench-expert-head span:last-child{color:#74817d;font-size:11px;font-weight:650}
@@ -6258,18 +6282,18 @@ function ensureAdhocAlertStyles() {
     .call-workbench-timeline{height:18px;background:#e7ece8;border-radius:3px;position:relative;overflow:hidden}
     .call-workbench-timeline-seg{--evidence-color:#14806f;position:absolute;top:0;bottom:0;min-width:3px;margin:0;padding:0;border:0;border-right:2px solid #fbfffd;border-radius:0;background:var(--evidence-color);appearance:none;cursor:pointer}.call-workbench-timeline-seg.standard{--evidence-color:#4e7898}.call-workbench-timeline-seg.basic{--evidence-color:#d4922e}.call-workbench-timeline-seg.miss{--evidence-color:#dce2dd}
     .call-workbench-timeline-seg:hover{filter:brightness(.92);z-index:2}.call-workbench-timeline-seg:focus-visible{outline:2px solid #20332f;outline-offset:-2px;z-index:3}.call-workbench-timeline-seg.active{outline:2px solid #fff;outline-offset:-3px;box-shadow:inset 0 0 0 3px var(--evidence-color);z-index:2}
-    .call-workbench-main{display:grid;grid-template-columns:minmax(320px,.95fr) minmax(360px,1.05fr);gap:0;min-height:0;margin-top:12px;border-top:1px solid #dce2dd}
+    .call-workbench-main{display:grid;grid-template-columns:minmax(380px,1.18fr) minmax(320px,.82fr);gap:0;min-height:0;margin-top:12px;border-top:1px solid #dce2dd}
     .call-workbench-asr,.call-workbench-evidence{min-width:0;overflow:auto;padding:14px}
     .call-workbench-asr{border-right:1px solid #dce2dd;background:#fbfffd}
     .call-workbench-section-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;color:#20332f;font-size:14px;font-weight:850}
     .call-workbench-section-title span{color:#74817d;font-size:11px;font-weight:700}
     .call-workbench-segment{display:grid;grid-template-columns:42px 1fr;gap:8px;align-items:start;margin-bottom:9px}
     .call-workbench-segment-time{color:#65746f;font-variant-numeric:tabular-nums;padding-top:7px}
-    .call-workbench-bubble{border:1px solid #cce5df;background:#fff;border-left:4px solid #14806f;border-radius:7px;padding:8px 10px;color:#40534f}
-    .call-workbench-bubble.customer{border-color:#cfe0ef;border-left-color:#4e7898;background:#f8fbff}
+    .call-workbench-bubble{width:min(92%,760px);border:1px solid #cce5df;background:#fff;border-left:4px solid #14806f;border-radius:9px;padding:10px 12px;color:#40534f;line-height:1.7;word-break:break-word}
+    .call-workbench-bubble.customer{width:min(86%,680px);margin-left:auto;border-color:#cfe0ef;border-left:1px solid #cfe0ef;border-right:4px solid #4e7898;background:#f3f8fc}
     .call-workbench-bubble.active{--evidence-color:#14806f;--evidence-ring:rgba(20,128,111,.2);--evidence-bg:#effaf6;border-color:var(--evidence-color);border-left-color:var(--evidence-color);box-shadow:0 0 0 3px var(--evidence-ring);background:var(--evidence-bg)}
     .call-workbench-bubble.active.evidence-standard{--evidence-color:#4e7898;--evidence-ring:rgba(78,120,152,.22);--evidence-bg:#f2f7fb}.call-workbench-bubble.active.evidence-basic{--evidence-color:#d4922e;--evidence-ring:rgba(212,146,46,.22);--evidence-bg:#fff8ec}.call-workbench-bubble.active.evidence-miss{--evidence-color:#9aa59f;--evidence-ring:rgba(154,165,159,.2);--evidence-bg:#f4f7f5}
-    .call-workbench-role{display:inline-flex;align-items:center;margin-bottom:4px;color:#126255;background:#eef8f4;border:1px solid #c8e3da;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:850}
+    .call-workbench-role{display:inline-flex;align-items:center;margin-bottom:6px;color:#126255;background:#eef8f4;border:1px solid #c8e3da;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:850}
     .call-workbench-bubble.customer .call-workbench-role{color:#3e6685;background:#eef6fc;border-color:#cfe0ef}
     .call-workbench-evidence-card{border:1px solid #dce2dd;background:#fff;border-radius:7px;padding:12px;margin-bottom:10px}
     .call-workbench-evidence-card b{display:block;color:#20332f;margin-bottom:7px}.call-workbench-evidence-card p{margin:0;color:#53635f;line-height:1.65}
@@ -6438,7 +6462,7 @@ function ensureAdhocAlertStyles() {
     .celn-compact-action.bad{border-color:#efb8b4;background:#fff1f0;color:#9b2f2f}
     @media (max-width: 1500px) and (min-width: 1101px){.celn-overview-shell .celn-distribution-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.celn-overview-shell .celn-ontology-path{grid-template-columns:repeat(9,minmax(0,1fr))}}
     @media (max-width: 900px){.celn-overview-shell .celn-distribution-grid{grid-template-columns:1fr}}
-    @media (max-width: 1100px){.call-report-summary-grid,.sop-kpi-grid,.call-workbench-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.call-report-flow,.call-report-script-grid,.call-report-ranking,.call-report-action-grid,.call-report-compare-grid,.call-ontology-grid,.call-ontology-detail-grid,.call-ontology-playbook,.sop-board-grid,.sop-issue-grid,.call-workbench-layout,.call-workbench-filterbar,.call-workbench-main{grid-template-columns:1fr}.sop-row,.sop-check-row{grid-template-columns:1fr}.sop-diagnosis-head,.call-workbench-head{align-items:flex-start;flex-direction:column}.sop-diagnosis-sub,.call-workbench-sub{white-space:normal}.call-workbench-asr{border-right:0;border-bottom:1px solid #dce2dd}.call-workbench-list-panel,.call-workbench-detail{min-height:auto}}
+    @media (max-width: 1100px){.call-report-summary-grid,.sop-kpi-grid,.call-workbench-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.call-report-flow,.call-report-script-grid,.call-report-ranking,.call-report-action-grid,.call-report-compare-grid,.call-ontology-grid,.call-ontology-detail-grid,.call-ontology-playbook,.sop-board-grid,.sop-issue-grid,.call-workbench-layout,.call-workbench-filterbar,.call-workbench-main{grid-template-columns:1fr}.sop-row,.sop-check-row{grid-template-columns:1fr}.sop-diagnosis-head,.call-workbench-head{align-items:flex-start;flex-direction:column}.sop-diagnosis-sub,.call-workbench-sub{white-space:normal}.call-workbench-asr{border-right:0;border-bottom:1px solid #dce2dd}.call-workbench-filterbar{position:static}.call-workbench-list-panel{position:static;top:auto;height:auto;max-height:none}.call-workbench-list-panel,.call-workbench-detail{min-height:auto}}
     @media (max-width: 1100px){.call-report-compare-bars,.celn-overview-grid,.celn-funnel-groups,.celn-bridge-grid,.celn-action-grid,.celn-distribution-grid,.celn-ontology-path,.celn-review-grid,.celn-semantic-assets,.celn-compact-board{grid-template-columns:1fr}.celn-ontology-node::after{display:none}}
     @media (max-width: 1100px) and (min-width: 901px){.celn-overview-shell .celn-distribution-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.celn-overview-shell .celn-bridge-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.celn-overview-shell .celn-ontology-path{grid-template-columns:repeat(3,minmax(0,1fr))}}
     @media (max-width: 1100px){.exec-report-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exec-report-two-col,.exec-report-insight-list,.exec-report-reco-grid{grid-template-columns:1fr}.exec-report-mini-grid{grid-template-columns:1fr}}
@@ -7288,6 +7312,14 @@ function callReportMetricFormulaMeta(ctx={}) {
       business: '当前筛选范围内通话质检总分的平均值，仅反映已进入质检事实表的样本。',
       sql: `SELECT AVG(f.total_score) AS avg_call_quality_score\nFROM im_call_quality_fact f\n${filterLine}\n${groupLine}`,
     },
+    'ad.avg_call_duration_seconds': {
+      business: '当前工作台筛选范围内的通话时长平均值，用于判断通话是否具备完成邀约和需求确认的沟通空间。',
+      sql: `SELECT AVG(f.call_duration_seconds) AS avg_call_duration_seconds\nFROM im_call_quality_fact f\n${filterLine}\n${groupLine}`,
+    },
+    'ad.filtered_call_count': {
+      business: '当前工作台筛选条件命中的通话记录数，明细和维度下钻都会继承结果、达成等级、SOP、专家及问题范围。',
+      sql: `SELECT COUNT(*) AS filtered_call_count\nFROM im_call_quality_fact f\n${filterLine}\n${groupLine}`,
+    },
     'ad.avg_slot_coverage_rate': {
       business: '关键槽位覆盖率的平均值，用于观察客户意图、预算、车型、时间等关键信息是否被充分确认。',
       sql: `SELECT AVG(f.slot_coverage_rate) AS avg_slot_coverage_rate\nFROM im_call_quality_fact f\n${filterLine}\n${groupLine}`,
@@ -7305,9 +7337,57 @@ function callReportMetricFormulaMeta(ctx={}) {
       sql: `SELECT SUM(f.missing_slot_count) AS missing_slot_count\nFROM im_call_quality_fact f\n${filterLine}\n${groupLine}`,
     },
   };
-  return meta[measure] || {
+  const guidance = {
+    'ad.sop_total_call_count': {
+      scope:'统计日期、门店及点击上下文内进入质检事实表的通话；每条质检记录计为一通，已接通与未接通均纳入样本基数。',
+      interpretation:'该值反映可管理的通话规模，不直接代表质量好坏。应同时对照有效接通率、问题通话占比和样本分布判断数据是否具有代表性。',
+      action:'先按销售人员或客户意图拆分样本量；低于 5 通的分组仅作参考，避免用小样本直接排名或制定辅导结论。',
+    },
+    'ad.effective_connect_rate': {
+      scope:'分母为当前范围全部通话，分子为已接通且 ASR 原文足以支撑 SOP 识别的通话；未接通、空号、留言或无有效对话不计入分子。',
+      interpretation:'接通率下降可能来自线索质量、拨打时段或触达策略，不应直接归因于销售话术；接通率正常后再看 SOP 和质量分更有意义。',
+      action:'优先按销售人员、日期和电话流向下钻，确认异常是否集中在特定人员、时段或触达入口，再抽查未接通明细。',
+    },
+    'ad.avg_call_duration_seconds': {
+      scope:`对当前工作台条件命中的通话时长做算术平均，并统一换算为分钟展示；当前条件为“${ctx.conditionLabel || '全部通话'}”。`,
+      interpretation:'时长过短可能无法完成自我介绍、探需和邀约确认，但时长越长并不必然代表质量更好，需要结合 SOP 命中率与质检分共同判断。',
+      action:'建议按销售人员和客户意图比较时长分布，再打开单通 ASR 判断是高效推进、沟通不足，还是异议处理耗时。',
+    },
+    'ad.filtered_call_count': {
+      scope:`统计日期、门店以及当前工作台条件命中的通话记录；结果、达成等级、SOP、专家、问题范围和有效接通条件都会被明细及维度下钻继承。当前条件为“${ctx.conditionLabel || '全部通话'}”。`,
+      interpretation:'该值表示当前复盘队列规模，筛选前后的数量差异只说明条件收窄程度，不等同于质量变好或变差。',
+      action:'先按销售人员、客户意图或问题分类拆分责任范围，再进入通话明细核对 ASR、证据和小达成点；小于 5 通时按小样本处理。',
+    },
+    'ad.sop_checkpoint_pass_rate': {
+      scope:'仅在有效接通通话内统计 SOP 小达成点，以命中检查点数除以应检检查点数；同一通话的每个检查点分别参与计算。',
+      interpretation:'总体命中率用于判断流程完整度，不能替代单通质量判断；需要结合短板 SOP、专家分布和未命中检查点查看问题集中位置。',
+      action:'优先按质检规则和销售人员下钻，锁定低命中环节后进入工作台查看证据原文并安排针对性辅导。',
+    },
+    'ad.quality_issue_rate': {
+      scope:'分母为有效接通通话，分子为存在低质量或低覆盖任一问题的去重通话；同一通电话同时命中两类问题时只计算一次。',
+      interpretation:'占比越高，说明需要人工复盘的队列越大；应区分低质量且低覆盖、仅低覆盖等问题类型，避免重复派发。',
+      action:'先按问题分类统一归类，再按销售人员确认责任范围，最后进入 ASR 和质检证据核实具体改进点。',
+    },
+    'ad.avg_call_quality_score': {
+      scope:'对当前筛选范围内已进入质检事实表的通话总分做算术平均，沿用页面日期、门店和点击点位条件。',
+      interpretation:'平均分用于比较整体质量水平，但容易被高低分相互抵消；应同时查看质量分层、低质量通话数及样本量。',
+      action:'按销售人员和质量分层下钻，优先复盘低分且样本量充足的分组，并结合 ASR 证据确认扣分原因。',
+    },
+    'ad.avg_slot_coverage_rate': {
+      scope:'对当前范围内客户意图、预算、车型、购车时间、场景等应覆盖槽位的完成比例取平均值。',
+      interpretation:'覆盖率低通常表示探需或信息确认不完整，但不能仅凭覆盖率判断表达质量，需要结合缺失槽位和客户场景。',
+      action:'按客户意图和质检规则下钻，定位重复缺失的槽位，再查看单通证据判断是未提问还是客户未明确回答。',
+    },
+  };
+  const base = meta[measure] || {
     business: `${callReportMemberLabel(measure)} 按当前看板筛选与点击上下文聚合，用于解释该单元格的业务含义。`,
     sql: `SELECT ${callReportMemberLabel(measure)}\nFROM 指标来源表\n${filterLine}\n${groupLine}`,
+  };
+  return {
+    ...base,
+    scope:guidance[measure]?.scope || '继承当前看板日期、门店、点击点位和已生效筛选，只解释当前业务切片。',
+    interpretation:guidance[measure]?.interpretation || '应结合样本量、分布和相邻指标综合判断，避免仅凭单一聚合值直接下结论。',
+    action:guidance[measure]?.action || '建议先按推荐维度定位问题集中范围，再进入明细核对原始记录和业务证据。',
   };
 }
 
@@ -7472,6 +7552,15 @@ async function openCallReportDrillChooser(measure, filtersPayload='[]', contextP
     filters,
     metricLabel: context.metricLabel || callReportMemberLabel(targetMeasure),
   };
+  if (ctx.callSopKpiDrill && !ctx.workbenchDrill) {
+    ctx.workbenchDrill = ({
+      'ad.sop_total_call_count': {},
+      'ad.effective_connect_rate': {connected:'true'},
+      'ad.sop_checkpoint_pass_rate': {connected:'true', group:'sop'},
+      'ad.quality_issue_rate': {problem:'quality', connected:'true', group:'problem'},
+      'ad.avg_call_quality_score': {connected:'true'},
+    })[targetMeasure] || {};
+  }
   let backendWarning = '';
   try {
     const backend = await callReportBackendDrillCandidates(ctx);
@@ -7495,6 +7584,7 @@ async function openCallReportDrillChooser(measure, filtersPayload='[]', contextP
     contextEl.innerHTML = `
       <div>${escHtml(callReportContextText(ctx))}</div>
       ${filterText ? `<div class="mt-1">继承筛选：${escHtml(filterText)}</div>` : ''}
+      ${ctx.conditionLabel ? `<div class="mt-1">工作台条件：${escHtml(ctx.conditionLabel)}</div>` : ''}
       <div class="mt-1">${sourceBadge}</div>
       ${backendWarning ? `<div class="mt-2 alert alert-warning py-1 px-2 mb-0">${escHtml(backendWarning)}</div>` : ''}
     `;
@@ -7577,7 +7667,7 @@ function openCallReportBusinessExplain() {
   const contextEl = document.getElementById('cell-insight-context');
   if (contextEl) contextEl.textContent = callReportContextText(ctx);
   const metricLabel = ctx.metricLabel || callReportMemberLabel(ctx.measure || 'ad.quality_record_count');
-  const filterText = callReportFilterSummary(ctx.filters || []) || '无额外筛选';
+  const filterText = [callReportFilterSummary(ctx.filters || []), ctx.conditionLabel || ''].filter(Boolean).join('；') || '无额外筛选';
   const formula = callReportMetricFormulaMeta(ctx);
   const candidates = ctx.candidates || callReportDrillCandidates(ctx);
   if (body) {
@@ -7593,7 +7683,10 @@ function openCallReportBusinessExplain() {
         <div class="cell-insight-kv"><span>指标</span><strong>${escHtml(metricLabel)}</strong></div>
         <div class="cell-insight-kv"><span>点击点位</span><strong>行 ${escHtml(ctx.rowLabel || '全部')}；列 ${escHtml(ctx.columnLabel || '全部')}</strong></div>
         <div class="cell-insight-kv"><span>筛选</span><strong>${escHtml(filterText)}</strong></div>
-        <div class="cell-insight-formula"><span>业务口径</span><strong>${escHtml(formula.business)}</strong></div>
+        <div class="cell-insight-formula"><span>业务定义</span><strong>${escHtml(formula.business)}</strong></div>
+        <div class="cell-insight-formula"><span>统计范围</span><strong>${escHtml(formula.scope)}</strong></div>
+        <div class="cell-insight-formula"><span>解读方法</span><strong>${escHtml(formula.interpretation)}</strong></div>
+        <div class="cell-insight-formula"><span>使用建议</span><strong>${escHtml(formula.action)}</strong></div>
         <div class="cell-insight-formula"><span>技术口径（SQL逻辑）</span><pre class="cell-insight-sql">${escHtml(formula.sql)}</pre></div>
       </div>
       <div class="cell-insight-card">
@@ -7725,6 +7818,7 @@ function callReportDrillMeasures(primaryMeasure, dimensionMember=null, extraDime
 
 function callReportFormatMeasureValue(member, value) {
   if (callReportVirtualMeasure(member)?.format === 'ratio_percent') return callReportRate(Number(value || 0) * 100, 1);
+  if (callReportVirtualMeasure(member)?.format === 'duration_minutes') return `${callReportNum(Number(value || 0) / 60, 1)} 分`;
   if (String(member).includes('coverage_rate')) return callReportCoverage(value);
   if (String(member).includes('score')) return callReportNum(value, 1);
   return callReportNum(value);
@@ -7758,6 +7852,9 @@ function callReportWorkbenchStateFromDrill(drill={}, filters=[]) {
     sopLevel: drill.level || '',
     expert: drill.expert || filterValue('ad.sales_expert') || '',
     issue: drill.issue || filterValue('ad.quality_issue_category') || '',
+    problem: drill.problem || '',
+    connected: drill.connected || '',
+    group: drill.group || '',
     checkpoint: drill.checkpoint || '',
     checkpointHit: drill.checkpointHit || '',
   };
@@ -7826,6 +7923,7 @@ function callReportWorkbenchAggregateRows(records=[], dimensionMember='', measur
       __connected:0,
       __scoreTotal:0,
       __coverageTotal:0,
+      __durationTotal:0,
       __hitChecks:0,
       __totalChecks:0,
       __lowQuality:0,
@@ -7838,6 +7936,7 @@ function callReportWorkbenchAggregateRows(records=[], dimensionMember='', measur
     const totalChecks = evidenceRows.reduce((sum, item) => sum + Number(item.totalCount || 0), 0);
     const coverage = totalChecks ? hitChecks / totalChecks : Number(record.detail?.coverageRate || 0);
     row.__count += 1;
+    row.__durationTotal += Number(record.durationSeconds || 0);
     if (record.connected) {
       const lowQuality = Number(record.lowQualityCallCount || 0) > 0;
       const lowCoverage = Number(record.lowCoverageCallCount || 0) > 0;
@@ -7858,6 +7957,8 @@ function callReportWorkbenchAggregateRows(records=[], dimensionMember='', measur
     const connected = row.__connected || 0;
     row['ad.quality_record_count'] = total;
     row['ad.sop_total_call_count'] = total;
+    row['ad.filtered_call_count'] = total;
+    row['ad.avg_call_duration_seconds'] = total ? row.__durationTotal / total : 0;
     row['ad.phone_call_count'] = total;
     row['ad.connected_call_count'] = connected;
     row['ad.effective_connect_rate'] = total ? connected / total : 0;
@@ -8880,6 +8981,71 @@ function callWorkbenchUrlState() {
   };
 }
 
+function callWorkbenchCurrentDrill(state={}) {
+  return {
+    result: state.result && state.result !== '全部结果' ? state.result : '',
+    grade: state.grade && state.grade !== '全部达成' ? state.grade : '',
+    sop: state.sop && state.sop !== '全部SOP' ? state.sop : '',
+    level: state.sopLevel || '',
+    expert: state.expert || '',
+    issue: state.issue || '',
+    problem: state.problem || '',
+    connected: state.connected || '',
+    group: state.group || '',
+    checkpoint: state.checkpoint || '',
+    checkpointHit: state.checkpointHit || '',
+  };
+}
+
+function callWorkbenchDrillConditionLabel(drill={}) {
+  return [
+    drill.connected === 'true' ? '有效接通' : '',
+    drill.result ? `结果：${drill.result}` : '',
+    drill.grade ? `达成：${drill.grade}` : '',
+    drill.sop ? `SOP：${drill.sop}` : '',
+    drill.expert ? `专家：${drill.expert}` : '',
+    drill.issue ? `问题分类：${drill.issue}` : '',
+    drill.problem === 'quality' ? '低质量或低覆盖问题通话' : '',
+  ].filter(Boolean).join(' · ') || '全部通话';
+}
+
+function callWorkbenchDrillFilters(spec={}, drill={}) {
+  const extras = [];
+  const add = (member, value) => {
+    if (value) extras.push(callReportDimensionFilter(member, value));
+  };
+  add('ad.call_flow_total', drill.result);
+  add('ad.quality_score_level', drill.grade);
+  add('ad.quality_rule', drill.sop);
+  add('ad.sales_expert', drill.expert);
+  add('ad.quality_issue_category', drill.issue);
+  return callReportMergedFilters(callReportFilters(spec), extras);
+}
+
+function callWorkbenchOpenKpiDrill(drill='all', spec={}, state={}) {
+  const config = {
+    all: {measure:'ad.sop_total_call_count', metricLabel:'总通话量', workbenchDrill:{}, callSopKpiDrill:true},
+    connected: {measure:'ad.effective_connect_rate', metricLabel:'有效接通率', workbenchDrill:{connected:'true'}, callSopKpiDrill:true},
+    duration: {measure:'ad.avg_call_duration_seconds', metricLabel:'平均通话时长', workbenchDrill:callWorkbenchCurrentDrill(state)},
+    filtered: {measure:'ad.filtered_call_count', metricLabel:'筛选后样本', workbenchDrill:callWorkbenchCurrentDrill(state)},
+  }[drill] || null;
+  if (!config) return;
+  const filters = callWorkbenchDrillFilters(spec, config.workbenchDrill);
+  const context = {
+    metricLabel:config.metricLabel,
+    rowLabel:'全部',
+    columnLabel:'全部',
+    callSopKpiDrill:!!config.callSopKpiDrill,
+    workbenchDrill:config.workbenchDrill,
+    conditionLabel:callWorkbenchDrillConditionLabel(config.workbenchDrill),
+  };
+  return openCallReportDrillChooser(
+    config.measure,
+    encodeURIComponent(JSON.stringify(filters)),
+    encodeURIComponent(JSON.stringify(context)),
+  );
+}
+
 function callWorkbenchFiltersFromUrl(filters=[]) {
   const params = new URLSearchParams(location.search);
   const replacements = {
@@ -9192,7 +9358,10 @@ function callWorkbenchRender(target, data={}, spec={}, widget={}) {
   const summary = data.summary || {};
   const options = data.filters || {};
   const title = spec.view?.encoding?.reportTitle || '试驾邀约通话质检工作台';
-  const avgDuration = callReportNum(Number(summary.avgDurationSeconds || 0) / 60, 1);
+  const filteredDurationSeconds = filteredRecords.reduce((sum, record) => sum + Number(record.durationSeconds || 0), 0);
+  const filteredWordCount = filteredRecords.reduce((sum, record) => sum + Number(record.wordCount || 0), 0);
+  const avgDuration = callReportNum(filteredRecords.length ? filteredDurationSeconds / filteredRecords.length / 60 : 0, 1);
+  const avgWordCount = callReportNum(filteredRecords.length ? filteredWordCount / filteredRecords.length : 0, 0);
   const contextParts = [
     `组织范围：${data.store || '当前门店'}`,
     state.expert ? `专家：${state.expert}` : '',
@@ -9211,17 +9380,17 @@ function callWorkbenchRender(target, data={}, spec={}, widget={}) {
         <div class="call-workbench-title"><h2>${escHtml(title)}</h2><span>通话质检</span></div>
         <div class="call-workbench-sub">${escHtml(data.day || '当前日期')} · ${escHtml(data.store || '当前门店')}</div>
       </div>
-      <div class="call-workbench-kpis">
-        <div class="call-workbench-kpi" style="--exec-accent:#20332f"><b>总通话量</b><strong>${escHtml(callReportNum(summary.totalCalls || 0))}</strong><span>当前筛选范围</span></div>
-        <div class="call-workbench-kpi" style="--exec-accent:#14806f"><b>有效接通率</b><strong>${escHtml(callReportRate(Number(summary.connectRate || 0) * 100, 1))}</strong><span>${escHtml(callReportNum(summary.connectedCalls || 0))} 通可复盘</span></div>
-        <div class="call-workbench-kpi" style="--exec-accent:#4e7898"><b>平均通话时长</b><strong>${escHtml(avgDuration)} 分</strong><span>${escHtml(callReportNum(summary.avgWordCount || 0, 0))} 字/通</span></div>
-        <div class="call-workbench-kpi" style="--exec-accent:#d99042"><b>筛选后样本</b><strong>${escHtml(callReportNum(filteredRecords.length))}</strong><span>当前条件</span></div>
-      </div>
       <div class="call-workbench-filterbar">
         <div class="filter-chip" title="${escHtml(contextParts.join(' · '))}">${escHtml(contextParts.join(' · '))}</div>
-        <select data-workbench-filter="result">${callWorkbenchOptionHtml(options.resultOptions || ['全部结果'], state.result)}</select>
-        <select data-workbench-filter="grade">${callWorkbenchOptionHtml(options.gradeOptions || ['全部达成'], state.grade)}</select>
-        <select data-workbench-filter="sop">${callWorkbenchOptionHtml(options.sopOptions || ['全部SOP'], state.sop)}</select>
+        <label class="call-workbench-filter-control"><span>邀约结果</span><select data-workbench-filter="result">${callWorkbenchOptionHtml(options.resultOptions || ['全部结果'], state.result)}</select></label>
+        <label class="call-workbench-filter-control"><span>达成等级</span><select data-workbench-filter="grade">${callWorkbenchOptionHtml(options.gradeOptions || ['全部达成'], state.grade)}</select></label>
+        <label class="call-workbench-filter-control"><span>SOP 环节</span><select data-workbench-filter="sop">${callWorkbenchOptionHtml(options.sopOptions || ['全部SOP'], state.sop)}</select></label>
+      </div>
+      <div class="call-workbench-kpis">
+        <button type="button" class="call-workbench-kpi" style="--exec-accent:#20332f" data-workbench-kpi-drill="all" title="选择总通话量的明细、业务解释或维度下钻"><b>总通话量</b><strong>${escHtml(callReportNum(summary.totalCalls || 0))}</strong><span>点击选择钻取方式 →</span></button>
+        <button type="button" class="call-workbench-kpi" style="--exec-accent:#14806f" data-workbench-kpi-drill="connected" title="选择有效接通率的明细、业务解释或维度下钻"><b>有效接通率</b><strong>${escHtml(callReportRate(Number(summary.connectRate || 0) * 100, 1))}</strong><span>${escHtml(callReportNum(summary.connectedCalls || 0))} 通可复盘 · 选择钻取 →</span></button>
+        <button type="button" class="call-workbench-kpi" style="--exec-accent:#4e7898" data-workbench-kpi-drill="duration" title="选择当前筛选范围平均通话时长的明细、业务解释或维度下钻"><b>平均通话时长</b><strong>${escHtml(avgDuration)} 分</strong><span>${escHtml(avgWordCount)} 字/通 · 选择钻取 →</span></button>
+        <button type="button" class="call-workbench-kpi" style="--exec-accent:#d99042" data-workbench-kpi-drill="filtered" title="选择当前 ${escHtml(callReportNum(filteredRecords.length))} 通样本的明细、业务解释或维度下钻"><b>筛选后样本</b><strong>${escHtml(callReportNum(filteredRecords.length))}</strong><span>当前条件 · 选择钻取 →</span></button>
       </div>
       <div class="call-workbench-layout">
         <aside class="call-workbench-panel call-workbench-list-panel">
@@ -9232,6 +9401,9 @@ function callWorkbenchRender(target, data={}, spec={}, widget={}) {
       </div>
     </div>
   </div>`;
+  target.querySelectorAll('[data-workbench-kpi-drill]').forEach(card => {
+    card.addEventListener('click', () => callWorkbenchOpenKpiDrill(card.dataset.workbenchKpiDrill || 'all', spec, state));
+  });
   target.querySelectorAll('[data-workbench-filter]').forEach(select => {
     select.addEventListener('change', () => {
       const key = select.dataset.workbenchFilter;
@@ -10143,7 +10315,7 @@ function celnFormatTime(value) {
 
 async function openCelnStageCustomers(stageCode) {
   const ctx = _celnStoreInsightContext || {};
-  const store = ctx.store || '小鹏汽车杭州演示体验中心';
+  const store = ctx.store || '特斯拉汽车杭州演示体验中心';
   const stage = String(stageCode || '').toUpperCase();
   const stageRow = (ctx.distribution || []).find(item => item.stageCode === stage) || {};
   const titleEl = document.getElementById('pivot-drill-title');
@@ -12824,6 +12996,40 @@ async function openDashboardView(id) {
   await loadDashboardSpec(id, {skipPersist:true});
 }
 
+const CALL_QUALITY_DASHBOARD_IDS = new Set([
+  'dash_da_tms_call_sop_diagnosis',
+  'dash_da_tms_call_sop_workbench',
+  'dash_da_tms_call_monitor_alert',
+]);
+
+const CALL_QUALITY_FILTER_MEMBER_KEYS = {
+  dimension: new Set([
+    'date_week', 'date_day', 'date_month', 'business_type', 'store_city',
+    'customer_name', 'intent', 'store_manager', 'intent_matched',
+    'expected_next_action', 'follow_up_method', 'call_flow_total',
+    'quality_pass', 'quality_rule', 'quality_question', 'quality_score_level',
+    'vehicle_model', 'sales_expert', 'store', 'quality_issue_category',
+  ]),
+  measure: new Set([
+    'next_action_done_count', 'low_coverage_call_count', 'low_quality_call_count',
+    'safety_penalty_sum', 'covered_slot_count', 'avg_slot_coverage_rate',
+    'avg_match_confidence', 'avg_call_quality_score', 'required_slot_count',
+    'intent_matched_count', 'phone_call_count', 'missing_slot_count',
+    'quality_record_count', 'pass_call_count',
+  ]),
+};
+
+function dashboardFilterCatalogItems(kind) {
+  const items = kind === 'measure' ? (_adhocMeta.measures || []) : (_adhocMeta.dimensions || []);
+  const pathDashboardId = decodeURIComponent(String(location.pathname || '').split('/').filter(Boolean).pop() || '');
+  const dashboardId = String(_dashboardState.id || pathDashboardId);
+  if (!CALL_QUALITY_DASHBOARD_IDS.has(dashboardId)) return items;
+  const allowed = CALL_QUALITY_FILTER_MEMBER_KEYS[kind] || new Set();
+  return items.filter(item => [item?.name, item?.code, ...(item?.sourceCodes || [])]
+    .filter(Boolean)
+    .some(alias => allowed.has(adhocSimpleMemberKey(alias))));
+}
+
 function renderDashboardFilterOptions() {
   const kind = document.getElementById('dashboard-filter-kind')?.value || 'dimension';
   const sel = document.getElementById('dashboard-filter-member');
@@ -12832,7 +13038,7 @@ function renderDashboardFilterOptions() {
   const input = document.getElementById('dashboard-filter-values');
   if (!sel) return;
   const term = adhocSearchTerm('dashboard-filter-member-search');
-  const items = (kind === 'measure' ? _adhocMeta.measures : _adhocMeta.dimensions)
+  const items = dashboardFilterCatalogItems(kind)
     .filter(x => adhocItemMatchesTerm(x, term));
   const availabilityFor = x => dashboardFilterMemberAvailability(kind, x.name);
   sel.innerHTML = adhocSortByAvailability(items, availabilityFor).map(({item:x, availability}) =>
@@ -13497,9 +13703,7 @@ function renderDashboardCanvas() {
       item.style.gridColumn = `${colStart} / span ${Math.min(w, 13 - colStart)}`;
       const itemHeight = Math.max(220, h * 110);
       if (_dashboardViewMode) {
-        if (isReportWidget) {
-          item.style.minHeight = `${itemHeight}px`;
-        } else {
+        if (!isReportWidget) {
           item.style.height = `${itemHeight}px`;
         }
       } else {
@@ -16098,24 +16302,24 @@ function _smartInsightDecision(question) {
   const lightDimensionQuery = /^(按|从).+(查看|查询|统计|汇总|分析|对比)/.test(q)
     && !/(为什么|为何|原因|归因|根因|影响最大|贡献|贡献度|异常|波动|变化|变动|下滑|下降|上涨|上升|环比|同比|趋势|走势|显著|是否)/.test(q);
 
-  if (explicitLight) return {mode: 'query', reason: '按问题要求仅执行查询'};
-  if (asksProblemOrders) return {mode: 'query', reason: '识别为监控预警单据追踪的问题订单查询'};
-  if (lightDimensionQuery) return {mode: 'query', reason: '识别为指标按维度聚合查询'};
+  if (explicitLight) return {mode: 'query', flowNode: 'D', reason: '按问题要求仅执行查询'};
+  if (asksProblemOrders) return {mode: 'query', flowNode: 'E', reason: '识别为监控预警单据追踪的问题订单查询'};
+  if (lightDimensionQuery) return {mode: 'query', flowNode: 'D', reason: '识别为指标按维度聚合查询'};
   // 实体指代问题不走指标归因，交给 NLQ → entity_lookup 做同类对比+图谱扩展
   if (asksSpecificEntity && !asksContribution && !asksCompareTrend && !asksMetricDimAnalysis) {
-    return {mode: 'query', reason: '识别为实体检索与同类对比分析，不适用指标归因'};
+    return {mode: 'query', flowNode: 'D', reason: '识别为实体检索与同类对比分析，不适用指标归因'};
   }
-  if (asksRelationship) return {mode: 'query', reason: '识别为相关关系或跨维差异分析'};
+  if (asksRelationship) return {mode: 'query', flowNode: 'D', reason: '识别为相关关系或跨维差异分析'};
   if (hasDetail && !asksDeepWhy && !asksContribution && !asksCompareTrend && !asksMetricDimAnalysis) {
-    return {mode: 'query', reason: '识别为明细或样本查询'};
+    return {mode: 'query', flowNode: 'D', reason: '识别为明细或样本查询'};
   }
   if (asksDeepWhy || asksContribution || asksCompareTrend || asksMetricDimAnalysis) {
-    return {mode: 'insight', reason: '识别为指标/维度分析、波动归因、趋势对比或结构贡献问题'};
+    return {mode: 'insight', flowNode: 'F', reason: '识别为指标/维度分析、波动归因、趋势对比或结构贡献问题'};
   }
-  if (asksGraphOnly) return {mode: 'query', reason: '识别为图谱解释或口径查询'};
-  if (simpleQuery) return {mode: 'query', reason: '识别为指标聚合或明细查询'};
-  if (/分析|洞察|Insight/i.test(q)) return {mode: 'insight', reason: '识别为综合分析问题'};
-  return {mode: 'query', reason: '默认先执行图谱问数'};
+  if (asksGraphOnly) return {mode: 'query', flowNode: 'G', reason: '识别为图谱解释或口径查询'};
+  if (simpleQuery) return {mode: 'query', flowNode: 'D', reason: '识别为指标聚合或明细查询'};
+  if (/分析|洞察|Insight/i.test(q)) return {mode: 'insight', flowNode: 'F', reason: '识别为综合分析问题'};
+  return {mode: 'query', flowNode: 'D', reason: '默认先执行图谱问数'};
 }
 
 async function runSmartInsight(btn) {
@@ -17940,7 +18144,11 @@ async function runBkgValidate() {
     if (validateTab) { new bootstrap.Tab(validateTab).show(); }
   } catch(e) {}
 
-  const sel = document.getElementById('bkg-file-select');
+  // bkg-file-select is the *source* KG selector.  Validation operates on the
+  // generated business KG, whose versions are selected by bz-file-select.
+  // Passing the source file here makes the API return 404 and EventSource only
+  // exposes a generic error, leaving the page stuck on the loading indicator.
+  const sel = document.getElementById('bz-file-select');
   const file = sel ? sel.value : '';
   const url = '/api/business-kg/validate/stream' + (file ? `?file=${encodeURIComponent(file)}` : '');
 
@@ -18022,7 +18230,14 @@ async function runBkgValidate() {
       res.insertAdjacentHTML('beforeend', `<div class="alert alert-danger m-2 py-2 small">${msg.error}</div>`);
     }
   };
-  es.onerror = () => { es.close(); finalize(); };
+  es.onerror = () => {
+    es.close();
+    if (!appendedAny) {
+      res.innerHTML = '<div class="alert alert-danger m-2 py-2 small">校验请求未能启动。请确认已选择或激活业务图谱，然后重试。</div>';
+      sum.textContent = '校验未完成';
+    }
+    finalize();
+  };
 }
 
 let _bkvResults = [];
@@ -20062,7 +20277,7 @@ function _isExactAttributeLookupQuestion(question='') {
 }
 
 function initInsightFlow(mode='standard') {
-  _insightFlowMode = mode === 'document_trace' ? 'document_trace' : 'standard';
+  _insightFlowMode = ['document_trace', 'deep_insight'].includes(mode) ? mode : 'standard';
   _insightFlowState = {};
   _insightFlowSteps().forEach(step => { _insightFlowState[step.id] = 'idle'; });
   renderInsightFlow();
@@ -20143,13 +20358,16 @@ function renderInsightFlow() {
 function _insightFlowTargetIds(id) {
   if (_insightFlowState && Object.prototype.hasOwnProperty.call(_insightFlowState, id)) return [id];
   const mode = _insightFlowMode;
+  const isDeepInsight = mode === 'deep_insight';
   const dynamic = {
     classify: ['A','B','C'],
     precheck: ['B2'],
-    kg_candidates: ['H','I','J'],
-    confidence: ['K'],
-    plan: mode === 'document_trace' ? ['P'] : ['U','V','L'],
-    execute: mode === 'document_trace' ? ['Q','T'] : ['O','W'],
+    // 深度 Insight 内部同样会做 KG 匹配与置信度判断，但这些事件属于
+    // F→U→V→W 的内部步骤，不能点亮普通 NLQ 的 H→I→J→K→L 车道。
+    kg_candidates: isDeepInsight ? [] : ['H','I','J'],
+    confidence: isDeepInsight ? [] : ['K'],
+    plan: mode === 'document_trace' ? ['P'] : (isDeepInsight ? ['U','V'] : ['U','V','L']),
+    execute: mode === 'document_trace' ? ['Q','T'] : (isDeepInsight ? ['W'] : ['O','W']),
     validation: ['Y','Z'],
     evidence_answer: ['AA','AC','AD'],
     done: ['AD'],
@@ -20549,12 +20767,15 @@ function renderInsightIntegrationPlan(integration={}) {
   `;
 }
 
-function _prepareInsightAnalysisPanels(conversation) {
+function _prepareInsightAnalysisPanels(conversation, routeNode='') {
   const mode = _insightAnalysisMode(conversation);
   const sixPart = document.getElementById('insight-six-part-card');
   const docCard = document.getElementById('insight-document-trace-card');
   const actionCard = document.getElementById('insight-action-loop-card');
-  initInsightFlow(mode === 'document_trace' ? 'document_trace' : 'standard');
+  const flowMode = mode === 'document_trace'
+    ? 'document_trace'
+    : (routeNode === 'F' ? 'deep_insight' : 'standard');
+  initInsightFlow(flowMode);
   if (mode === 'document_trace') {
     if (sixPart) sixPart.style.display = 'none';
     if (docCard) docCard.style.display = '';
@@ -20580,9 +20801,9 @@ function startInsight(questionOverride, triggerBtn) {
   const q = (questionOverride || insightQuestionEl?.value || '').trim();
   if (!q) { alert('请输入分析问题'); return; }
   const conversation = _getNlqConversation('smart');
-  _prepareInsightAnalysisPanels(conversation);
-  runInsightFlowStep('classify');
   const routeNode = _inferInsightBranch(q, conversation);
+  _prepareInsightAnalysisPanels(conversation, routeNode);
+  runInsightFlowStep('classify');
 
   // 重置界面（安全访问可能不存在的元素）
   _insightAnswerBuf = '';

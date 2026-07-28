@@ -7,7 +7,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Author: lixiaolong
  * Date: 2022/3/5
  * Desc:
  */

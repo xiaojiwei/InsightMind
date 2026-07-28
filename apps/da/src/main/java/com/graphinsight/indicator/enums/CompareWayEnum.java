@@ -5,7 +5,6 @@ import com.graphinsight.indicator.util.NumberFormatUtil;
 import java.math.BigDecimal;
 
 /**
- * Author: lixiaolong
  * Date: 2022/10/12
  * Desc:
  */

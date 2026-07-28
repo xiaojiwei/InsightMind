@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
  * 用户操作记录表 服务实现类
  * </p>
  *
- * @author lixiaolong5
  * @since 2023-02-09
  */
 @Service

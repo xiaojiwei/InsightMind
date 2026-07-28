@@ -3,7 +3,6 @@ package com.graphinsight.indicator.util.contribution.bean;
 import lombok.Data;
 
 /**
- * Author: lixiaolong
  * Date: 2022/7/22
  * Desc:
  */

@@ -3,7 +3,6 @@ package com.graphinsight.indicator.enums;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
- * Author: lixiaolong
  * Date: 2022/11/3
  * Desc: 节点的类型
  */

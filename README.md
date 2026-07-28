@@ -86,6 +86,18 @@ AD: http://localhost:8080/
 DA: http://localhost:8091/
 ```
 
+### MCP Server
+
+仓库内置了一个只读 MCP Gateway，把 AD 的知识图谱、NLQ、语义查询能力和 DA 的指标推理、DataGPT、DSL 查询能力暴露为 21 个 MCP tools，可供 Codex、Claude Code 或其他 MCP 客户端使用。
+
+```bash
+./scripts/insightmind-mcp.sh setup
+./scripts/insightmind-mcp.sh start
+./scripts/insightmind-mcp.sh status
+```
+
+默认 Streamable HTTP 地址为 `http://localhost:8092/mcp`；本地客户端也可通过 `./scripts/insightmind-mcp.sh stdio` 接入。完整的工具清单、客户端配置和安全边界见 [`docs/agent_mcp_gateway.md`](docs/agent_mcp_gateway.md)。
+
 ---
 
 ## 一键安装与启动
@@ -237,7 +249,7 @@ logs/da.log
 
 ## 默认演示环境：通话质检与监控预警
 
-InsightMind 内置一套可直接恢复的通话质检演示案例。所有客户 ID、员工、门店、ASR 文本和质检结果均为程序生成的合成数据，不包含真实业务内容。演示品牌统一使用“小鹏汽车”，仓库已经内置：
+InsightMind 内置一套可直接恢复的通话质检演示案例。所有客户 ID、员工、门店、ASR 文本和质检结果均为程序生成的合成数据，不包含真实业务内容。演示品牌统一使用“特斯拉汽车”，仓库已经内置：
 
 - 数据库脚本：`apps/ad/demo_call_sop_data.py`、`apps/ad/tpcds_schema.sql`、`apps/ad/tpcds_data.py`、`apps/da/schema.sql`
 - 数据源知识图谱：`demo/default/ad/output/kg_tpcds.ttl`

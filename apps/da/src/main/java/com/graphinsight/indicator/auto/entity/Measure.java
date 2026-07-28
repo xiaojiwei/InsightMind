@@ -13,7 +13,6 @@ import java.time.LocalDateTime;
  * 指标表
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-16
  */
 @Data

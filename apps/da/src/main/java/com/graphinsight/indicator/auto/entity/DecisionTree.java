@@ -12,7 +12,6 @@ import java.io.Serializable;
  * 决策树详情表
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-06-13
  */
 @Data

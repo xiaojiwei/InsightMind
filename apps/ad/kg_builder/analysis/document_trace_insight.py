@@ -5,6 +5,8 @@ import json
 import urllib.request as _ureq
 from typing import Any, Callable, Generator, Optional
 
+from kg_builder.utils.http_client import urlopen as _urlopen
+
 
 class DocumentTraceInsightAnalyzer:
     """Explain document trace anomalies without running metric fluctuation analysis."""
@@ -178,7 +180,7 @@ class DocumentTraceInsightAnalyzer:
             }).encode("utf-8")
             headers = {"Content-Type": "application/json", "x-api-key": api_key, "anthropic-version": "2023-06-01"}
             req = _ureq.Request(f"{base_url}/messages", data=body, headers=headers, method="POST")
-            with _ureq.urlopen(req, timeout=90) as resp:
+            with _urlopen(req, timeout=90) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             text = data.get("content", [{}])[0].get("text", "") if isinstance(data.get("content"), list) else str(data)
             truncated = data.get("stop_reason") == "max_tokens"
@@ -192,7 +194,7 @@ class DocumentTraceInsightAnalyzer:
         }).encode("utf-8")
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
         req = _ureq.Request(f"{base_url}/chat/completions", data=body, headers=headers, method="POST")
-        with _ureq.urlopen(req, timeout=90) as resp:
+        with _urlopen(req, timeout=90) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         if "choices" in data:
             choice = data["choices"][0]

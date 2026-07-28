@@ -20,7 +20,6 @@ import java.util.stream.Collectors;
 /**
  * Date: 2023/10/30
  * Desc: 岗位信息控制器
- * @author lixiaolong5
  */
 @RestController
 @RequestMapping("/post")

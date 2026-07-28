@@ -5,7 +5,6 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * Author: lixiaolong
  * Date: 2022/8/9
  * Desc: 维度基础信息
  */

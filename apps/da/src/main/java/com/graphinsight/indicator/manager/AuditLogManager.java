@@ -9,7 +9,6 @@ import javax.annotation.Resource;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Author: lixiaolong
  * Date: 2022/8/23
  * Desc:
  */

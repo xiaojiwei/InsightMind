@@ -11,7 +11,6 @@ import lombok.EqualsAndHashCode;
  * widget详情
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-08-31
  */
 @Data

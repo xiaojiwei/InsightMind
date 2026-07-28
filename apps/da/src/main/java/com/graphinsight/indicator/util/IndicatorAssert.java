@@ -3,7 +3,6 @@ package com.graphinsight.indicator.util;
 import com.graphinsight.indicator.exception.IndicatorParamNotValidException;
 
 /**
- * Author: lixiaolong
  * Date: 2022/9/2
  * Desc:
  */

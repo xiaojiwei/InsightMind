@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
  * SCHEMA 服务类
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-17
  */
 public interface IColumnsService extends IService<Columns> {

@@ -12,7 +12,6 @@ import java.io.Serializable;
  * 监控规则
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-10-11
  */
 @Data

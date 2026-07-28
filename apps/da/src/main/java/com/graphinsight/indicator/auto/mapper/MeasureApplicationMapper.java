@@ -9,7 +9,6 @@ import com.graphinsight.indicator.auto.entity.MeasureApplication;
  * 指标应用表 Mapper 接口
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-16
  */
 @DS("mysql")

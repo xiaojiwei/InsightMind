@@ -3,7 +3,6 @@ package com.graphinsight.indicator.lax.ifelse.iffunction;
 import java.math.BigDecimal;
 
 /**
- * Author: lixiaolong
  * Date: 2023/6/6
  * Desc:
  */

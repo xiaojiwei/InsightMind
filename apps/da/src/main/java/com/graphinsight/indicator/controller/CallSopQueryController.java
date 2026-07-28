@@ -29,7 +29,7 @@ import java.util.Map;
 public class CallSopQueryController {
 
     private static final String DEFAULT_DAY = "2026-07-02";
-    private static final String DEFAULT_STORE = "小鹏汽车杭州演示体验中心";
+    private static final String DEFAULT_STORE = "特斯拉汽车杭州演示体验中心";
 
     private static final Map<String, String> FILTER_COLUMNS;
 
@@ -121,7 +121,9 @@ public class CallSopQueryController {
                 + "JOIN da_tms.call_record_judgement_results j ON j.id = f.quality_id "
                 + "LEFT JOIN da_tms.call_record_judgement_rules r ON r.rule_id = f.rule_id "
                 + "WHERE " + String.join(" AND ", where) + " "
-                + "ORDER BY f.expert_name, j.latest_conversation_time DESC, f.quality_id DESC";
+                // Keep ordering on the fact table so idx_fact_scope_order can
+                // cover the fixed date/store scope and the complete sort.
+                + "ORDER BY f.expert_name, f.latest_conversation_time DESC, f.quality_id DESC";
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, args.toArray());
         Map<String, Object> data = new LinkedHashMap<>();

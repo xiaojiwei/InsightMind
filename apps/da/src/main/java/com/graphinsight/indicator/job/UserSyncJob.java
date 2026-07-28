@@ -5,6 +5,7 @@ import com.graphinsight.indicator.manager.UserManager;
 import com.graphinsight.indicator.service.RedisCacheService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -12,11 +13,11 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Author: lixiaolong
  * Date: 2022/3/5
  * Desc:
  */
 @Component
+@ConditionalOnProperty(prefix = "insightmind.external-org-sync", name = "enabled", havingValue = "true", matchIfMissing = true)
 @Slf4j
 public class UserSyncJob{
 

@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @Author: lixiaolong
  * @Description: Doris元数据控制器
  * @Date: 2021/11/17
  */

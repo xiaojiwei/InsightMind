@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
  * 菜单表 服务实现类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-10-24
  */
 @Service

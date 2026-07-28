@@ -22,6 +22,8 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 jinja2>=3.1
 python-multipart>=0.0.9
+# HTTP client used by alert notification module, imported during demo rule setup.
+httpx>=0.27
 
 # Lightweight text normalization
 pypinyin>=0.49

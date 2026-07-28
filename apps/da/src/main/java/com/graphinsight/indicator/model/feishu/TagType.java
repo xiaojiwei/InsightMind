@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.model.feishu;
 
 /**
- * Author: lixiaolong
  * Date: 2022/10/14
  * Desc:
  */

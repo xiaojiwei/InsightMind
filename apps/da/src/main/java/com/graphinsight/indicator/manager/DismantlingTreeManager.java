@@ -64,7 +64,6 @@ import java.util.stream.Collectors;
 import com.graphinsight.indicator.auto.entity.User;
 
 /**
- * Author: lixiaolong
  * Date: 2022/11/5
  * Desc:
  * 绝对贡献度和相对贡献度

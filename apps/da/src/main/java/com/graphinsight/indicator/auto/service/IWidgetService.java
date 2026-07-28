@@ -9,7 +9,6 @@ import com.graphinsight.indicator.auto.entity.Widget;
  * widget表 服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-08-31
  */
 @DS("mysql")

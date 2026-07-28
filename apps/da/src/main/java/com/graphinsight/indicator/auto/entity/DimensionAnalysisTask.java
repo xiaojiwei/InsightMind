@@ -12,7 +12,6 @@ import java.io.Serializable;
  * 多维分析查询任务列表
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-07-05
  */
 @Data

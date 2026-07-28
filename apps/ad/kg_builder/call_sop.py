@@ -222,7 +222,7 @@ def analyze_call_sop_record(record: dict[str, Any]) -> dict[str, Any]:
     connected = not _has_any(all_text, unconnected_terms)
 
     time_terms = ("今天", "明天", "后天", "上午", "下午", "晚上", "周一", "周二", "周三", "周四", "周五", "周六", "周日", "星期", "号", "点", "分钟", "提前")
-    model_terms = ("G6", "G9", "X9", "P7i", "MONA", "车型", "max", "pro")
+    model_terms = ("Model 3", "Model Y", "Model S", "Model X", "Cybertruck", "车型", "max", "pro")
     concern_terms = ("价格", "优惠", "补贴", "贷款", "全款", "分期", "现车", "提车", "配置", "颜色", "空间", "智驾", "续航", "充电", "门店", "地址", "试驾")
     scene_terms = ("家人", "孩子", "对象", "老婆", "媳妇", "家庭", "上班", "通勤", "长途", "旅游", "老人", "小孩", "父亲", "姑娘", "工作", "房贷", "社保")
     objection_terms = ("没有", "不考虑", "再说", "没时间", "忙", "太远", "贵", "价格", "竞品", "奥迪", "宝马", "极狐", "不买", "打扰", "拒绝", "退", "维权", "已买")
@@ -238,8 +238,8 @@ def analyze_call_sop_record(record: dict[str, Any]) -> dict[str, Any]:
             "专家自我介绍",
         ),
         "RULE_000_02": (
-            connected and _has_any(expert_all, ("小鹏汽车", "门店", "官网", "杭州")),
-            ["小鹏汽车", "门店", "官网", "杭州"],
+            connected and _has_any(expert_all, ("特斯拉汽车", "门店", "官网", "杭州")),
+            ["特斯拉汽车", "门店", "官网", "杭州"],
             "品牌或门店来源",
         ),
         "RULE_000_03": (

@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RestController;
  * widget详情 前端控制器
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-08-31
  */
 @RestController

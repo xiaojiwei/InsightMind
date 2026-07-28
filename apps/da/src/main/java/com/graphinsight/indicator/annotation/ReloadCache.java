@@ -7,7 +7,6 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @Author: lixiaolong
  * @Description: 日志请求和响应注解
  * @Date: 2021/11/16
  */

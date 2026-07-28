@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
  * 属权元素指标或维度 服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2023-02-13
  */
 public interface IAuthElementService extends IService<AuthElement> {

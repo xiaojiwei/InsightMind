@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
  * 指标等级关联表 服务实现类
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-16
  */
 @Service

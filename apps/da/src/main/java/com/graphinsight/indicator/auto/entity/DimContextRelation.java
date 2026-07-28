@@ -12,7 +12,6 @@ import lombok.EqualsAndHashCode;
  * 维度上下文环境
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-07-19
  */
 @Data

@@ -4,7 +4,6 @@ import com.graphinsight.indicator.enums.SqlAggFunType;
 import lombok.Data;
 
 /**
- * Author: lixiaolong
  * Date: 2022/4/14
  * Desc:
  */

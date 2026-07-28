@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RestController;
  * 维度上下文环境 前端控制器
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-07-19
  */
 @RestController

@@ -5,7 +5,6 @@ import com.graphinsight.indicator.enums.OperatorType;
 import lombok.Data;
 
 /**
- * Author: lixiaolong
  * Date: 2022/11/3
  * Desc:
  */

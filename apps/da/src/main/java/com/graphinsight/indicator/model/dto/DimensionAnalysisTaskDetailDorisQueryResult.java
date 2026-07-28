@@ -4,7 +4,6 @@ import com.graphinsight.indicator.model.PageData;
 import lombok.Data;
 
 /**
- * Author: lixiaolong
  * Date: 2022/8/4
  * Desc:
  */

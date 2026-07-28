@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Author: lixiaolong
  * Date: 2022/7/11
  * Desc:基尼系数计算器
  */

@@ -7,7 +7,6 @@ import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
 
 /**
- * Author: lixiaolong
  * Date: 2022/10/9
  * Desc:
  */

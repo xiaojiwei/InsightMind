@@ -7,7 +7,6 @@ import javax.validation.constraints.NotBlank;
 import java.math.BigDecimal;
 
 /**
- * Author: lixiaolong
  * Date: 2022/6/20
  * Desc:
  */

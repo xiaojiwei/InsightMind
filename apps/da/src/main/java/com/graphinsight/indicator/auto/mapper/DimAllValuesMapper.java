@@ -16,7 +16,6 @@ import org.apache.ibatis.annotations.Param;
  * Mapper 接口
  * </p>
  *
- * @author lixiaolong
  * @since 2021-12-13
  */
 @DS("mysql")

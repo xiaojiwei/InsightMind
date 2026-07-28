@@ -11,7 +11,6 @@ import lombok.EqualsAndHashCode;
  * 决策树引用表
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-11-22
  */
 @Data

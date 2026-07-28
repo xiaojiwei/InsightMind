@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
  * 看板版本表
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-08-31
  */
 @Data

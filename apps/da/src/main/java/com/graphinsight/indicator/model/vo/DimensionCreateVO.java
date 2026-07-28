@@ -8,7 +8,6 @@ import lombok.Data;
 import javax.validation.constraints.NotBlank;
 
 /**
- * @Author: lixiaolong
  * @Description:
  * @Date: 2021/11/16
  */

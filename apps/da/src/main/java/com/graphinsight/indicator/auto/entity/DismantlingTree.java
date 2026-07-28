@@ -12,7 +12,6 @@ import java.io.Serializable;
  * 拆解树表
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-11-22
  */
 @Data

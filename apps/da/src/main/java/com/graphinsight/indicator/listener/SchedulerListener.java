@@ -12,7 +12,6 @@ import javax.annotation.Resource;
 import java.util.Objects;
 
 /**
- * Author: lixiaolong
  * Date: 2022/10/9
  * Desc: 任务调度启动类
  */

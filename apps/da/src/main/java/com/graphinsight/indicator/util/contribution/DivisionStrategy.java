@@ -6,7 +6,6 @@ import com.graphinsight.indicator.util.contribution.bean.ContributionCalculation
 import java.math.BigDecimal;
 
 /**
- * Author: lixiaolong
  * Date: 2022/6/14
  * Desc:除法策略
  * 计算Y = A / B 时 A、B对Y的贡献度

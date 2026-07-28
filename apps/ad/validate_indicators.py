@@ -10,6 +10,8 @@ import re
 import sys
 import time
 import urllib.request
+
+from kg_builder.utils.http_client import urlopen as _urlopen
 import urllib.error
 from pathlib import Path
 from typing import Optional
@@ -19,7 +21,7 @@ from kg_builder.utils.llm_config import llm_config_from_env
 
 BASE_DIR = Path(__file__).parent
 IND = Namespace("http://indicator.insightmind.com/ontology#")
-DA_API = "http://localhost:8091/bi/v1/datasource/query"
+DA_API = "http://127.0.0.1:8091/bi/v1/datasource/query"
 
 
 _LLM_CONFIG = llm_config_from_env(BASE_DIR)
@@ -116,7 +118,7 @@ def query_da(meas_code: str, dim_code: str = "DIM_dim_date_day") -> dict:
     try:
         req = urllib.request.Request(DA_API, data=payload,
                                      headers={"Content-Type": "application/json"}, method="POST")
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with _urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except Exception as e:
         return {"ok": False, "rows": 0, "error": str(e)}

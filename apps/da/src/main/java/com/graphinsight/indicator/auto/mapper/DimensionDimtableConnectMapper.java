@@ -9,7 +9,6 @@ import com.graphinsight.indicator.auto.entity.DimensionDimtableConnect;
  * 维度和维表的关联表 Mapper 接口
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-18
  */
 @DS("mysql")

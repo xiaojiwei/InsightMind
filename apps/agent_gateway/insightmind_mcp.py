@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import re
 from typing import Any, Literal
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -20,6 +20,8 @@ DA_BASE_URL = os.getenv("INSIGHTMIND_DA_BASE_URL", "http://localhost:8091").rstr
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("INSIGHTMIND_MCP_TIMEOUT", "60"))
 MAX_PAGE_SIZE = int(os.getenv("INSIGHTMIND_MCP_MAX_PAGE_SIZE", "1000"))
 ALLOW_RAW_SPARQL = os.getenv("INSIGHTMIND_MCP_ALLOW_RAW_SPARQL", "false").lower() in {"1", "true", "yes"}
+MCP_HOST = os.getenv("INSIGHTMIND_MCP_HOST", "127.0.0.1")
+MCP_PORT = int(os.getenv("INSIGHTMIND_MCP_PORT", "8092"))
 
 
 mcp = FastMCP(
@@ -31,6 +33,8 @@ mcp = FastMCP(
         "are capped by the server."
     ),
     json_response=True,
+    host=MCP_HOST,
+    port=MCP_PORT,
 )
 
 
@@ -64,8 +68,20 @@ def _request(
     base_url = AD_BASE_URL if service == "ad" else DA_BASE_URL
     prefix = "AD" if service == "ad" else "DA"
     url = f"{base_url}/{path.lstrip('/')}"
-    with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS, headers=_headers(prefix)) as client:
-        response = client.request(method, url, json=json_body, params=params)
+    is_local = urlsplit(url).hostname in {"localhost", "127.0.0.1", "::1"}
+    try:
+        with httpx.Client(
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            headers=_headers(prefix),
+            trust_env=not is_local,
+        ) as client:
+            response = client.request(method, url, json=json_body, params=params)
+    except (httpx.HTTPError, OSError, ImportError) as exc:
+        return {
+            "ok": False,
+            "service": service,
+            "error": f"{service.upper()} service is unreachable: {exc}",
+        }
     try:
         payload = response.json()
     except Exception:
@@ -91,7 +107,29 @@ def _list_items(meta: dict[str, Any], key: str) -> list[dict[str, Any]]:
     data = meta.get("data")
     if isinstance(data, dict) and isinstance(data.get(key), list):
         return [item for item in data[key] if isinstance(item, dict)]
+    models = meta.get("models")
+    if isinstance(models, list):
+        items: list[dict[str, Any]] = []
+        model_key = "timeDimensions" if key == "timeDimensions" else key
+        for model in models:
+            if not isinstance(model, dict) or not isinstance(model.get(model_key), list):
+                continue
+            items.extend(item for item in model[model_key] if isinstance(item, dict))
+        return items
     return []
+
+
+def _semantic_catalog(meta: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    measures = _list_items(meta, "measures")
+    dimensions = _list_items(meta, "dimensions") + _list_items(meta, "timeDimensions")
+    unique_dimensions: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in dimensions:
+        key = str(item.get("code") or item.get("name") or id(item))
+        if key not in seen:
+            seen.add(key)
+            unique_dimensions.append(item)
+    return measures, unique_dimensions
 
 
 def _compact_items(items: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
@@ -100,11 +138,15 @@ def _compact_items(items: list[dict[str, Any]], limit: int) -> list[dict[str, An
         compact.append(
             {
                 "code": item.get("code") or item.get("measureCode") or item.get("dimCode"),
-                "name": item.get("name") or item.get("cnName") or item.get("alias"),
+                "name": item.get("title") or item.get("shortTitle") or item.get("name") or item.get("cnName") or item.get("alias"),
                 "alias": item.get("alias"),
                 "description": item.get("description") or item.get("comment") or item.get("bizDesc"),
                 "expression": item.get("expression"),
-                "raw": item,
+                "unit": item.get("unit"),
+                "aggregation": item.get("aggType") or item.get("aggregation"),
+                "tables": item.get("tables") or item.get("factTables") or [],
+                "dimensionCodes": item.get("dimensionCodes") or [],
+                "sourceCodes": item.get("sourceCodes") or [],
             }
         )
     return compact
@@ -113,7 +155,7 @@ def _compact_items(items: list[dict[str, Any]], limit: int) -> list[dict[str, An
 def _contains_keyword(item: dict[str, Any], keyword: str) -> bool:
     haystack = " ".join(
         str(item.get(key) or "")
-        for key in ("code", "measureCode", "dimCode", "name", "cnName", "alias", "description", "comment", "bizDesc")
+        for key in ("code", "measureCode", "dimCode", "name", "title", "shortTitle", "cnName", "alias", "description", "comment", "bizDesc")
     ).lower()
     return keyword.lower() in haystack
 
@@ -167,10 +209,14 @@ def get_semantic_meta() -> dict[str, Any]:
 @mcp.tool()
 def search_catalog(keyword: str, limit: int = 20) -> dict[str, Any]:
     """Search measure and dimension catalogs by keyword."""
-    limit = max(1, min(int(limit or 20), 100))
+    try:
+        limit = max(1, min(int(limit or 20), 100))
+    except (TypeError, ValueError):
+        limit = 20
     meta = get_semantic_meta()
-    measures = [item for item in _list_items(meta, "measures") if _contains_keyword(item, keyword)]
-    dimensions = [item for item in _list_items(meta, "dimensions") if _contains_keyword(item, keyword)]
+    catalog_measures, catalog_dimensions = _semantic_catalog(meta)
+    measures = [item for item in catalog_measures if _contains_keyword(item, keyword)]
+    dimensions = [item for item in catalog_dimensions if _contains_keyword(item, keyword)]
 
     if not measures and not dimensions:
         da_measures = _request("da", "GET", "/ai/allMeasure")
@@ -185,6 +231,92 @@ def search_catalog(keyword: str, limit: int = 20) -> dict[str, Any]:
         "keyword": keyword,
         "measures": _compact_items(measures, limit),
         "dimensions": _compact_items(dimensions, limit),
+    }
+
+
+@mcp.tool()
+def get_graph_summary() -> dict[str, Any]:
+    """Return active graph files plus business-KG entity and triple counts."""
+    graphs = _request("ad", "GET", "/api/graph/list")
+    stats = _request("ad", "GET", "/api/business-kg/stats")
+    return {
+        "ok": bool(graphs.get("ok")) and bool(stats.get("ok")),
+        "graphs": graphs,
+        "businessGraph": stats,
+    }
+
+
+@mcp.tool()
+def list_source_tables() -> dict[str, Any]:
+    """List tables in AD's active datasource knowledge graph."""
+    return _request("ad", "GET", "/api/graph/tables")
+
+
+@mcp.tool()
+def find_join_paths(from_table: str, to_table: str, max_hops: int = 5) -> dict[str, Any]:
+    """Find datasource-KG join paths between two physical tables."""
+    return _request(
+        "ad",
+        "GET",
+        "/api/join-path",
+        params={"from_table": from_table, "to_table": to_table, "max_hops": max(1, min(int(max_hops), 10))},
+    )
+
+
+@mcp.tool()
+def analyze_table_impact(table: str, max_depth: int = 6) -> dict[str, Any]:
+    """Analyze downstream datasource-KG impact of changing a physical table."""
+    return _request(
+        "ad",
+        "GET",
+        "/api/impact",
+        params={"table": table, "max_depth": max(1, min(int(max_depth), 20))},
+    )
+
+
+@mcp.tool()
+def compatible_dimensions(measure_code: str) -> dict[str, Any]:
+    """Return dimensions compatible with a measure, using DA reasoning with AD graph fallback."""
+    encoded_code = quote(measure_code, safe="")
+    da_result = _request(
+        "da",
+        "GET",
+        f"/api/graph/reasoning/measure/{encoded_code}/compatible-dimensions",
+    )
+    da_rows = da_result.get("data")
+    if isinstance(da_rows, list) and da_rows:
+        return {"ok": True, "source": "da_reasoning", "measureCode": measure_code, "dimensions": da_rows}
+
+    meta = get_semantic_meta()
+    measures, dimensions = _semantic_catalog(meta)
+    measure = next(
+        (
+            item
+            for item in measures
+            if measure_code in {str(item.get("code") or ""), str(item.get("name") or "")}
+        ),
+        None,
+    )
+    if measure is None:
+        return {
+            "ok": False,
+            "measureCode": measure_code,
+            "error": "Measure was not found in DA reasoning or AD semantic metadata.",
+            "da": da_result,
+        }
+    allowed = {str(code) for code in measure.get("dimensionCodes") or []}
+    rows = [
+        item
+        for item in dimensions
+        if str(item.get("code") or "") in allowed
+        or bool(allowed.intersection(str(code) for code in item.get("sourceCodes") or []))
+    ]
+    return {
+        "ok": True,
+        "source": "ad_business_kg",
+        "measureCode": measure_code,
+        "measure": _compact_items([measure], 1)[0],
+        "dimensions": _compact_items(rows, MAX_PAGE_SIZE),
     }
 
 

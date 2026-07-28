@@ -105,7 +105,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
- * @Author: lixiaolong
  * @Description: 指标管理服务
  * @Date: 2021/11/16
  */

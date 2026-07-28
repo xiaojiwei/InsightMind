@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * @Author: lixiaolong
  * @Description: 指标的缓存信息
  * @Date: 2021/11/22
  */

@@ -9,7 +9,6 @@ import com.graphinsight.indicator.auto.entity.MeasureGrade;
  * 指标等级字典表 Mapper 接口
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-16
  */
 @DS("mysql")

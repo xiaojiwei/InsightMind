@@ -9,7 +9,6 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
  * 告警接收人 Mapper 接口
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-10-17
  */
 @DS("mysql")

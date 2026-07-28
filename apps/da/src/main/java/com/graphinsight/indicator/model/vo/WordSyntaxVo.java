@@ -7,7 +7,6 @@ import lombok.Data;
 import java.util.*;
 
 /**
- * Author: lixiaolong
  * Date: 2022/11/28
  * Desc: 授权对象
  */

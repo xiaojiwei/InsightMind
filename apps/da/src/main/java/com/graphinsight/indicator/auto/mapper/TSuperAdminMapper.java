@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
  * 超级管理员 Mapper 接口
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-06-13
  */
 public interface TSuperAdminMapper extends BaseMapper<TSuperAdmin> {

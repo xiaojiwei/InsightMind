@@ -9,7 +9,6 @@ import org.aspectj.lang.annotation.Pointcut;
 import org.springframework.stereotype.Component;
 
 /**
- * @Author: lixiaolong
  * @Description: 缓存切面
  * @Date: 2021/11/23
  */

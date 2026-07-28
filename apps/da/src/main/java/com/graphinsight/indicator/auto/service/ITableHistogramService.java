@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
  *  服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2023-01-04
  */
 public interface ITableHistogramService extends IService<TableHistogram> {

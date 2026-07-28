@@ -9,7 +9,7 @@ from typing import Any
 from kg_builder.call_sop import analyze_call_sop_record, overall_grade_label
 
 
-WORKSPACE_VERSION = "call_quality_workspace_v1.0"
+WORKSPACE_VERSION = "call_quality_workspace_v1.1"
 
 
 def _normalize_text(value: Any) -> str:
@@ -29,7 +29,16 @@ def _format_duration(seconds: int) -> str:
 
 def _parse_segments(content: Any) -> list[dict[str, Any]]:
     raw = str(content or "")
-    parts = re.findall(r"(专家|客户):([^｜]+)", raw)
+    # A source transcript may use either full-width/half-width colons and may
+    # omit the optional vertical-bar separator.  Stop each turn at the next
+    # speaker marker; the previous expression consumed the whole transcript
+    # as the first expert turn when no vertical bars were present.
+    parts = re.findall(
+        r"(专家|客户)\s*[：:]\s*(.*?)(?=(?:专家|客户)\s*[：:]|[｜|]|$)",
+        raw,
+        flags=re.DOTALL,
+    )
+    parts = [(role, text) for role, text in parts if _normalize_text(text)]
     if not parts and raw.strip():
         parts = [("专家", raw)]
     plain_lengths = [max(1, len(_normalize_text(text))) for _role, text in parts]
@@ -39,7 +48,8 @@ def _parse_segments(content: Any) -> list[dict[str, Any]]:
     segments: list[dict[str, Any]] = []
     for idx, ((role, text), length) in enumerate(zip(parts, plain_lengths)):
         if idx:
-            offset = min(duration - 1, offset + max(2, round(length / total_len * duration)))
+            previous_length = plain_lengths[idx - 1]
+            offset = min(duration - 1, offset + max(2, round(previous_length / total_len * duration)))
         clean = _normalize_text(text)
         segments.append(
             {

@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.exception;
 
 /**
- * Author: lixiaolong
  * Date: 2022/7/12
  * Desc:基尼系数计算异常
  */

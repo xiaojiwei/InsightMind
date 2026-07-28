@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
  * 维度和维表的关联表 服务实现类
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-18
  */
 @Service

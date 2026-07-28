@@ -29,7 +29,6 @@ import java.rmi.ServerException;
 import java.util.Objects;
 
 /**
- * @Author: lixiaolong
  * @Description: 登录控制器
  * @Date: 2021/12/13
  */

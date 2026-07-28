@@ -24,7 +24,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Author: lixiaolong
  * Date: 2022/3/5
  * Desc:
  */

@@ -9,7 +9,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * Author: lixiaolong
  * Date: 2022/9/20
  * Desc:
  */

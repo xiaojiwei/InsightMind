@@ -9,7 +9,6 @@ import com.graphinsight.indicator.auto.entity.DimensionValues;
  *  服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-02-15
  */
 @DS("mysql")

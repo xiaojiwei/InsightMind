@@ -4,7 +4,6 @@ import com.graphinsight.indicator.enums.ContributionCalculationType;
 import org.springframework.stereotype.Component;
 
 /**
- * Author: lixiaolong
  * Date: 2022/6/14
  * Desc:
  */

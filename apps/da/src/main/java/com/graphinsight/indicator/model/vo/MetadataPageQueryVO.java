@@ -8,7 +8,6 @@ import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 
 /**
- * @Author: lixiaolong
  * @Description: 指标查询参数
  * @Date: 2021/11/16
  */

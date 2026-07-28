@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Author: lixiaolong
  * Date: 2022/11/4
  * Desc:
  */
@@ -198,4 +197,3 @@ public class DismantlingTreeNode implements Serializable {
     }
 
 }
-

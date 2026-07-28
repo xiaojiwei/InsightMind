@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RestController;
  * 数仓物理表的列信息 前端控制器
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-16
  */
 @RestController

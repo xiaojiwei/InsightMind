@@ -4,7 +4,6 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * @Author: lixiaolong
  * @Description: Doris数据类型枚举
  * @Date: 2021/12/3
  */

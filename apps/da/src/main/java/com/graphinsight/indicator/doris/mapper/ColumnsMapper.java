@@ -9,7 +9,6 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
  * SCHEMA Mapper 接口
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-17
  */
 public interface ColumnsMapper extends BaseMapper<Columns> {

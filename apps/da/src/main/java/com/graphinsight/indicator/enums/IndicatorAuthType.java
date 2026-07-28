@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Author: lixiaolong
  * Date: 2022/11/28
  * Desc: 权限类型
  */

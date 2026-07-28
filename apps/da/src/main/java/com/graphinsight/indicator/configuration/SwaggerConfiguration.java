@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 /**
- * @Author: lixiaolong
  * @Description: Swagger配置
  * @Date: 2021/11/16
  */

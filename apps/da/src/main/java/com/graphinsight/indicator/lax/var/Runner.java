@@ -5,7 +5,6 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 
 /**
- * Author: lixiaolong
  * Date: 2023/6/5
  * Desc:
  */

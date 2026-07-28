@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
  *  服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-08-23
  */
 public interface IAuditLogService extends IService<AuditLog> {

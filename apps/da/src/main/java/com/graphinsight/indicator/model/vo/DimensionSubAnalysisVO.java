@@ -3,7 +3,6 @@ package com.graphinsight.indicator.model.vo;
 import lombok.Data;
 
 /**
- * Author: lixiaolong
  * Date: 2022/7/14
  * Desc: 多维分析各个分项信息
  */

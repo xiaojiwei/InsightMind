@@ -9,7 +9,6 @@ import javax.validation.constraints.Min;
 import java.util.List;
 
 /**
- * @Author: lixiaolong
  * @Description: 指标查询参数
  * @Date: 2021/11/16
  */

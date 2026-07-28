@@ -9,7 +9,6 @@ import lombok.EqualsAndHashCode;
  * SCHEMA
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-17
  */
 @Data

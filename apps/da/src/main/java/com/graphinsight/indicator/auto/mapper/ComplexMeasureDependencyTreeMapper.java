@@ -9,7 +9,6 @@ import com.graphinsight.indicator.auto.entity.ComplexMeasureDependencyTree;
  *  Mapper 接口
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-02-17
  */
 @DS("mysql")

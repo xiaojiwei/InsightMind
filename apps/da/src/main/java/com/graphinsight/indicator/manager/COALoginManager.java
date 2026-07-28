@@ -33,7 +33,6 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * @Author: lixiaolong
  * @Description: COA登录
  * @Date: 2021/12/13
  */

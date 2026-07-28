@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
  * 维度上下文环境 服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-07-19
  */
 public interface IDimContextRelationService extends IService<DimContextRelation> {

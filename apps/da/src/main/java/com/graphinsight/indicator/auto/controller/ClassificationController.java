@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RestController;
  * 指标分类 前端控制器
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-05-12
  */
 @RestController

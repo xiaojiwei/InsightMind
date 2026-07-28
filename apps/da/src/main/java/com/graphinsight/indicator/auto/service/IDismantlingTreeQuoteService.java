@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
  * 决策树引用表 服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-11-22
  */
 public interface IDismantlingTreeQuoteService extends IService<DismantlingTreeQuote> {

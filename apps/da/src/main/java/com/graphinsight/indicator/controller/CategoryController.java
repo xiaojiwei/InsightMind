@@ -35,7 +35,6 @@ import java.util.Objects;
  * 分类表 前端控制器
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-16
  */
 @RestController

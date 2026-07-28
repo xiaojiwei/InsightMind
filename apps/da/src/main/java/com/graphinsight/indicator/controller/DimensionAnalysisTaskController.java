@@ -35,7 +35,6 @@ import java.util.List;
  * 多维分析查询任务列表 前端控制器
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-07-05
  */
 @RestController

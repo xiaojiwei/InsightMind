@@ -40,10 +40,16 @@ Agent / IDE / CLI
 Gateway 使用独立依赖，不污染 AD/DA：
 
 ```bash
-cd /Users/xiaojiwei/InsightMind
-python3 -m venv .venv-mcp
+cd /Users/xiao/InsightMind
+python3.11 -m venv .venv-mcp
 source .venv-mcp/bin/activate
 pip install -r apps/agent_gateway/requirements.txt
+```
+
+也可以直接使用仓库脚本完成安装：
+
+```bash
+./scripts/insightmind-mcp.sh setup
 ```
 
 ## 运行方式
@@ -53,7 +59,7 @@ pip install -r apps/agent_gateway/requirements.txt
 stdio 适合本机 agent，例如 Codex CLI、Claude Code 本地连接：
 
 ```bash
-cd /Users/xiaojiwei/InsightMind
+cd /Users/xiao/InsightMind
 source .venv-mcp/bin/activate
 INSIGHTMIND_AD_BASE_URL=http://localhost:8080 \
 INSIGHTMIND_DA_BASE_URL=http://localhost:8091 \
@@ -67,18 +73,22 @@ stdio 模式通常由 agent 自动拉起，不需要手工常驻。
 HTTP 模式适合多个 agent 或远程服务共享：
 
 ```bash
-cd /Users/xiaojiwei/InsightMind
-source .venv-mcp/bin/activate
-INSIGHTMIND_MCP_TRANSPORT=streamable-http \
-INSIGHTMIND_AD_BASE_URL=http://localhost:8080 \
-INSIGHTMIND_DA_BASE_URL=http://localhost:8091 \
-python apps/agent_gateway/insightmind_mcp.py
+cd /Users/xiao/InsightMind
+./scripts/insightmind-mcp.sh start
 ```
 
 默认 MCP HTTP 地址由 Python MCP SDK 提供，通常是：
 
 ```text
-http://localhost:8000/mcp
+http://localhost:8092/mcp
+```
+
+管理命令：
+
+```bash
+./scripts/insightmind-mcp.sh status
+./scripts/insightmind-mcp.sh restart
+./scripts/insightmind-mcp.sh stop
 ```
 
 ## 环境变量
@@ -88,6 +98,8 @@ http://localhost:8000/mcp
 | `INSIGHTMIND_AD_BASE_URL` | `http://localhost:8080` | AD 服务地址 |
 | `INSIGHTMIND_DA_BASE_URL` | `http://localhost:8091` | DA 服务地址 |
 | `INSIGHTMIND_MCP_TRANSPORT` | `stdio` | `stdio`、`streamable-http` 或 `sse` |
+| `INSIGHTMIND_MCP_HOST` | `127.0.0.1` | HTTP 监听地址 |
+| `INSIGHTMIND_MCP_PORT` | `8092` | HTTP 监听端口 |
 | `INSIGHTMIND_MCP_TIMEOUT` | `60` | 后端请求超时秒数 |
 | `INSIGHTMIND_MCP_MAX_PAGE_SIZE` | `1000` | 查询 page size 上限 |
 | `INSIGHTMIND_MCP_ALLOW_RAW_SPARQL` | `false` | 是否允许 raw SPARQL SELECT |
@@ -103,15 +115,15 @@ stdio 示例：
 codex mcp add insightmind \
   --env INSIGHTMIND_AD_BASE_URL=http://localhost:8080 \
   --env INSIGHTMIND_DA_BASE_URL=http://localhost:8091 \
-  -- /Users/xiaojiwei/InsightMind/.venv-mcp/bin/python \
-     /Users/xiaojiwei/InsightMind/apps/agent_gateway/insightmind_mcp.py
+  -- /Users/xiao/InsightMind/.venv-mcp/bin/python \
+     /Users/xiao/InsightMind/apps/agent_gateway/insightmind_mcp.py
 ```
 
 HTTP 示例：
 
 ```toml
 [mcp_servers.insightmind]
-url = "http://localhost:8000/mcp"
+url = "http://localhost:8092/mcp"
 tool_timeout_sec = 120
 ```
 
@@ -121,14 +133,14 @@ stdio 示例：
 
 ```bash
 claude mcp add insightmind -- \
-  /Users/xiaojiwei/InsightMind/.venv-mcp/bin/python \
-  /Users/xiaojiwei/InsightMind/apps/agent_gateway/insightmind_mcp.py
+  /Users/xiao/InsightMind/.venv-mcp/bin/python \
+  /Users/xiao/InsightMind/apps/agent_gateway/insightmind_mcp.py
 ```
 
 HTTP 示例：
 
 ```bash
-claude mcp add --transport http insightmind http://localhost:8000/mcp
+claude mcp add --transport http insightmind http://localhost:8092/mcp
 ```
 
 ## OpenClaw 或其它 agent 接入
@@ -136,14 +148,14 @@ claude mcp add --transport http insightmind http://localhost:8000/mcp
 如果 agent 支持 MCP，优先使用 HTTP：
 
 ```text
-http://localhost:8000/mcp
+http://localhost:8092/mcp
 ```
 
 如果只支持本地进程，则配置 stdio command：
 
 ```text
-/Users/xiaojiwei/InsightMind/.venv-mcp/bin/python
-/Users/xiaojiwei/InsightMind/apps/agent_gateway/insightmind_mcp.py
+/Users/xiao/InsightMind/.venv-mcp/bin/python
+/Users/xiao/InsightMind/apps/agent_gateway/insightmind_mcp.py
 ```
 
 ## 暴露的 MCP Tools
@@ -153,6 +165,11 @@ http://localhost:8000/mcp
 | `health` | AD + DA | 检查 AD/DA 是否可达 |
 | `get_semantic_meta` | AD | 获取语义元数据 |
 | `search_catalog` | AD/DA | 搜索指标和维度 |
+| `get_graph_summary` | AD | 获取当前图谱文件、实体数和三元组统计 |
+| `list_source_tables` | AD | 列出数据源图谱中的物理表 |
+| `find_join_paths` | AD | 查找两个物理表之间的 JOIN 路径 |
+| `analyze_table_impact` | AD | 分析物理表变更的下游影响 |
+| `compatible_dimensions` | AD + DA | 获取指标可分析维度，DA 推演不可用时回退业务图谱 |
 | `nlq_query` | AD | 自然语言问数 |
 | `semantic_query` | AD | 结构化语义查询 |
 | `semantic_sql` | AD | 将 semantic query 翻译成 DA payload，可选 SQL review |

@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component;
 import javax.annotation.Resource;
 
 /**
- * @Author: lixiaolong
  * @Description: 权限验证切面
  * @Date: 2021/11/16
  */

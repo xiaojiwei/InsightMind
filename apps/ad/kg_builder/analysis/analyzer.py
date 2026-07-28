@@ -12,9 +12,12 @@ from __future__ import annotations
 import decimal
 import json
 import math
+import re
 import urllib.request as _ureq
 from pathlib import Path
 from typing import Callable, Generator, Optional
+
+from kg_builder.utils.http_client import urlopen as _urlopen
 
 
 class _SafeEncoder(json.JSONEncoder):
@@ -311,6 +314,11 @@ class IndicatorAnalyzer:
         query_params = dict(query_params)
         _p2_day_dim: Optional[str] = query_params.pop("_p2DayDim", None)
         _gran: str = query_params.pop("_gran", "week")
+        _time_range = query_params.pop("_timeRange", {})
+        # These fields are useful to callers/UI only and must not leak into
+        # the DA request payload.
+        query_params.pop("_requestedGran", None)
+        query_params.pop("_anomalyProfile", None)
 
         # 提取 meas_codes / dim_codes
         cfg_list = query_params.get("configureList", [])
@@ -326,38 +334,49 @@ class IndicatorAnalyzer:
         if time_col:
             self._log(f"  识别到时间维度列: {time_col}")
 
-        # 检测时间粒度（viewType=1 为日粒度；dataList 格式说明是周/期次，不是日粒度）
-        _time_view_type = 1
-        _time_filter_uses_datalist = False
-        for _f in query_params.get("filterList", []):
-            if time_col and _f.get("code") == time_col:
-                _time_view_type = _f.get("viewType", 1)
-                if (_f.get("operatorList") or [{}])[0].get("dataList"):
-                    _time_filter_uses_datalist = True
-                break
-        _is_daily = (_time_view_type == 1 and not _time_filter_uses_datalist)
+        # 日维度也使用 dataList + internal=true（DA 的 begin/end 对日维无效），
+        # 因此不能再用“是否存在 dataList”判断粒度。
+        _is_daily = _gran == "day"
 
         # ── 提取分析配置的实际日期范围（供 Part 2 使用）─────────────────── #
         import datetime as _dt
-        _cfg_start_date: Optional[str] = None
-        _cfg_end_date:   Optional[str] = None
-        for _f in query_params.get("filterList", []):
-            if time_col and _f.get("code") == time_col:
-                _opl = (_f.get("operatorList") or [{}])[0]
-                _dl  = _opl.get("dataList")
-                if _dl and len(_dl) >= 2:
-                    # 周代码格式 YYYYWW → 转换为实际日期（首周周一 ~ 末周周日）
-                    try:
-                        yr0, wk0 = int(_dl[0][:4]), int(_dl[0][4:])
-                        yr1, wk1 = int(_dl[1][:4]), int(_dl[1][4:])
-                        _cfg_start_date = _dt.date.fromisocalendar(yr0, wk0, 1).isoformat()
-                        _cfg_end_date   = _dt.date.fromisocalendar(yr1, wk1, 7).isoformat()
-                    except Exception:
-                        pass
-                elif _opl.get("begin") and _opl.get("end"):
-                    _cfg_start_date = str(_opl["begin"])[:10]
-                    _cfg_end_date   = str(_opl["end"])[:10]
-                break
+        _cfg_start_date: Optional[str] = str(_time_range.get("time_start") or "")[:10] or None
+        _cfg_end_date:   Optional[str] = str(_time_range.get("time_end") or "")[:10] or None
+        if not (_cfg_start_date and _cfg_end_date):
+            for _f in query_params.get("filterList", []):
+                if time_col and _f.get("code") == time_col:
+                    _opl = (_f.get("operatorList") or [{}])[0]
+                    _dl = [str(value) for value in (_opl.get("dataList") or []) if value not in (None, "")]
+                    if _dl and _gran == "day":
+                        iso_dates = sorted(value[:10] for value in _dl if re.match(r"^\d{4}-\d{2}-\d{2}", value))
+                        if iso_dates:
+                            _cfg_start_date, _cfg_end_date = iso_dates[0], iso_dates[-1]
+                    elif _dl and _gran == "week":
+                        try:
+                            codes = sorted(value for value in _dl if re.match(r"^\d{6}$", value))
+                            yr0, wk0 = int(codes[0][:4]), int(codes[0][4:])
+                            yr1, wk1 = int(codes[-1][:4]), int(codes[-1][4:])
+                            _cfg_start_date = _dt.date.fromisocalendar(yr0, wk0, 1).isoformat()
+                            _cfg_end_date = _dt.date.fromisocalendar(yr1, wk1, 7).isoformat()
+                        except (IndexError, ValueError):
+                            pass
+                    elif _dl and _gran == "month":
+                        try:
+                            codes = sorted(value for value in _dl if re.match(r"^\d{6}$", value))
+                            first = _dt.date(int(codes[0][:4]), int(codes[0][4:]), 1)
+                            last_first = _dt.date(int(codes[-1][:4]), int(codes[-1][4:]), 1)
+                            if last_first.month == 12:
+                                next_month = _dt.date(last_first.year + 1, 1, 1)
+                            else:
+                                next_month = _dt.date(last_first.year, last_first.month + 1, 1)
+                            _cfg_start_date = first.isoformat()
+                            _cfg_end_date = (next_month - _dt.timedelta(days=1)).isoformat()
+                        except (IndexError, ValueError):
+                            pass
+                    elif _opl.get("begin") and _opl.get("end"):
+                        _cfg_start_date = str(_opl["begin"])[:10]
+                        _cfg_end_date = str(_opl["end"])[:10]
+                    break
         _cfg_day_count = 0
         if _cfg_start_date and _cfg_end_date:
             try:
@@ -764,7 +783,7 @@ class IndicatorAnalyzer:
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with _ureq.urlopen(req, timeout=30) as resp:
+            with _urlopen(req, timeout=30) as resp:
                 resp_data = json.loads(resp.read().decode("utf-8"))
 
             if resp_data.get("code") != 200:
@@ -2985,7 +3004,7 @@ class IndicatorAnalyzer:
             )
         if self._cancel_cb and self._cancel_cb():
             raise RuntimeError("分析已被新任务取消，跳过 LLM 调用")
-        with _ur.urlopen(req, timeout=90) as resp:
+        with _urlopen(req, timeout=90) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         if is_anthropic:
             content = data.get("content", [])
@@ -3704,7 +3723,7 @@ class IndicatorAnalyzer:
 
         self._log("  正在调用 LLM 生成图谱 AI 分析…")
         try:
-            with _ureq.urlopen(req, timeout=120) as resp:
+            with _urlopen(req, timeout=120) as resp:
                 resp_data = json.loads(resp.read().decode("utf-8"))
         except Exception as exc:
             self._log(f"  ⚠ LLM 图谱分析失败，使用本地图谱摘要: {exc}")
@@ -3963,7 +3982,7 @@ class IndicatorAnalyzer:
         _hb.start()
 
         try:
-            with _ureq.urlopen(req, timeout=120) as resp:
+            with _urlopen(req, timeout=120) as resp:
                 resp_data = json.loads(resp.read().decode("utf-8"))
         except Exception as exc:
             self._log(f"  ⚠ LLM 报告生成失败，使用本地综合报告: {exc}")

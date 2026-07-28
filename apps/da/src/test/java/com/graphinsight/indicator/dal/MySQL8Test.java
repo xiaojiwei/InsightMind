@@ -5,7 +5,6 @@ import com.mysql.cj.jdbc.MysqlDataSource;
 import java.sql.Connection;
 
 /**
- * Author: lixiaolong
  * Date: 2023/9/19
  * Desc:
  */

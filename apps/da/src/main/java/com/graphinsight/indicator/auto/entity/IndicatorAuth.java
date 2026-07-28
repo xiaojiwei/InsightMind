@@ -12,7 +12,6 @@ import java.io.Serializable;
  * 授权表
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-11-28
  */
 @Data

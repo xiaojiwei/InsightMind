@@ -12,7 +12,6 @@ import org.springframework.web.client.RestTemplate;
 import java.util.Arrays;
 
 /**
- * @Author: lixiaolong
  * @Description:
  * @Date: 2021/12/13
  */

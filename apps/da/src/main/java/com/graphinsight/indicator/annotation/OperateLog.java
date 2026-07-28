@@ -7,7 +7,6 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Author: lixiaolong
  * Date: 2022/1/24
  * Desc:
  */

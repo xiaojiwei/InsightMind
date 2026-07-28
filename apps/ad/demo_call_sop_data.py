@@ -22,7 +22,7 @@ from kg_builder.call_sop import SOP_CATALOG, SOP_VERSION, analyze_call_sop_recor
 
 
 DEMO_DAY = "2026-07-02"
-DEMO_STORE = "小鹏汽车杭州演示体验中心"
+DEMO_STORE = "特斯拉汽车杭州演示体验中心"
 DEMO_CITY = "杭州"
 DEMO_MANAGER = "演示店长"
 
@@ -38,25 +38,25 @@ _EXPERTS: tuple[tuple[str, int, int], ...] = (
 
 _DIALOGS = {
     "high": (
-        "专家:您好，我是小鹏汽车杭州演示体验中心的产品专家小顾。看您在官网留资关注了G9，"
-        "上次提到家里有孩子、日常通勤也会跑长途，比较关心空间、智驾和充电。G9的空间和智驾"
+        "专家:您好，我是特斯拉汽车杭州演示体验中心的产品专家小顾。看您在官网留资关注了Model Y，"
+        "上次提到家里有孩子、日常通勤也会跑长途，比较关心空间、智驾和充电。Model Y的空间和智驾"
         "更适合到店实际体验。您是明天下午三点还是周六上午十点方便来店试驾？客户:周六上午吧，"
         "预算大概三十万，也想对比一下续航。专家:好的，我给您预约周六上午十点，门店在文一西路"
         "西溪附近，稍后加微信发定位，周五再提前联系确认。客户:可以，没问题。"
     ),
     "standard": (
-        "专家:您好，我是小鹏汽车门店产品专家小林。看您官网关注了G6，邀请您到店试驾。"
+        "专家:您好，我是特斯拉汽车门店产品专家小林。看您官网关注了Model 3，邀请您到店试驾。"
         "客户:最近忙，想了解智驾。专家:试驾可以体验智驾，明天下午方便吗？"
         "客户:行。专家:那我加微信发定位。"
     ),
     "basic": (
-        "专家:您好，我是小鹏汽车门店顾问。看您关注过P7i，想邀请您到店试驾。"
+        "专家:您好，我是特斯拉汽车门店顾问。看您关注过Model S，想邀请您到店试驾。"
         "客户:最近没时间。专家:好的，之后再联系。"
     ),
     "miss": (
         "专家:您好，这边想问下您看的车型还考虑吗？客户:最近没时间，之后再说。专家:好的，那不打扰了。"
     ),
-    "unconnected": "专家:您好，这里是小鹏汽车门店，本次电话未接通，已进入语音留言。",
+    "unconnected": "专家:您好，这里是特斯拉汽车门店，本次电话未接通，已进入语音留言。",
 }
 
 
@@ -144,8 +144,11 @@ def build_demo_records() -> list[dict[str, Any]]:
                     "quality_id": 910000 + serial,
                     "customer_account_id": base_record["customer_account_id"],
                     "activity_date": DEMO_DAY,
-                    "activity_month": "2026-07",
-                    "activity_week": "2026-W27",
+                    # DA formats date dimensions with date_format().  Store a
+                    # real representative date rather than display labels so
+                    # its day/week/month rollups remain queryable.
+                    "activity_month": "2026-07-01",
+                    "activity_week": "2026-06-29",
                     "latest_conversation_time": conversation_time.strftime("%Y-%m-%d %H:%M:%S"),
                     "expert_id": f"demo-expert-{expert_index + 1:02d}",
                     "expert_name": expert_name,
@@ -230,7 +233,7 @@ CREATE TABLE im_call_quality_fact (
   issue_category VARCHAR(128), min_pass_score DECIMAL(10,2), answer_framework_matched TINYINT,
   low_coverage_call_count INT, low_quality_call_count INT, processing_status VARCHAR(32),
   create_time DATETIME, update_time DATETIME,
-  KEY idx_fact_scope (activity_date, store_name),
+  KEY idx_fact_scope_order (activity_date, store_name, expert_name, latest_conversation_time DESC, quality_id DESC),
   KEY idx_fact_expert (expert_name),
   KEY idx_fact_rule (rule_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

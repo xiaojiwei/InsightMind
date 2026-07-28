@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.Callable;
 
 /**
- * Author: lixiaolong
  * Date: 2023/1/4
  * Desc:
  */

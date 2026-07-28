@@ -17,6 +17,9 @@ import urllib.request as _ureq
 from pathlib import Path
 from typing import Any, Callable, Generator, List, Optional
 
+from kg_builder.analysis.time_parser import parse_question_time
+from kg_builder.utils.http_client import urlopen as _urlopen
+
 
 # ── 工具函数 ──────────────────────────────────────────────────────────────── #
 
@@ -640,54 +643,14 @@ class InsightAnalyzer:
 
     def _rule_based_time(self, question: str, today: datetime.date, y: int, w: int) -> dict:
         """规则提取时间信息。"""
+        parsed = parse_question_time(question, today)
+        if parsed:
+            return parsed
+
         context_time = self._cell_context_time_info(today)
         if context_time:
             self._log(f"  使用异常单元格时间上下文: {context_time.get('time_desc')}")
             return context_time
-
-        # 匹配"N月M日/号" → 日粒度，对比前一天
-        # 注意：DA API 对原子指标用周维度过滤时 SQL 有 bug（%Y%u 格式与日期字符串比对失效），
-        # 必须用日维度（DIM_submit_date_day + dataList 格式）才能保证算子查询成功。
-        m = re.search(r'(\d{1,2})月(\d{1,2})[日号]', question)
-        if m:
-            mo, dy = int(m.group(1)), int(m.group(2))
-            try:
-                target = datetime.date(today.year, mo, dy)
-                prev   = target - datetime.timedelta(days=1)
-                return {"time_start": target.isoformat(), "time_end": target.isoformat(),
-                        "prev_start": prev.isoformat(),   "prev_end": prev.isoformat(),
-                        "gran": "day", "time_desc": m.group(0)}
-            except Exception:
-                pass
-
-        # 匹配"第N周 / WN / W-N"
-        m2 = re.search(r'第(\d{1,2})周|W(\d{1,2})', question, re.IGNORECASE)
-        if m2:
-            tw = int(m2.group(1) or m2.group(2))
-            pw = tw - 1 if tw > 1 else 52
-            py = y if tw > 1 else y - 1
-            ts, te = _week_bounds(y, tw)
-            ps, pe = _week_bounds(py, pw)
-            return {"time_start": ts, "time_end": te, "prev_start": ps, "prev_end": pe,
-                    "gran": "week", "time_desc": m2.group(0)}
-
-        # 匹配"N月"
-        m3 = re.search(r'(\d{1,2})月(?!\d)', question)
-        if m3:
-            mo = int(m3.group(1))
-            try:
-                first = datetime.date(today.year, mo, 1)
-                if mo == 12:
-                    last_day = datetime.date(today.year, 12, 31)
-                else:
-                    last_day = datetime.date(today.year, mo + 1, 1) - datetime.timedelta(days=1)
-                prev_last = first - datetime.timedelta(days=1)
-                prev_first = prev_last.replace(day=1)
-                return {"time_start": first.isoformat(), "time_end": last_day.isoformat(),
-                        "prev_start": prev_first.isoformat(), "prev_end": prev_last.isoformat(),
-                        "gran": "month", "time_desc": m3.group(0)}
-            except Exception:
-                pass
 
         # 默认：月粒度（比周粒度更稳定，避免月初/周一当期数据为空）
         # 当月前3天 → 分析上个月（当期数据不足，无分析意义）
@@ -1134,12 +1097,17 @@ class InsightAnalyzer:
         time_dim_code = time_dims.get(gran) or time_dims.get("week") or time_dims.get("day") or ""
         day_dim_code  = time_dims.get("day", "")
 
-        # 若找不到对应粒度的时间维，自动降级
+        # 若找不到对应粒度的时间维，自动降级。过滤值的编码必须与实际
+        # 选中的维度一致：例如月维缺失时，不能把 YYYYMM 传给周维。
         if not time_dim_code and gran == "month":
             time_dim_code = time_dims.get("week", "")
         if not time_dim_code:
             # 取任意时间维
             time_dim_code = next(iter(time_dims.values()), "")
+        effective_gran = next(
+            (level for level, code in time_dims.items() if code == time_dim_code),
+            gran,
+        )
 
         # 构造 configureList：主指标 + 辅助指标 + 时间维度 + 业务维度
         configure_list = [{"code": meas_code, "order": {"sortType": 0}, "ratioList": [], "alias": ""}]
@@ -1154,7 +1122,7 @@ class InsightAnalyzer:
         filter_list = []
         if time_dim_code:
             time_filter = self._build_time_filter(
-                time_dim_code, gran, time_start, time_end, prev_start, prev_end
+                time_dim_code, effective_gran, time_start, time_end, prev_start, prev_end
             )
             if time_filter:
                 filter_list.append(time_filter)
@@ -1165,10 +1133,23 @@ class InsightAnalyzer:
             "filterList":    filter_list,
             "pageSize":      500,
             "pageNum":       1,
+            # Keep the semantic range as internal metadata. IndicatorAnalyzer
+            # must not infer dates from six-digit codes because YYYYMM and
+            # YYYYWW are indistinguishable without the selected granularity.
+            "_timeRange": {
+                "time_start": time_start,
+                "time_end": time_end,
+                "prev_start": prev_start,
+                "prev_end": prev_end,
+                "gran": effective_gran,
+            },
         }
-        if day_dim_code and gran in ("week", "month"):
+        if day_dim_code and effective_gran in ("week", "month"):
             params["_p2DayDim"] = day_dim_code
-        params["_gran"] = gran
+        params["_gran"] = effective_gran
+        if effective_gran != gran:
+            params["_requestedGran"] = gran
+            self._log(f"  时间维度降级: {gran} → {effective_gran} ({time_dim_code})")
         if intent.get("anomaly_profile"):
             params["_anomalyProfile"] = intent.get("anomaly_profile")
 
@@ -1238,8 +1219,9 @@ class InsightAnalyzer:
     ) -> Optional[dict]:
         """
         构造时间过滤器。
-        - 周粒度：使用 dataList（周码 YYYYWW）+ internal=true
-        - 日/月粒度：使用 begin/end
+        - 日粒度：使用 ISO 日期边界 dataList + internal=true
+        - 周粒度：使用周码 YYYYWW dataList + internal=true
+        - 月粒度：使用月码 YYYYMM dataList + internal=true
         """
         if not time_start:
             return None
@@ -1253,7 +1235,7 @@ class InsightAnalyzer:
                 try:
                     d = datetime.date.fromisoformat(ds)
                     end_d = datetime.date.fromisoformat(de) if de else d + datetime.timedelta(days=6)
-                    cur = d
+                    cur = d - datetime.timedelta(days=d.weekday())
                     while cur <= end_d:
                         iso = cur.isocalendar()
                         weeks.add(_week_code(iso[0], iso[1]))
@@ -1274,6 +1256,7 @@ class InsightAnalyzer:
             # 必须使用 dataList + internal:true + timeRange:1 格式，与周维度保持一致
             return {
                 "code":         time_dim_code,
+                "viewType":     1,
                 "operatorList": [{"sqlOprType": 2, "dataList": [start, end], "timeRange": 1}],
                 "internal":     True,
             }
@@ -1320,7 +1303,7 @@ class InsightAnalyzer:
             if months:
                 return {
                     "code":         time_dim_code,
-                    "viewType":     2,
+                    "viewType":     3,
                     "operatorList": [{"sqlOprType": 2, "dataList": months, "timeRange": 1}],
                     "internal":     True,
                 }
@@ -1620,7 +1603,7 @@ class InsightAnalyzer:
                 "anthropic-version": "2023-06-01",
             }
             req = _ureq.Request(f"{base_url}/messages", data=body, headers=headers, method="POST")
-            with _ureq.urlopen(req, timeout=60) as resp:
+            with _urlopen(req, timeout=60) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             if "content" in data:
                 return self._strip_reasoning(data["content"][0]["text"])
@@ -1641,7 +1624,7 @@ class InsightAnalyzer:
                 "Authorization": f"Bearer {api_key}",
             }
             req = _ureq.Request(f"{base_url}/chat/completions", data=body, headers=headers, method="POST")
-            with _ureq.urlopen(req, timeout=60) as resp:
+            with _urlopen(req, timeout=60) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             if "choices" in data:
                 return self._strip_reasoning(data["choices"][0]["message"]["content"])
@@ -1716,7 +1699,7 @@ class InsightAnalyzer:
             }
             req = _ureq.Request(f"{base_url}/messages", data=body, headers=headers, method="POST")
             try:
-                with _ureq.urlopen(req, timeout=120) as resp:
+                with _urlopen(req, timeout=120) as resp:
                     for raw_line in resp:
                         line = raw_line.decode("utf-8").strip()
                         if not line or not line.startswith("data:"):
@@ -1759,7 +1742,7 @@ class InsightAnalyzer:
             }
             req = _ureq.Request(f"{base_url}/chat/completions", data=body, headers=headers, method="POST")
             try:
-                with _ureq.urlopen(req, timeout=120) as resp:
+                with _urlopen(req, timeout=120) as resp:
                     for raw_line in resp:
                         line = raw_line.decode("utf-8").strip()
                         if not line or not line.startswith("data:"):

@@ -16,7 +16,6 @@ import java.util.List;
  * 指标预警表
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-10-11
  */
 @Data

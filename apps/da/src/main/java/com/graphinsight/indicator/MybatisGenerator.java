@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Scanner;
 
 /**
- * @Author: lixiaolong
  * @Description: mybatis生成器
  * @Date: 2021/11/13
  */

@@ -12,7 +12,6 @@ import java.io.Serializable;
  * 看板文件夹
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-08-31
  */
 @Data

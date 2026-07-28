@@ -107,6 +107,78 @@ def test_explicit_december_time_range_stays_in_same_year():
     assert time_info["prev_end"] == "2026-11-30"
 
 
+def test_explicit_iso_date_range_uses_requested_daily_granularity():
+    analyzer = _analyzer()
+
+    time_info = analyzer._rule_based_time(
+        "分析 2026-02-02 至 2026-02-15 平均电话质量分的按日趋势",
+        datetime.date(2026, 7, 24),
+        2026,
+        30,
+    )
+
+    assert time_info == {
+        "time_start": "2026-02-02",
+        "time_end": "2026-02-15",
+        "prev_start": "2026-01-19",
+        "prev_end": "2026-02-01",
+        "gran": "day",
+        "time_desc": "2026-02-02 至 2026-02-15",
+    }
+
+
+def test_explicit_chinese_date_range_can_omit_second_year():
+    analyzer = _analyzer()
+
+    time_info = analyzer._rule_based_time(
+        "分析2026年2月2日至2月15日的质量分趋势",
+        datetime.date(2026, 7, 24),
+        2026,
+        30,
+    )
+
+    assert time_info["time_start"] == "2026-02-02"
+    assert time_info["time_end"] == "2026-02-15"
+    assert time_info["gran"] == "day"
+
+
+def test_recent_seven_days_is_not_replaced_by_current_month():
+    analyzer = _analyzer()
+
+    time_info = analyzer._rule_based_time(
+        "分析最近7天平均电话质量分的趋势",
+        datetime.date(2026, 7, 24),
+        2026,
+        30,
+    )
+
+    assert time_info["time_start"] == "2026-07-18"
+    assert time_info["time_end"] == "2026-07-24"
+    assert time_info["prev_start"] == "2026-07-11"
+    assert time_info["prev_end"] == "2026-07-17"
+    assert time_info["gran"] == "day"
+
+
+def test_explicit_question_time_overrides_cell_time_context():
+    analyzer = _analyzer({
+        "cellInsight": {
+            "cellContext": {
+                "filters": [{"code": "DIM_date_day", "name": "日期", "value": "2026-07-02"}]
+            }
+        }
+    })
+
+    time_info = analyzer._rule_based_time(
+        "分析2026-02-02至2026-02-15的质量分趋势",
+        datetime.date(2026, 7, 24),
+        2026,
+        30,
+    )
+
+    assert time_info["time_start"] == "2026-02-02"
+    assert time_info["time_end"] == "2026-02-15"
+
+
 def test_decimal_string_view_type_is_treated_as_time_context():
     analyzer = _analyzer()
 
@@ -152,6 +224,73 @@ def test_query_params_keep_anomaly_profile_and_cell_filters():
     assert params["_anomalyProfile"]["type"] == "dimension_slice"
     assert params["configureList"][3]["code"] == "DIM_store"
     assert any(item["code"] == "DIM_store" for item in params["filterList"])
+
+
+def test_month_request_falls_back_to_week_filter_encoding():
+    analyzer = _analyzer()
+    meas_info = {
+        "primary": {"meas_code": "MEAS_sales", "cn_name": "销售额", "table_name": "fact_sales"},
+        "secondary": [],
+        "time_dims": {"week": "DIM_date_week"},
+        "dim_codes": [],
+    }
+
+    params = analyzer._build_query_params(meas_info, {
+        "gran": "month",
+        "time_start": "2026-03-01",
+        "time_end": "2026-03-31",
+        "prev_start": "2026-02-01",
+        "prev_end": "2026-02-28",
+    })
+
+    time_filter = params["filterList"][0]
+    assert params["_gran"] == "week"
+    assert params["_requestedGran"] == "month"
+    assert time_filter["code"] == "DIM_date_week"
+    assert all(len(value) == 6 for value in time_filter["operatorList"][0]["dataList"])
+
+
+def test_daily_query_uses_day_dimension_and_preserves_semantic_range():
+    analyzer = _analyzer()
+    meas_info = {
+        "primary": {"meas_code": "MEAS_quality", "cn_name": "平均电话质量分", "table_name": "fact_call"},
+        "secondary": [],
+        "time_dims": {
+            "day": "DIM_date_day",
+            "week": "DIM_date_week",
+            "month": "DIM_date_month",
+        },
+        "dim_codes": ["DIM_sales_expert", "DIM_sop_stage"],
+    }
+
+    params = analyzer._build_query_params(meas_info, {
+        "gran": "day",
+        "time_start": "2026-02-02",
+        "time_end": "2026-02-15",
+        "prev_start": "2026-01-19",
+        "prev_end": "2026-02-01",
+    })
+
+    time_filter = params["filterList"][0]
+    assert params["_gran"] == "day"
+    assert params["_timeRange"]["time_start"] == "2026-02-02"
+    assert params["_timeRange"]["time_end"] == "2026-02-15"
+    assert time_filter["code"] == "DIM_date_day"
+    assert time_filter["viewType"] == 1
+    assert time_filter["operatorList"][0]["dataList"] == ["2026-01-19", "2026-02-15"]
+
+
+def test_invalid_iso_week_uses_default_time_range():
+    analyzer = _analyzer()
+
+    time_info = analyzer._rule_based_time(
+        "分析第53周销售额",
+        datetime.date(2027, 6, 19),
+        2027,
+        25,
+    )
+
+    assert time_info["gran"] == "month"
 
 
 def test_metric_alert_cell_is_not_classified_as_document_trace():

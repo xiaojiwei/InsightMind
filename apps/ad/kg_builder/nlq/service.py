@@ -22,6 +22,7 @@ from rdflib import Graph, Namespace, RDF
 from rdflib.namespace import RDFS
 
 from kg_builder.ontology.owl_schema import DB
+from kg_builder.utils.http_client import urlopen
 
 IND = Namespace("http://indicator.insightmind.com/ontology#")
 
@@ -743,7 +744,7 @@ class NaturalLanguageQueryService:
                 headers=llm_request_headers(cfg),
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             content = (
                 data.get("choices", [{}])[0]
@@ -1435,7 +1436,7 @@ class NaturalLanguageQueryService:
                 headers=llm_request_headers(cfg),
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=18) as resp:
+            with urlopen(req, timeout=18) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             content = (
                 data.get("choices", [{}])[0]
@@ -3181,7 +3182,7 @@ class NaturalLanguageQueryService:
                 headers=llm_request_headers(cfg),
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=8) as resp:
+            with urlopen(req, timeout=8) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             content = (
                 data.get("choices", [{}])[0]
@@ -3207,7 +3208,7 @@ class NaturalLanguageQueryService:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urlopen(req, timeout=30) as resp:
                 raw = resp.read().decode("utf-8")
             data = json.loads(raw)
         except urllib.error.HTTPError as e:
@@ -4941,7 +4942,7 @@ class NaturalLanguageQueryService:
                 headers=llm_request_headers(cfg),
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             content = (data.get("choices", [{}])[0].get("message", {}).get("content", "")).strip()
             parsed = json.loads(content) if content.startswith("{") else {}

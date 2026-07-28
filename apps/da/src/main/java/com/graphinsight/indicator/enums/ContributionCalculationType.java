@@ -3,7 +3,6 @@ package com.graphinsight.indicator.enums;
 import java.util.Objects;
 
 /**
- * Author: lixiaolong
  * Date: 2022/6/15
  * Desc:
  */

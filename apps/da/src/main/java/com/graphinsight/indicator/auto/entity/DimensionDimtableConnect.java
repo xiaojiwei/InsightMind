@@ -12,7 +12,6 @@ import java.io.Serializable;
  * 维度和维表的关联表
  * </p>
  *
- * @author lixiaolong
  * @since 2021-11-18
  */
 @Data

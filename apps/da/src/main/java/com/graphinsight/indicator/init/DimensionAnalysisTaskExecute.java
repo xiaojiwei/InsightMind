@@ -12,7 +12,6 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Author: lixiaolong
  * Date: 2022/7/12
  * Desc:
  */

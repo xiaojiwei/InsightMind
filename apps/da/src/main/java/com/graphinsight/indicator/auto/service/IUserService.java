@@ -9,7 +9,6 @@ import com.graphinsight.indicator.auto.entity.User;
  *  服务类
  * </p>
  *
- * @author lixiaolong
  * @since 2021-12-13
  */
 @DS("mysql")

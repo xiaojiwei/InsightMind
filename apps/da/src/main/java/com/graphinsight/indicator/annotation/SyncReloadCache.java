@@ -7,7 +7,6 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @Author: lixiaolong
  * @Description: 同步加载缓存方法
  * @Date: 2021/11/16
  */

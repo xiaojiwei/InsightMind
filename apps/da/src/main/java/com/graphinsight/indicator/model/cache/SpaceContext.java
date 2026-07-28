@@ -6,7 +6,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Author: lixiaolong
  * Date: 2022/5/12
  * Desc: 空间的上下文信息
  */

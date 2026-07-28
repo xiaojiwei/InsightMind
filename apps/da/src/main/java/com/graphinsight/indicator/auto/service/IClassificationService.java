@@ -9,7 +9,6 @@ import com.graphinsight.indicator.auto.entity.Classification;
  * 指标分类 服务类
  * </p>
  *
- * @author lixiaolong5
  * @since 2022-05-12
  */
 @DS("mysql")
