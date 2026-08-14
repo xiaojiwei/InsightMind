@@ -91,3 +91,25 @@ def test_workbench_kpis_open_the_shared_drill_chooser():
     assert '<span>解读方法</span>' in html
     assert '<span>使用建议</span>' in html
     assert "callWorkbenchApplyKpiDrill" not in html
+
+
+def test_call_quality_pulse_supports_the_management_action_loop():
+    base = Path(__file__).parents[1]
+    template = base / "kg_builder" / "web" / "templates" / "index.html"
+    html = template.read_text(encoding="utf-8")
+    dashboard = (
+        base
+        / "output"
+        / "dashboards"
+        / "dash_da_tms_call_quality_pulse.json"
+    ).read_text(encoding="utf-8")
+
+    assert "今日业务结论" in html
+    assert "近 7 日质量趋势" in html
+    assert "指标联动解释" in html
+    assert "行动清单与结果追踪" in html
+    assert "callPulseLoadTrend" in html
+    assert "callPulseBindActions" in html
+    assert "callSopOpenWorkbenchDrill(action.drill" in html
+    assert '"filters": []' in dashboard
+    assert '"h": 34' in dashboard

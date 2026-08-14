@@ -2706,7 +2706,7 @@ def _select_nlq_suggestion_candidates(
 
 
 NLQ_DEMO_INSIGHT_QUESTIONS = (
-    "请分析最近4周平均电话质量分下降的原因",
+    "分析6月8日至7月2日平均电话质量分下降原因",
 )
 
 
@@ -4364,29 +4364,46 @@ async def analysis_log():
 
 # ── Insight API ──────────────────────────────────────────────────────────── #
 
-_insight_log_queue: queue.Queue = queue.Queue()
-_insight_state: dict = {"status": "idle"}
-_insight_generation: int = 0
-_insight_ack_event: threading.Event = threading.Event()
-_insight_ack_info: dict = {"success": True, "error": ""}
+_insight_tasks: dict[str, dict[str, Any]] = {}
+_insight_tasks_lock = threading.Lock()
+_INSIGHT_TASK_TTL_SECONDS = 3600
+
+
+def _insight_task(task_id: str) -> Optional[dict[str, Any]]:
+    with _insight_tasks_lock:
+        return _insight_tasks.get(task_id)
+
+
+def _cleanup_insight_tasks() -> None:
+    cutoff = time.time() - _INSIGHT_TASK_TTL_SECONDS
+    with _insight_tasks_lock:
+        expired = [
+            task_id for task_id, task in _insight_tasks.items()
+            if task.get("status") not in ("running", "cancelling") and task.get("updated_at", 0) < cutoff
+        ]
+        for task_id in expired:
+            _insight_tasks.pop(task_id, None)
 
 
 def _insight_worker(
     question: str,
-    generation: int,
+    task_id: str,
     conversation_id: str = "",
     context: Optional[dict[str, Any]] = None,
     analysis_mode: str = "",
 ) -> None:
-    global _insight_state, _insight_generation
+    task = _insight_task(task_id)
+    if not task:
+        return
 
     from kg_builder.utils.llm_config import llm_config_from_env
     llm_config = llm_config_from_env(BASE_DIR)
 
     def ilog(msg: str) -> None:
-        if _insight_generation != generation:
+        if task["cancel_event"].is_set():
             return
-        _insight_log_queue.put(json.dumps({"log": msg}))
+        task["queue"].put(json.dumps({"log": msg}))
+        task["updated_at"] = time.time()
         try:
             with open("/tmp/insight_debug.log", "a", encoding="utf-8") as _f:
                 _f.write(msg + "\n")
@@ -4401,7 +4418,7 @@ def _insight_worker(
             analyzer = DocumentTraceInsightAnalyzer(
                 llm_config=llm_config,
                 log_cb=ilog,
-                cancel_cb=lambda: _insight_generation != generation,
+                cancel_cb=task["cancel_event"].is_set,
                 context=context,
             )
         else:
@@ -4412,11 +4429,11 @@ def _insight_worker(
                 ttl_path=str(BKG_DIR / "indicator-data.ttl"),
                 llm_config=llm_config,
                 log_cb=ilog,
-                cancel_cb=lambda: _insight_generation != generation,
+                cancel_cb=task["cancel_event"].is_set,
                 context=context,
             )
         for step_result in analyzer.analyze(question):
-            if _insight_generation != generation:
+            if task["cancel_event"].is_set():
                 return
             if conversation_id and step_result.get("step") == "kg_match":
                 match = step_result.get("result") or {}
@@ -4447,31 +4464,31 @@ def _insight_worker(
                 ("report" in step_result and "part" not in step_result)
             )
             if needs_ack:
-                _insight_ack_event.clear()
-            _insight_log_queue.put(msg)
+                task["ack_event"].clear()
+            task["queue"].put(msg)
+            task["updated_at"] = time.time()
             if needs_ack:
-                ack_received = _insight_ack_event.wait(timeout=8)
-                if _insight_generation != generation:
+                ack_received = task["ack_event"].wait(timeout=8)
+                if task["cancel_event"].is_set():
                     return
                 if not ack_received:
                     ilog(f"⚠ Part {part_key or 'report'} 前端8s内未确认，继续执行")
-                elif not _insight_ack_info.get("success", True):
-                    err = _insight_ack_info.get("error", "未知错误")
+                elif not task["ack_info"].get("success", True):
+                    err = task["ack_info"].get("error", "未知错误")
                     ilog(f"✗ Part {part_key or 'report'} 前端渲染失败: {err}")
     except Exception as e:
-        if _insight_generation == generation:
+        if not task["cancel_event"].is_set():
             ilog(f"✗ Insight 分析失败: {e}")
             import traceback
             ilog(traceback.format_exc())
     finally:
-        if _insight_generation == generation:
-            _insight_state["status"] = "done"
-            _insight_log_queue.put("__DONE__")
+        task["status"] = "cancelled" if task["cancel_event"].is_set() else "done"
+        task["updated_at"] = time.time()
+        task["queue"].put("__CANCELLED__" if task["status"] == "cancelled" else "__DONE__")
 
 
 @app.post("/api/insight/start")
 async def insight_start(request: Request):
-    global _insight_generation, _insight_state, _insight_ack_event, _insight_ack_info
     body = await request.json()
     question = (body.get("question") or "").strip()
     if not question:
@@ -4485,55 +4502,83 @@ async def insight_start(request: Request):
         request_context.update(body["context"])
     analysis_mode = str(body.get("analysisMode") or request_context.get("analysisMode") or "").strip()
 
-    _insight_generation += 1
-    gen = _insight_generation
-    # 清空队列残留
-    while not _insight_log_queue.empty():
-        try:
-            _insight_log_queue.get_nowait()
-        except Exception:
-            break
-    # 重置 ACK 状态
-    _insight_ack_event.clear()
-    _insight_ack_info["success"] = True
-    _insight_ack_info["error"] = ""
-    _insight_state["status"] = "running"
+    _cleanup_insight_tasks()
+    task_id = uuid.uuid4().hex
+    task = {
+        "id": task_id,
+        "queue": queue.Queue(),
+        "status": "running",
+        "cancel_event": threading.Event(),
+        "ack_event": threading.Event(),
+        "ack_info": {"success": True, "error": ""},
+        "created_at": time.time(),
+        "updated_at": time.time(),
+        "conversation_id": conversation_id,
+    }
+    with _insight_tasks_lock:
+        _insight_tasks[task_id] = task
     threading.Thread(
         target=_insight_worker,
-        args=(question, gen, conversation_id, request_context, analysis_mode),
+        args=(question, task_id, conversation_id, request_context, analysis_mode),
         daemon=True,
     ).start()
-    return {"status": "started", "conversationId": conversation_id, "analysisMode": analysis_mode or "metric_fluctuation"}
+    return {
+        "status": "started",
+        "taskId": task_id,
+        "conversationId": conversation_id,
+        "analysisMode": analysis_mode or "metric_fluctuation",
+    }
 
 
-@app.get("/api/insight/log")
-async def insight_log():
+@app.get("/api/insight/{task_id}/log")
+async def insight_log(task_id: str):
     """SSE stream for insight analysis progress and results."""
+    task = _insight_task(task_id)
+    if not task:
+        return JSONResponse({"error": "Insight 任务不存在或已过期"}, status_code=404)
+
     async def gen():
         while True:
             try:
-                msg = _insight_log_queue.get_nowait()
+                msg = task["queue"].get_nowait()
                 yield f"data: {msg}\n\n"
-                if msg == "__DONE__":
+                if msg in ("__DONE__", "__CANCELLED__"):
                     break
             except queue.Empty:
-                if _insight_state.get("status") not in ("idle", "running"):
-                    yield "data: __DONE__\n\n"
+                if task.get("status") in ("done", "cancelled"):
+                    terminal = "__CANCELLED__" if task.get("status") == "cancelled" else "__DONE__"
+                    yield f"data: {terminal}\n\n"
                     break
                 yield ": ping\n\n"
                 await asyncio.sleep(0.4)
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
-@app.post("/api/insight/ack")
-async def insight_ack(request: Request):
+@app.post("/api/insight/{task_id}/ack")
+async def insight_ack(task_id: str, request: Request):
     """前端渲染完成后调用，通知后端继续执行下一个 Part。"""
-    global _insight_ack_info
+    task = _insight_task(task_id)
+    if not task:
+        return JSONResponse({"error": "Insight 任务不存在或已过期"}, status_code=404)
     body = await request.json()
-    _insight_ack_info["success"] = body.get("success", True)
-    _insight_ack_info["error"]   = body.get("error", "")
-    _insight_ack_event.set()
+    task["ack_info"]["success"] = body.get("success", True)
+    task["ack_info"]["error"] = body.get("error", "")
+    task["ack_event"].set()
     return {"status": "ok"}
+
+
+@app.post("/api/insight/{task_id}/cancel")
+async def insight_cancel(task_id: str):
+    task = _insight_task(task_id)
+    if not task:
+        return JSONResponse({"error": "Insight 任务不存在或已过期"}, status_code=404)
+    if task.get("status") in ("done", "cancelled"):
+        return {"status": task["status"], "taskId": task_id}
+    task["cancel_event"].set()
+    task["ack_event"].set()
+    task["status"] = "cancelling"
+    task["updated_at"] = time.time()
+    return {"status": "cancelling", "taskId": task_id}
 
 
 @app.post("/api/insight/explain-cell")
@@ -7264,6 +7309,20 @@ def _ad_drill_dimension_candidates(body: dict[str, Any]) -> dict[str, Any]:
             "source": result_source,
         })
     rows.sort(key=lambda item: (-int(item.get("score") or 0), str(item.get("title") or "")))
+    # A recommendation percentage is an ordering signal, not a categorical label.
+    # Default graph-compatible dimensions may start with the same base score; make
+    # their displayed ranks deterministic and distinct so the UI never presents a
+    # misleading wall of identical recommendations.
+    used_scores: set[int] = set()
+    for row in rows:
+        score = max(1, min(99, int(row.get("score") or 70)))
+        while score in used_scores and score > 1:
+            score -= 1
+        if score in used_scores:
+            while score in used_scores and score < 99:
+                score += 1
+        row["score"] = score
+        used_scores.add(score)
     return {
         "measure": measure,
         "items": rows[: int(body.get("limit") or 10)],
@@ -7649,6 +7708,9 @@ def _call_sop_diagnosis(payload: dict[str, Any]) -> dict[str, Any]:
     low_quality_call_count = 0
     low_coverage_call_count = 0
     overlapping_problem_call_count = 0
+    invite_success_call_count = 0
+    invite_eligible_call_count = 0
+    next_action_done_call_count = 0
     issue_counts: dict[str, int] = {}
     quality_score_total = 0.0
     quality_score_count = 0
@@ -7668,6 +7730,12 @@ def _call_sop_diagnosis(payload: dict[str, Any]) -> dict[str, Any]:
         if not analysis.get("connected"):
             continue
         connected_calls += 1
+        invite_result = str(row.get("invite_result_label") or "").strip()
+        if invite_result and invite_result != "未接通":
+            invite_eligible_call_count += 1
+            invite_success_call_count += 1 if invite_result == "邀约成功" else 0
+        next_action = str(row.get("actual_next_action") or "").strip()
+        next_action_done_call_count += 1 if next_action and next_action not in {"无", "再次外呼"} else 0
         hit_total += int(analysis.get("hit_checkpoint_count") or 0)
         checkpoint_total += int(analysis.get("total_checkpoint_count") or 0)
         if row.get("total_score") is not None:
@@ -7751,6 +7819,11 @@ def _call_sop_diagnosis(payload: dict[str, Any]) -> dict[str, Any]:
             "qualityIssueRate": problem_call_count / connected_calls if connected_calls else 0,
             "avgQualityScore": quality_score_total / quality_score_count if quality_score_count else 0,
             "avgSlotCoverageRate": slot_coverage_total / slot_coverage_count if slot_coverage_count else 0,
+            "inviteSuccessCallCount": invite_success_call_count,
+            "inviteEligibleCallCount": invite_eligible_call_count,
+            "inviteSuccessRate": invite_success_call_count / invite_eligible_call_count if invite_eligible_call_count else 0,
+            "nextActionDoneCallCount": next_action_done_call_count,
+            "nextActionCompletionRate": next_action_done_call_count / connected_calls if connected_calls else 0,
         },
         "categories": category_rows,
         "experts": expert_rows,

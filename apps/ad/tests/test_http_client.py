@@ -29,7 +29,23 @@ def test_loopback_urls_bypass_system_proxy(monkeypatch):
     assert len(opener.calls) == 3
 
 
-def test_external_urls_keep_default_proxy_behavior(monkeypatch):
+def test_deepseek_api_bypasses_system_proxy(monkeypatch):
+    opener = _FakeOpener()
+    monkeypatch.setattr(http_client, "_DIRECT_OPENER", opener)
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("DeepSeek must not use system-proxy urlopen")
+        ),
+    )
+
+    request = urllib.request.Request("https://api.deepseek.com/chat/completions")
+    assert http_client.urlopen(request, timeout=5) == "direct"
+    assert len(opener.calls) == 1
+
+
+def test_other_external_urls_keep_default_proxy_behavior(monkeypatch):
     calls = []
 
     def fake_urlopen(target, data=None, timeout=None, context=None):

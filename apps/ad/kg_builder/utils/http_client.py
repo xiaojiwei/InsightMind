@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 
 _LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+_DIRECT_LLM_HOSTS = {"api.deepseek.com"}
 _DIRECT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
@@ -26,6 +27,15 @@ def is_loopback_url(target: Any) -> bool:
         return False
 
 
+def should_bypass_proxy(target: Any) -> bool:
+    """Return whether a request must avoid system/VPN proxy configuration."""
+    try:
+        host = (urlsplit(_target_url(target)).hostname or "").lower()
+        return host in _LOOPBACK_HOSTS or host in _DIRECT_LLM_HOSTS
+    except (TypeError, ValueError):
+        return False
+
+
 def urlopen(
     target: Any,
     data: Optional[bytes] = None,
@@ -39,7 +49,7 @@ def urlopen(
     their local proxy listener is being stopped or restarted.  AD-to-DA calls
     must remain local and deterministic during those transitions.
     """
-    if is_loopback_url(target):
+    if should_bypass_proxy(target):
         return _DIRECT_OPENER.open(target, data=data, timeout=timeout)
     return urllib.request.urlopen(
         target,

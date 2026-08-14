@@ -189,6 +189,9 @@ class InsightAnalyzer:
             if "report" in event and "part" not in event:
                 report_text = event.get("report", "")
             yield event
+            if event.get("step") == "no_data":
+                self._log("═══ Insight 分析因数据不足提前结束 ═══")
+                return
 
         if self._cancel_cb():
             return
@@ -1603,7 +1606,7 @@ class InsightAnalyzer:
                 "anthropic-version": "2023-06-01",
             }
             req = _ureq.Request(f"{base_url}/messages", data=body, headers=headers, method="POST")
-            with _urlopen(req, timeout=60) as resp:
+            with _urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             if "content" in data:
                 return self._strip_reasoning(data["content"][0]["text"])
@@ -1624,7 +1627,7 @@ class InsightAnalyzer:
                 "Authorization": f"Bearer {api_key}",
             }
             req = _ureq.Request(f"{base_url}/chat/completions", data=body, headers=headers, method="POST")
-            with _urlopen(req, timeout=60) as resp:
+            with _urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             if "choices" in data:
                 return self._strip_reasoning(data["choices"][0]["message"]["content"])
@@ -1699,7 +1702,7 @@ class InsightAnalyzer:
             }
             req = _ureq.Request(f"{base_url}/messages", data=body, headers=headers, method="POST")
             try:
-                with _urlopen(req, timeout=120) as resp:
+                with _urlopen(req, timeout=45) as resp:
                     for raw_line in resp:
                         line = raw_line.decode("utf-8").strip()
                         if not line or not line.startswith("data:"):
@@ -1742,7 +1745,7 @@ class InsightAnalyzer:
             }
             req = _ureq.Request(f"{base_url}/chat/completions", data=body, headers=headers, method="POST")
             try:
-                with _urlopen(req, timeout=120) as resp:
+                with _urlopen(req, timeout=45) as resp:
                     for raw_line in resp:
                         line = raw_line.decode("utf-8").strip()
                         if not line or not line.startswith("data:"):

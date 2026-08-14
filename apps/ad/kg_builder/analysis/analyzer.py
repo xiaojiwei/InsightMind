@@ -401,6 +401,27 @@ class IndicatorAnalyzer:
             part1 = {"error": str(e)}
         yield {"part": 1, "result": part1}
 
+        no_data_reason = str(part1.get("skip_reason") or "")
+        if no_data_reason and any(marker in no_data_reason for marker in (
+            "数据为空", "时间期数少于 2", "无法做环比分析"
+        )):
+            message = (
+                f"当前查询范围 {_cfg_start_date or '未指定'} ~ {_cfg_end_date or '未指定'} "
+                f"没有足够数据完成归因分析：{no_data_reason}。"
+            )
+            self._log(f"  ⚠ {message}")
+            yield {
+                "step": "no_data",
+                "result": {
+                    "reason": no_data_reason,
+                    "message": message,
+                    "time_start": _cfg_start_date,
+                    "time_end": _cfg_end_date,
+                    "suggestions": ["缩小或调整时间范围", "确认数据已同步到所选时间段", "改为查询最近有数据的周期"],
+                },
+            }
+            return
+
         try:
             p1i = self._part_interp("p1", part1, prev_focuses)
             yield {"part": "1_interp", "text": p1i["text"], "focus": p1i["focus"]}
@@ -573,6 +594,25 @@ class IndicatorAnalyzer:
                 self._log(f"  ⚠ Part 2 出错: {e}")
                 part2_stats = {"error": str(e)}
         yield {"part": 2, "result": part2_stats}
+
+        part2_no_data_reason = str(part2_stats.get("skip_reason") or "")
+        if "数据为空" in part2_no_data_reason:
+            message = (
+                f"当前查询范围 {_cfg_start_date or '未指定'} ~ {_cfg_end_date or '未指定'} "
+                "没有可用于统计归因的明细数据，已停止后续贡献度和图谱 AI 分析。"
+            )
+            self._log(f"  ⚠ {message}")
+            yield {
+                "step": "no_data",
+                "result": {
+                    "reason": part2_no_data_reason,
+                    "message": message,
+                    "time_start": _cfg_start_date,
+                    "time_end": _cfg_end_date,
+                    "suggestions": ["检查日粒度数据是否已同步", "改查最近有数据的完整周期", "先执行指标汇总确认数据范围"],
+                },
+            }
+            return
 
         try:
             p2i = self._part_interp("p2", part2_stats, prev_focuses,

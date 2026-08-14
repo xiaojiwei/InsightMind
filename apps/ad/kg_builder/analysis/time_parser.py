@@ -263,7 +263,7 @@ def _parse_relative(question: str, today: datetime.date) -> Optional[dict[str, s
         return _calendar_month_result(start, today, "month", half_year.group(0))
 
     relative = re.search(
-        rf"(?:最近|近|过去|前)\s*({_COUNT_PATTERN})\s*(天|日|个?周|个?星期|个?月|个?季度|季|个?年)",
+        rf"(?:最近|近|过去|前)\s*({_COUNT_PATTERN})\s*(?:个)?\s*(?:完整|自然)?\s*(天|日|周|星期|月|季度|季|年)",
         question,
     )
     if not relative:
@@ -271,15 +271,21 @@ def _parse_relative(question: str, today: datetime.date) -> Optional[dict[str, s
     count = _parse_count(relative.group(1))
     if not count or count < 1:
         return None
-    unit = relative.group(2).removeprefix("个")
+    unit = relative.group(2)
     desc = relative.group(0)
     if unit in ("天", "日"):
         start = today - datetime.timedelta(days=count - 1)
         return _equal_period_result(start, today, _requested_granularity(question, "day"), desc)
     if unit in ("周", "星期"):
+        complete_weeks = bool(re.search(r"(?:完整|自然)\s*(?:个)?(?:周|星期)", question))
         week_start = today - datetime.timedelta(days=today.weekday())
-        start = week_start - datetime.timedelta(weeks=count - 1)
-        end = week_start + datetime.timedelta(days=6)
+        if complete_weeks:
+            end = week_start - datetime.timedelta(days=1)
+            start = end - datetime.timedelta(days=count * 7 - 1)
+        else:
+            # “最近 N 周”按截至今天的滚动窗口解释，不能包含未来日期。
+            end = today
+            start = end - datetime.timedelta(days=count * 7 - 1)
         return _equal_period_result(start, end, _requested_granularity(question, "week"), desc)
     months = count
     if unit in ("季度", "季"):

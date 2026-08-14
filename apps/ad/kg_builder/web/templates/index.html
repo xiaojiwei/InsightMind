@@ -6,6 +6,7 @@
   <title>Knowledge Graph Builder</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/dist/vis-network.min.js"></script>
   <link  href="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/dist/dist/vis-network.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
@@ -2622,6 +2623,9 @@
                 <button id="smart-nlq-run-btn" class="btn btn-primary px-3" onclick="runSmartInsight(this)" style="min-width:96px">
                   <i class="bi bi-send me-1"></i>分析
                 </button>
+                <button id="smart-insight-stop-btn" class="btn btn-outline-danger px-3" onclick="stopInsight()" style="min-width:96px;display:none">
+                  <i class="bi bi-stop-circle me-1"></i>停止
+                </button>
                 <div id="smart-nlq-context-status" class="small text-muted mt-1" style="display:none"></div>
               </div>
               <div>
@@ -2644,12 +2648,14 @@
         <div class="card-header py-2 d-flex justify-content-between align-items-center">
           <span><i class="bi bi-diagram-3 me-1"></i>智能Insight流程进度</span>
           <span class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0" style="font-size:11px"
+              data-bs-toggle="collapse" data-bs-target="#insight-flow-body">查看分析过程</button>
             <button id="insight-flow-full-btn" type="button" class="btn btn-sm btn-outline-secondary py-0"
               style="font-size:11px" onclick="toggleInsightFlowFullMap()">全图展示</button>
             <span id="insight-flow-summary" class="insight-flow-summary">等待开始</span>
           </span>
         </div>
-        <div class="card-body p-0">
+        <div class="card-body p-0 collapse" id="insight-flow-body">
           <div class="insight-flow-scroll">
             <div id="insight-flow-map" class="insight-flow-map"></div>
           </div>
@@ -2660,6 +2666,14 @@
 
         <!-- 进度 + 结果 -->
         <div class="col-md-12">
+
+          <div id="insight-business-summary-card" class="card mb-3" style="display:none;border-left:4px solid #5f7f9f">
+            <div class="card-header py-2 d-flex justify-content-between align-items-center">
+              <strong><i class="bi bi-briefcase me-1"></i>业务结论</strong>
+              <span id="insight-business-confidence" class="badge bg-light text-dark border"></span>
+            </div>
+            <div id="insight-business-summary" class="card-body py-3 small"></div>
+          </div>
 
           <!-- 进度日志 -->
           <div class="card mb-3">
@@ -2850,6 +2864,7 @@
             <div class="card-body">
               <div id="insight-answer-content" class="markdown-body"
                 style="font-size:13px;line-height:1.8;min-height:60px"></div>
+              <div id="insight-followups" class="border-top mt-3 pt-2" style="display:none"></div>
             </div>
           </div>
 
@@ -4786,9 +4801,9 @@ function adhocDimensionTokens(dim) {
     ...(dim?.sourceCodes || []),
   ].filter(Boolean).join(' ').toLowerCase();
   const tokens = new Set();
-  text.replace(/dim_|date_|web_|catalog_|sales_/g, ' ')
+  text.replace(/dim_|date_|web_|catalog_|sales_|\bad\b|\bda\b|\bdim\b/g, ' ')
     .split(/[^a-z0-9\u4e00-\u9fa5]+/)
-    .filter(Boolean)
+    .filter(token => token && !['ad','da','dim','dimension','维度'].includes(token))
     .forEach(token => tokens.add(token));
   if (/仓库|warehouse/.test(text)) tokens.add('warehouse');
   if (/城市|city/.test(text)) tokens.add('city');
@@ -4804,6 +4819,93 @@ function adhocDimensionTokens(dim) {
   if (/周|week/.test(text)) tokens.add('week');
   if (/日|天|day|date/.test(text)) tokens.add('day');
   return tokens;
+}
+
+function adhocDimensionBusinessRole(dim) {
+  const key = adhocSimpleMemberKey(dim?.name || dim?.code || '');
+  const text = `${dim?.title || ''} ${dim?.shortTitle || ''} ${key}`.toLowerCase();
+  if (adhocDimensionIsTime(dim)) return 'time';
+  if (/store_city|城市|city/.test(text)) return 'geo_city';
+  if (/\bstore\b|门店|网点|branch/.test(text) && !/manager|店长/.test(text)) return 'geo_store';
+  if (/store_manager|店长|manager/.test(text)) return 'manager';
+  if (/sales_expert|销售人员|销售专家|顾问|expert/.test(text)) return 'expert';
+  if (/quality_issue|问题分类|issue/.test(text)) return 'quality_issue';
+  if (/quality_rule|质检规则|quality_question|质检问题/.test(text)) return 'quality_rule';
+  if (/quality_score|质量分层|达成等级/.test(text)) return 'quality_level';
+  if (/quality_pass|质检通过|通过状态/.test(text)) return 'quality_result';
+  if (/intent|客户意图|意图/.test(text)) return 'intent';
+  if (/expected_next_action|下一步动作|跟进动作|action/.test(text)) return 'action';
+  if (/call_flow|电话流向|通话来源|flow/.test(text)) return 'call_flow';
+  if (/business_type|业务类型/.test(text)) return 'business_type';
+  if (/vehicle_model|车型|商品|产品|product|item/.test(text)) return 'product';
+  if (/customer|客户/.test(text)) return 'customer';
+  if (/channel|渠道/.test(text)) return 'channel';
+  return 'other';
+}
+
+const ADHOC_DIMENSION_ROLE_PRIORITY = {
+  quality_issue:18, quality_rule:17, expert:16, intent:15, geo_store:14, manager:13,
+  quality_level:12, quality_result:11, call_flow:10, action:9, business_type:8,
+  customer:7, product:6, channel:5, geo_city:4, time:3, other:1,
+};
+
+function adhocRoleRelationship(currentRole, candidateRole) {
+  const relationships = {
+    geo_city: {
+      geo_store:[97,'从城市进入门店，是区域经营分析的直接下一级'],
+      manager:[92,'从城市定位店长，可明确区域管理责任'],
+      expert:[88,'从城市拆到销售人员，可定位人员质量差异'],
+      quality_issue:[84,'按问题分类解释该城市质量异常的构成'],
+      intent:[80,'按客户意图识别该城市主要沟通场景'],
+      call_flow:[76,'按电话流向追踪该城市通话来源结构'],
+      action:[73,'按期望下一步动作检查该城市跟进承接'],
+      business_type:[69,'按业务类型补充该城市的业务结构'],
+    },
+    geo_store: {
+      manager:[96,'从门店定位店长，是经营责任的直接下一级'],
+      expert:[93,'从门店拆到销售人员，可直接定位辅导对象'],
+      quality_issue:[89,'按问题分类解释该门店质量损失来源'],
+      intent:[85,'按客户意图拆解该门店沟通场景'],
+      quality_rule:[82,'按质检规则定位该门店的具体短板'],
+      call_flow:[77,'按电话流向查看该门店的通话来源结构'],
+    },
+    manager: {
+      expert:[96,'从店长进入销售人员，是管理责任的直接下一级'],
+      quality_issue:[89,'按问题分类定位该管理单元的主要异常'],
+      quality_rule:[86,'按质检规则定位该管理单元的训练重点'],
+      intent:[82,'按客户意图拆解不同沟通场景表现'],
+      geo_store:[78,'回到门店对比该店长负责的经营单元'],
+    },
+    expert: {
+      quality_issue:[95,'按问题分类定位该销售人员的主要短板'],
+      quality_rule:[93,'按质检规则定位该销售人员缺失的沟通动作'],
+      intent:[88,'按客户意图区分该销售人员的场景表现'],
+      quality_level:[84,'按质量等级查看该销售人员的样本结构'],
+      action:[80,'按下一步动作检查该销售人员的跟进承接'],
+    },
+    quality_issue: {
+      quality_rule:[96,'从问题分类进入质检规则，可定位具体触发原因'],
+      expert:[93,'按销售人员定位该问题的主要责任和辅导对象'],
+      intent:[89,'按客户意图识别该问题高发的沟通场景'],
+      geo_store:[84,'按门店对比该问题的经营单元分布'],
+      manager:[81,'按店长确认该问题对应的管理责任'],
+    },
+    quality_rule: {
+      expert:[95,'按销售人员定位该规则的未达成对象'],
+      intent:[90,'按客户意图识别该规则的高发场景'],
+      quality_level:[86,'按质量等级观察该规则的影响程度'],
+      geo_store:[82,'按门店比较该规则的命中差异'],
+      quality_issue:[79,'回到问题分类查看该规则的业务影响'],
+    },
+    intent: {
+      quality_rule:[94,'按质检规则定位该客户意图下的话术缺口'],
+      quality_issue:[91,'按问题分类解释该意图的质量损失'],
+      expert:[88,'按销售人员比较该意图下的沟通能力'],
+      action:[85,'按下一步动作检查该意图的承接结果'],
+      geo_store:[79,'按门店比较该意图的场景表现'],
+    },
+  };
+  return relationships[currentRole]?.[candidateRole] || null;
 }
 
 function adhocDimensionIsTime(dim) {
@@ -4831,8 +4933,11 @@ function adhocBusinessRecommendation(candidate, currentMember=null) {
   const overlap = [...dimTokens].filter(token => curTokens.has(token));
   const dimIsTime = adhocDimensionIsTime(dim);
   const currentIsTime = adhocDimensionIsTime(current);
-  let score = dimIsTime ? 25 : 70;
-  let reason = '适合继续拆解当前指标表现';
+  const dimRole = adhocDimensionBusinessRole(dim);
+  const currentRole = adhocDimensionBusinessRole(current);
+  const rolePriority = ADHOC_DIMENSION_ROLE_PRIORITY[dimRole] || 1;
+  let score = dimIsTime ? 34 : 58 + Math.min(18, rolePriority);
+  let reason = `可按“${title}”补充一个独立业务视角`;
 
   if (current) {
     if (dimIsTime && !currentIsTime) {
@@ -4844,15 +4949,18 @@ function adhocBusinessRecommendation(candidate, currentMember=null) {
       score = 80;
       reason = `适合在“${currentTitle}”时间切片内继续定位业务来源`;
     } else if (!dimIsTime && !currentIsTime) {
-      if (overlap.includes('warehouse') && dimTokens.has('city')) {
+      const relationship = adhocRoleRelationship(currentRole, dimRole);
+      if (relationship) {
+        [score, reason] = relationship;
+      } else if (overlap.includes('warehouse') && dimTokens.has('city')) {
         score = 90;
         reason = `与“${currentTitle}”属于仓储地域链路，适合继续定位区域差异`;
       } else if (overlap.length) {
-        score = 85;
-        reason = `与“${currentTitle}”属于相近业务主题，适合连续下钻`;
+        score = 68 + Math.min(12, overlap.length * 3) + Math.min(8, rolePriority / 3);
+        reason = `与“${currentTitle}”共享 ${overlap.slice(0,2).join('、')} 业务语义，可继续拆解`;
       } else {
-        score = 55;
-        reason = `可从另一个业务视角补充拆解当前节点`;
+        score = 50 + Math.min(22, rolePriority);
+        reason = `与“${currentTitle}”属于横向分析视角，适合作为补充拆解`;
       }
     } else if (dimIsTime && currentIsTime) {
       const order = {year:1, quarter:2, month:3, week:4, day:5};
@@ -4871,7 +4979,25 @@ function adhocBusinessRecommendation(candidate, currentMember=null) {
     score: Math.max(1, Math.min(99, Math.round(score))),
     reason,
     title,
+    role: dimRole,
+    priority: rolePriority,
   };
+}
+
+function adhocDisambiguateRecommendationScores(items=[]) {
+  const used = new Set();
+  return items.map((item, index) => {
+    const recommendation = {...(item.recommendation || {})};
+    let score = Math.max(1, Math.min(99, Math.round(Number(recommendation.score || 50))));
+    while (used.has(score) && score > 1) score -= 1;
+    if (used.has(score)) {
+      score = Math.max(1, Math.min(99, score + ((recommendation.priority || index) % 3) + 1));
+      while (used.has(score) && score < 99) score += 1;
+    }
+    used.add(score);
+    recommendation.score = score;
+    return {...item, recommendation};
+  });
 }
 
 function adhocDrillMode(state=_adhocState) {
@@ -4895,10 +5021,12 @@ function adhocDynamicDrillCandidates(state, currentMember) {
     ...((drill.stack || []).map(x => x.nextMember)),
     currentMember,
   ].filter(Boolean));
-  return adhocRecommendedDimensions(100, state?.query?.measures || [], Array.from(used))
+  const ranked = adhocRecommendedDimensions(100, state?.query?.measures || [], Array.from(used))
     .map(item => ({...item, recommendation: adhocBusinessRecommendation(item, currentMember)}))
     .sort((a, b) => b.recommendation.score - a.recommendation.score
+      || Number(b.recommendation.priority || 0) - Number(a.recommendation.priority || 0)
       || String(a.dim.title || a.dim.name).localeCompare(String(b.dim.title || b.dim.name), 'zh-Hans-CN'));
+  return adhocDisambiguateRecommendationScores(ranked);
 }
 
 function openDynamicDrillChooser(context) {
@@ -6172,7 +6300,43 @@ function ensureAdhocAlertStyles() {
     .sop-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px 12px;border-bottom:1px solid #dce2dd}
     .sop-panel-head h3{margin:0 0 4px;color:#20332f;font-size:16px;font-weight:850}
     .sop-panel-head p{margin:0;color:#74817d;font-size:12px}
+    .pulse-board{height:100%;overflow:auto;background:#f5f7f5;color:#20312e;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:12px;line-height:1.45;padding:24px 28px 30px;box-sizing:border-box}
+    .pulse-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;max-width:1500px;margin:0 auto 18px;padding:18px 22px;background:linear-gradient(120deg,#fff 0%,#fff8ef 62%,#e4f7f1 100%);border:1px solid #e5e9e4;border-radius:18px;box-shadow:0 10px 26px rgba(48,71,64,.08)}
+    .pulse-eyebrow{color:#ef694f;font-size:10px;letter-spacing:.18em;font-weight:800;margin-bottom:8px}.pulse-hero h2{margin:0;color:#193934;font-size:30px;letter-spacing:-.03em;font-weight:850}.pulse-hero p{margin:6px 0 0;color:#6f817c;font-size:13px}.pulse-context{text-align:right;color:#6f817c}.pulse-context b{display:block;color:#193934;font-size:13px;margin-bottom:4px}.pulse-context span{font-size:11px}
+    .pulse-summary-strip{display:flex;align-items:center;gap:26px;max-width:1500px;margin:0 auto 16px;padding:13px 18px;background:#193934;border-radius:13px;color:#fff;box-shadow:0 8px 18px rgba(25,57,52,.16)}.pulse-summary-label{display:flex;flex-direction:column;min-width:120px;border-right:1px solid rgba(255,255,255,.2);padding-right:20px}.pulse-summary-label span{color:#9ed8c9;font-size:10px}.pulse-summary-label b{font-size:13px;margin-top:2px}.pulse-summary-item{display:flex;align-items:center;gap:8px;min-width:100px}.pulse-summary-dot{display:block;width:9px;height:9px;border-radius:50%}.pulse-summary-dot.coral{background:#ef806f}.pulse-summary-dot.amber{background:#e8b451}.pulse-summary-dot.blue{background:#73b7df}.pulse-summary-item b{display:block;font-size:14px}.pulse-summary-item span{display:block;color:#a9beb8;font-size:10px}.pulse-summary-note{margin-left:auto;color:#b8cbc5;font-size:11px}
+    .pulse-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;max-width:1500px;margin:0 auto 16px}.pulse-kpi{position:relative;background:#fff;border:1px solid #e2e8e3;border-radius:14px;padding:15px 16px;min-height:98px;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s;box-shadow:0 6px 18px rgba(48,71,64,.06)}.pulse-kpi:before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:0 4px 4px 0;background:#ef694f}.pulse-kpi.accent-blue:before{background:#3c91cf}.pulse-kpi.accent-green:before{background:#29a887}.pulse-kpi.accent-red:before{background:#e05252}.pulse-kpi.accent-amber:before{background:#e8a13e}.pulse-kpi.accent-purple:before{background:#8c6dc2}.pulse-kpi:hover,.pulse-action:hover,.pulse-issue:hover,.pulse-stage:hover,.pulse-expert:hover{transform:translateY(-2px);border-color:#7bc7b2;box-shadow:0 10px 22px rgba(48,71,64,.1)}.pulse-kpi span{display:block;color:#58706a;font-size:11px}.pulse-kpi strong{display:block;color:#193934;font-size:28px;line-height:1.1;margin:9px 0 5px}.pulse-kpi em{font-style:normal;color:#8a9994;font-size:11px}.pulse-kpi.accent-blue strong{color:#277db3}.pulse-kpi.accent-green strong{color:#198c73}.pulse-kpi.accent-red strong{color:#d84747}.pulse-kpi.accent-amber strong{color:#bd7414}.pulse-kpi.accent-purple strong{color:#7553aa}
+    .pulse-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(350px,.8fr);gap:16px;max-width:1500px;margin:0 auto 16px}.pulse-grid-bottom{grid-template-columns:minmax(0,1fr) minmax(340px,.6fr)}.pulse-card{background:#fff;border:1px solid #e2e8e3;border-radius:16px;overflow:hidden;box-shadow:0 8px 22px rgba(48,71,64,.06)}.pulse-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 20px 14px;border-bottom:1px solid #edf1ee}.pulse-index{color:#ef694f;font-size:10px;font-weight:800;letter-spacing:.12em}.pulse-card h3{margin:4px 0 4px;color:#193934;font-size:17px;font-weight:800}.pulse-card-head p{margin:0;color:#7a8b86;font-size:11px}.pulse-status{border-radius:20px;padding:5px 10px;font-weight:700;font-size:11px}.pulse-status.good{color:#14866e;background:#e3f6ef}.pulse-status.warn{color:#ad6a10;background:#fff2d8}.pulse-status.danger{color:#c64040;background:#ffe4e1}.pulse-actions{padding:8px 12px 14px}.pulse-action{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:transparent;color:inherit;border:0;border-bottom:1px solid #edf1ee;padding:13px 8px;cursor:pointer}.pulse-action:last-child{border-bottom:0}.pulse-action-num{display:grid;place-items:center;flex:0 0 28px;height:28px;border-radius:9px;background:#fff0e9;color:#e85f46;font-weight:800}.pulse-action div{flex:1}.pulse-action b{display:block;color:#24453e;font-size:13px}.pulse-action p{margin:3px 0 0;color:#7a8b86;font-size:11px}.pulse-action i,.pulse-expert i{color:#ef694f;font-style:normal;font-size:17px}.pulse-issues{padding:10px 16px 14px}.pulse-issue{display:grid;grid-template-columns:28px 1fr 42px;align-items:center;gap:10px;width:100%;background:transparent;color:inherit;border:0;border-bottom:1px solid #edf1ee;padding:11px 4px;text-align:left;cursor:pointer}.pulse-issue:last-child{border-bottom:0}.pulse-issue>span{color:#9aaa a4;font-size:10px}.pulse-issue b{display:block;color:#24453e;font-size:12px;margin-bottom:6px}.pulse-issue strong{color:#db7d25;text-align:right;font-size:12px}.pulse-bar,.pulse-track{height:6px;border-radius:7px;background:#edf2ee;overflow:hidden}.pulse-bar i{display:block;height:100%;border-radius:7px;background:#ef806f}.pulse-journey{padding:10px 16px 16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px}.pulse-stage{display:grid;grid-template-columns:24px 1fr 42px;align-items:center;gap:8px;background:transparent;border:0;border-bottom:1px solid #edf1ee;color:inherit;text-align:left;padding:9px 2px;cursor:pointer}.pulse-stage>span{color:#9aaba5;font-size:10px}.pulse-stage b{display:block;color:#24453e;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px}.pulse-stage strong{color:#47726a;text-align:right;font-size:11px}.pulse-track i{display:block;height:100%;border-radius:5px}.pulse-legend{color:#7a8b86;font-size:11px;margin-top:5px}.pulse-legend i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#29a887;margin-right:5px}.pulse-experts{padding:8px 14px 12px}.pulse-expert{display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:0;border-bottom:1px solid #edf1ee;color:inherit;padding:10px 4px;cursor:pointer;text-align:left}.pulse-expert:last-child{border-bottom:0}.pulse-avatar{display:grid;place-items:center;flex:0 0 30px;height:30px;border-radius:50%;background:#e3f6ef;color:#198c73;font-weight:800}.pulse-expert div{flex:1;min-width:0}.pulse-expert b{display:block;color:#24453e;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pulse-expert small{display:block;color:#8a9994;font-size:10px;margin-top:2px}.pulse-expert strong{color:#198c73;font-size:12px}.pulse-footer{display:flex;justify-content:space-between;gap:12px;max-width:1500px;margin:6px auto 0;color:#8a9994;font-size:10px}.pulse-footer span:last-child{color:#198c73}@media (max-width:1100px){.pulse-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.pulse-grid,.pulse-grid-bottom{grid-template-columns:1fr}.pulse-hero{align-items:flex-start;flex-direction:column}.pulse-context{text-align:left}.pulse-journey{grid-template-columns:1fr}}
     .sop-legend{display:flex;align-items:center;gap:10px;color:#65746f;font-size:11px;white-space:nowrap;flex-wrap:wrap}
+    /* Bright store-operations theme: layered surfaces and clear action colors. */
+    .pulse-board .pulse-issue>span{color:#9aaba5}
+    .pulse-board .pulse-card{min-height:220px}
+    .pulse-board .pulse-focus{background:linear-gradient(180deg,#fff 0%,#fffaf5 100%)}
+    .pulse-board .pulse-action:nth-child(1) .pulse-action-num{background:#ffe7e2;color:#d94f43}
+    .pulse-board .pulse-action:nth-child(2) .pulse-action-num{background:#fff2d8;color:#ad6a10}
+    .pulse-board .pulse-action:nth-child(3) .pulse-action-num{background:#e3f6ef;color:#198c73}
+    .pulse-board .pulse-issues .pulse-issue:nth-child(1) .pulse-bar i{background:#e05252}
+    .pulse-board .pulse-issues .pulse-issue:nth-child(2) .pulse-bar i{background:#e8a13e}
+    .pulse-board .pulse-issues .pulse-issue:nth-child(n+3) .pulse-bar i{background:#3c91cf}
+    .pulse-board .pulse-grid-bottom .pulse-card:first-child{background:linear-gradient(180deg,#fff 0%,#f5fbf8 100%)}
+    .pulse-conclusion{max-width:1500px;margin:0 auto 16px;padding:16px 18px;border:1px solid #f0d9ae;border-left:5px solid #e8a13e;border-radius:14px;background:#fffaf0;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;box-shadow:0 6px 18px rgba(83,66,35,.06)}.pulse-conclusion.danger{border-color:#f0c6c2;border-left-color:#e05252;background:#fff6f5}.pulse-conclusion.good{border-color:#bfe4d9;border-left-color:#29a887;background:#f3fbf8}.pulse-conclusion>span{padding:5px 10px;border-radius:20px;background:#fff;color:#ad6a10;font-weight:800}.pulse-conclusion.danger>span{color:#c64040}.pulse-conclusion.good>span{color:#14866e}.pulse-conclusion b{display:block;color:#24453e;font-size:13px;margin-bottom:3px}.pulse-conclusion p{margin:0;color:#667b75}.pulse-conclusion small{color:#899994;white-space:nowrap}.pulse-trend{padding:14px 18px 16px}.pulse-trend-svg{width:100%;height:178px;display:block}.pulse-trend-grid{stroke:#dfe8e3;stroke-width:1}.pulse-trend-target{stroke:#d99042;stroke-width:1.5;stroke-dasharray:5 5}.pulse-trend-score{fill:none;stroke:#e05252;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.pulse-trend-sop{fill:none;stroke:#29a887;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.pulse-trend-dot-score{fill:#fff;stroke:#e05252;stroke-width:2}.pulse-trend-dot-sop{fill:#fff;stroke:#29a887;stroke-width:2}.pulse-trend-labels{display:flex;justify-content:space-between;color:#8a9994;font-size:10px;padding:0 5px}.pulse-trend-legend{display:flex;gap:15px;color:#657872;font-size:10px;margin-top:8px}.pulse-trend-legend i{display:inline-block;width:14px;height:3px;border-radius:3px;margin-right:5px;vertical-align:middle}.pulse-trend-empty{display:grid;place-items:center;height:178px;color:#8a9994}.pulse-action-table{width:100%;border-collapse:collapse}.pulse-action-table th,.pulse-action-table td{padding:11px 12px;border-bottom:1px solid #edf1ee;text-align:left;vertical-align:middle}.pulse-action-table th{color:#7a8b86;font-size:10px;font-weight:700;background:#f8faf8}.pulse-action-table td{color:#36534d;font-size:11px}.pulse-action-table tr:last-child td{border-bottom:0}.pulse-priority{display:inline-flex;padding:3px 7px;border-radius:10px;background:#fff0e9;color:#d95642;font-weight:800}.pulse-priority.medium{background:#fff2d8;color:#ad6a10}.pulse-action-state{border:1px solid #d8e3de;border-radius:12px;background:#fff;color:#397467;padding:4px 9px;font-size:10px;cursor:pointer}.pulse-action-state.done{background:#e3f6ef;color:#14866e;border-color:#b9e3d6}.pulse-action-link{border:0;background:transparent;color:#287eb3;padding:0;font-size:10px}.pulse-data-note{max-width:1500px;margin:0 auto 12px;padding:10px 14px;border-radius:10px;background:#eef3f0;color:#61756f;display:flex;justify-content:space-between;gap:14px}.pulse-data-note details{text-align:right}.pulse-data-note summary{cursor:pointer;color:#287eb3}.pulse-data-note p{margin:7px 0 0;max-width:650px;text-align:left}.pulse-board .pulse-card-wide{max-width:1500px;margin:0 auto 16px}.pulse-board .pulse-grid-analysis{grid-template-columns:minmax(0,1fr) minmax(420px,1fr)}
+    @media (max-width:1100px){.pulse-summary-strip{align-items:flex-start;flex-wrap:wrap;gap:14px}.pulse-summary-note{width:100%;margin-left:0}}
+    /* Apple-inspired motion language, implemented with open web animations. */
+    :root{--motion-spring:cubic-bezier(.22,1,.36,1);--motion-snappy:cubic-bezier(.2,.8,.2,1);--motion-soft:cubic-bezier(.16,1,.3,1)}
+    .motion-page-exit{pointer-events:none;animation:motionPageExit .24s cubic-bezier(.4,0,1,1) both}
+    .motion-icon{display:inline-grid;place-items:center;flex:0 0 auto;width:30px;height:30px;border-radius:9px;background:var(--motion-icon-bg,#e3f6ef);color:var(--motion-icon-color,#198c73);font-size:13px;box-shadow:inset 0 0 0 1px rgba(25,140,115,.08);transition:transform .5s var(--motion-spring),background-color .25s ease,color .25s ease}
+    .motion-icon.heroicon svg{width:17px;height:17px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+    .pulse-hero .motion-icon{width:40px;height:40px;border-radius:12px;--motion-icon-bg:#fff0e9;--motion-icon-color:#e85f46;font-size:17px}
+    .pulse-title-row{display:flex;align-items:center;gap:12px}.pulse-kpi{overflow:hidden}.pulse-kpi .pulse-kpi-label{display:flex;align-items:center;gap:8px}.pulse-kpi .motion-icon{width:26px;height:26px;border-radius:8px;font-size:11px}
+    .pulse-kpi:hover .motion-icon,.pulse-action:hover .motion-icon,.pulse-card:hover>.pulse-card-head .motion-icon,.call-workbench-kpi:hover .motion-icon{transform:scale(1.12) rotate(-3deg)}
+    .pulse-card-title-row,.call-workbench-title-row,.call-workbench-section-label{display:flex;align-items:center;gap:10px}.pulse-card-title-row .motion-icon{width:28px;height:28px}
+    .pulse-kpi,.pulse-card,.pulse-summary-strip,.pulse-hero,.call-workbench-head,.call-workbench-kpi,.call-workbench-filterbar,.call-workbench-panel{will-change:transform,opacity}
+    .pulse-action,.pulse-issue,.pulse-stage,.pulse-expert,.call-workbench-call-card,.call-workbench-sop-pill,.call-workbench-timeline-seg{transition:transform .45s var(--motion-spring),box-shadow .28s ease,border-color .28s ease,background-color .28s ease,filter .28s ease}
+    .pulse-action:active,.pulse-issue:active,.pulse-stage:active,.pulse-expert:active,.pulse-kpi:active,.call-workbench-kpi:active,.call-workbench-call-card:active,.call-workbench-sop-pill:active{transform:scale(.975);transition-duration:.08s}
+    .pulse-bar i,.pulse-track i,.call-workbench-timeline-seg{transform-origin:left center}
+    .motion-route-indicator{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;background:rgba(245,247,245,.68);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);animation:motionOverlayIn .22s ease both}.motion-route-indicator>span{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e2e8e3;border-radius:999px;padding:11px 17px;color:#24453e;box-shadow:0 18px 55px rgba(25,57,52,.16);font-weight:750}.motion-route-indicator i{color:#ef694f}
+    @keyframes motionPageExit{to{opacity:0;transform:scale(.985) translateY(5px);filter:blur(3px)}}
+    @keyframes motionOverlayIn{from{opacity:0}to{opacity:1}}
+    @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}.motion-page-exit{animation:none!important}.motion-route-indicator{backdrop-filter:none;-webkit-backdrop-filter:none}}
     .sop-legend span{display:inline-flex;align-items:center;gap:4px}
     .sop-dot{width:7px;height:7px;border-radius:50%;background:var(--sop-color,#14806f);display:inline-block}
     .sop-list{display:grid;gap:8px;padding:12px 14px}
@@ -6301,6 +6465,19 @@ function ensureAdhocAlertStyles() {
     .call-workbench-checkpoint{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:start;color:#53635f}
     .call-workbench-checkpoint i{width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#dce2dd;color:#65746f;font-size:10px;font-style:normal;margin-top:1px}
     .call-workbench-checkpoint.hit i{background:#14806f;color:#fff}.call-workbench-checkpoint b{display:block;color:#20332f;margin:0 0 2px}.call-workbench-checkpoint span{font-size:11px;color:#65746f}
+    /* Keep drill-down workbench visually continuous with the bright pulse board. */
+    .call-workbench-shell{background:#f5f7f5;color:#20312e}
+    .call-workbench-body{padding:18px clamp(16px,2vw,30px) 30px}
+    .call-workbench-head{background:linear-gradient(120deg,#fff 0%,#fff8ef 62%,#e4f7f1 100%);border:1px solid #e5e9e4;border-radius:16px;padding:18px 22px;margin-bottom:14px;box-shadow:0 10px 26px rgba(48,71,64,.08)}
+    .call-workbench-title h2{color:#193934;font-size:26px;letter-spacing:-.03em}.call-workbench-title span{color:#277db3;background:#e6f3fb;border-color:#c7e2f2;border-radius:7px;padding:5px 10px}.call-workbench-sub{color:#6f817c}
+    .call-workbench-kpis{gap:12px}.call-workbench-kpi{border-color:#e2e8e3;border-radius:14px;box-shadow:0 6px 18px rgba(48,71,64,.06);padding:14px 16px;min-height:88px}.call-workbench-kpi b{color:#58706a}.call-workbench-kpi strong{font-size:27px}.call-workbench-kpi span{color:#8a9994}
+    .call-workbench-filterbar{border-color:#e2e8e3;border-radius:13px;background:rgba(255,255,255,.96);box-shadow:0 8px 20px rgba(48,71,64,.08)}.call-workbench-filterbar .filter-chip,.call-workbench-filterbar select{border-color:#dce8e2;background:#fbfdfb;color:#35544d;border-radius:9px}
+    .call-workbench-panel{border-color:#e2e8e3;border-radius:15px;box-shadow:0 8px 22px rgba(48,71,64,.06)}.call-workbench-list-head{border-bottom-color:#edf1ee;padding:15px 16px}.call-workbench-list-head b,.call-workbench-expert-head{color:#193934}.call-workbench-list-head span,.call-workbench-expert-head span:last-child{color:#7a8b86}
+    .call-workbench-call-card{border-color:#e2e8e3;border-radius:11px;padding:12px;background:#fff}.call-workbench-call-card:hover{border-color:#7bc7b2;box-shadow:0 0 0 2px rgba(41,168,135,.12)}.call-workbench-call-card.active{border-color:#ef694f;background:#fffaf5;box-shadow:0 0 0 2px rgba(239,105,79,.14)}.call-workbench-call-card-top b{color:#24453e}.call-workbench-card-meta{color:#7a8b86}
+    .call-workbench-badge{border-color:#bfe4d8;background:#e3f6ef;color:#14866e}.call-workbench-badge.warn{border-color:#f0d49e;background:#fff2d8;color:#ad6a10}.call-workbench-badge.bad{border-color:#efb7b1;background:#ffe4e1;color:#c64040}.call-workbench-badge.neutral{border-color:#dfe8e3;background:#f3f7f4;color:#6f817c}
+    .call-workbench-detail{background:#fff}.call-workbench-customer-head{border-bottom-color:#edf1ee;padding:16px 18px}.call-workbench-customer-title b{color:#193934}.call-workbench-sopbar,.call-workbench-audio{border-color:#dce8e2;border-radius:12px;background:#fbfdfb}.call-workbench-sopbar-head{color:#193934}.call-workbench-sopbar-head span{color:#7a8b86}.call-workbench-sop-pill{border-color:#dce8e2;background:#fff;color:#46635c}.call-workbench-sop-pill.hit{border-color:#bfe4d8;background:#e3f6ef;color:#14866e}.call-workbench-sop-pill.warn{border-color:#f0d49e;background:#fff2d8;color:#ad6a10}.call-workbench-sop-pill.active{border-color:#ef694f;color:#d94f43;box-shadow:0 0 0 2px rgba(239,105,79,.14)}
+    .call-workbench-audio-head,.call-workbench-section-title{color:#58706a}.call-workbench-timeline-info,.call-workbench-timeline-label{color:#198c73}.call-workbench-timeline{background:#edf2ee}.call-workbench-timeline-seg{--evidence-color:#29a887}.call-workbench-timeline-seg.standard{--evidence-color:#3c91cf}.call-workbench-timeline-seg.basic{--evidence-color:#e8a13e}.call-workbench-timeline-seg.miss{--evidence-color:#dfe8e3}
+    .call-workbench-main{border-top-color:#edf1ee}.call-workbench-asr{background:#fbfdfb;border-right-color:#edf1ee}.call-workbench-bubble{border-color:#bfe4d8;border-left-color:#29a887;background:#fff}.call-workbench-bubble.customer{border-color:#c7def0;border-right-color:#3c91cf;background:#f3f8fc}.call-workbench-role{color:#14866e;background:#e3f6ef;border-color:#bfe4d8}.call-workbench-bubble.customer .call-workbench-role{color:#277db3;background:#e6f3fb;border-color:#c7def0}.call-workbench-evidence-card{border-color:#e2e8e3;border-radius:11px}.call-workbench-evidence-card b,.call-workbench-checkpoint b{color:#24453e}.call-workbench-evidence-card p,.call-workbench-checkpoint{color:#58706a}.call-workbench-checkpoint.hit i{background:#29a887}
     .call-report-drill-result-table th{white-space:nowrap;background:#f4f7f5}
     .call-report-drill-result-table td{vertical-align:middle}
     .call-report-drill-value-bar{min-width:150px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
@@ -7143,13 +7320,14 @@ function execReportHeatmapHtml(rows, monthKey, itemKey, valueKey, productOrder=[
 }
 
 function callReportFilters(spec) {
-  const filters = [...(spec.query?.filters || [])];
+  let filters = [...(spec.query?.filters || [])];
   try {
     dashboardApplicableGlobalFilters(spec).forEach(filter => {
-      const key = `${filter.member}|${filter.operator}|${(filter.values || []).join(',')}`;
-      if (!filters.some(item => `${item.member}|${item.operator}|${(item.values || []).join(',')}` === key)) {
-        filters.push(filter);
-      }
+      // The dashboard is the active analysis context.  Replace a saved
+      // component default for the same member so changing date/store never
+      // produces two contradictory filters.
+      filters = filters.filter(item => item?.member !== filter?.member);
+      filters.push(filter);
     });
   } catch(e) {}
   return filters;
@@ -7639,7 +7817,18 @@ function callSopWorkbenchDrillUrl(drill={}, filters=[]) {
 }
 
 function callSopOpenWorkbenchDrill(drill={}, filters=[]) {
-  location.href = callSopWorkbenchDrillUrl(drill, filters);
+  const destination = callSopWorkbenchDrillUrl(drill, filters);
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    location.href = destination;
+    return;
+  }
+  const activeSurface = document.querySelector('.pulse-board,.call-workbench-shell,.dashboard-widget-chart');
+  activeSurface?.classList.add('motion-page-exit');
+  const overlay = document.createElement('div');
+  overlay.className = 'motion-route-indicator';
+  overlay.innerHTML = `<span>${appMotionIcon('arrow-trend-down','coral')}正在打开分析工作台</span>`;
+  document.body.appendChild(overlay);
+  window.setTimeout(() => { location.href = destination; }, 220);
 }
 
 async function openCallReportDetailFromChooser() {
@@ -8748,6 +8937,97 @@ function callSopSortedExpertItems(expertItems=[]) {
     });
 }
 
+function callPulseIsoDates(endDay='', count=7) {
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(String(endDay || ''))
+    ? new Date(`${endDay}T00:00:00`)
+    : new Date();
+  return Array.from({length:count}, (_, index) => {
+    const date = new Date(parsed);
+    date.setDate(parsed.getDate() - (count - index - 1));
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  });
+}
+
+function callPulseFiltersForDay(filters=[], day='') {
+  const next = (filters || []).filter(item => item?.member !== 'ad.date_day');
+  next.push({kind:'dimension', member:'ad.date_day', operator:'in', values:[day], valueLabels:{[day]:day}});
+  return next;
+}
+
+async function callPulseLoadTrend(filters=[], endDay='', currentAnalysis=null) {
+  const dates = callPulseIsoDates(endDay, 7);
+  const rows = await Promise.all(dates.map((date, index) => {
+    if (index === dates.length - 1 && currentAnalysis) return Promise.resolve(currentAnalysis);
+    return callSopLoadAnalysis(callPulseFiltersForDay(filters, date)).catch(() => null);
+  }));
+  return dates.map((date, index) => {
+    const summary = rows[index]?.summary || {};
+    return {
+      date,
+      score:Number(summary.avgQualityScore || 0),
+      sop:Number(summary.coverageRate || 0) * 100,
+      issue:Number(summary.qualityIssueRate || 0) * 100,
+      total:Number(summary.totalCalls || 0),
+    };
+  });
+}
+
+function callPulseDelta(current=0, previous=0, digits=1, suffix='') {
+  const delta = Number(current || 0) - Number(previous || 0);
+  const sign = delta > 0 ? '+' : '';
+  return `${sign}${callReportNum(delta, digits)}${suffix}`;
+}
+
+function callPulseTrendHtml(rows=[]) {
+  const valid = (rows || []).filter(item => item.total > 0);
+  if (valid.length < 2) return '<div class="pulse-trend-empty">当前筛选下趋势样本不足</div>';
+  const width = 620, height = 150, padX = 24, padY = 16;
+  const x = index => padX + index * ((width - padX * 2) / Math.max(1, valid.length - 1));
+  const y = value => height - padY - Math.max(0, Math.min(100, Number(value || 0))) / 100 * (height - padY * 2);
+  const path = key => valid.map((item, index) => `${index ? 'L' : 'M'} ${x(index).toFixed(1)} ${y(item[key]).toFixed(1)}`).join(' ');
+  const scoreDots = valid.map((item, index) => `<circle class="pulse-trend-dot-score" cx="${x(index)}" cy="${y(item.score)}" r="3"><title>${item.date} 质量分 ${callReportNum(item.score,1)}</title></circle>`).join('');
+  const sopDots = valid.map((item, index) => `<circle class="pulse-trend-dot-sop" cx="${x(index)}" cy="${y(item.sop)}" r="3"><title>${item.date} SOP命中率 ${callReportRate(item.sop,1)}</title></circle>`).join('');
+  const grid = [25,50,75].map(value => `<line class="pulse-trend-grid" x1="${padX}" x2="${width-padX}" y1="${y(value)}" y2="${y(value)}"></line>`).join('');
+  return `<div class="pulse-trend"><svg class="pulse-trend-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-label="近7日质量趋势">${grid}<line class="pulse-trend-target" x1="${padX}" x2="${width-padX}" y1="${y(70)}" y2="${y(70)}"><title>质量目标 70</title></line><path class="pulse-trend-score" d="${path('score')}"></path><path class="pulse-trend-sop" d="${path('sop')}"></path>${scoreDots}${sopDots}</svg><div class="pulse-trend-labels">${valid.map(item => `<span>${escHtml(item.date.slice(5))}</span>`).join('')}</div><div class="pulse-trend-legend"><span><i style="background:#e05252"></i>平均质量分</span><span><i style="background:#29a887"></i>SOP命中率</span><span><i style="height:1px;border-top:1px dashed #d99042"></i>质量目标 70</span></div></div>`;
+}
+
+function callPulseActionRows(weakRule={}, weakExpert={}, issueName='', day='') {
+  const expert = weakExpert?.name || '待指定专家';
+  const sop = weakRule?.name ? callSopRuleDisplay(weakRule.name) : '关键 SOP 环节';
+  return [
+    {id:'coach', priority:'高', owner:'演示店长', target:expert, issue:`${sop} 专项陪练`, due:day, goal:`命中率提升至 70%`, drill:{expert, sop:weakRule?.name || '', connected:'true', group:'sop'}},
+    {id:'review', priority:'高', owner:'质检主管', target:'问题通话池', issue:`复盘「${issueName || '低质量通话'}」证据`, due:day, goal:'完成 5 通逐通复盘', drill:{issue:issueName || '', problem:'quality', connected:'true', group:'problem'}},
+    {id:'follow', priority:'中', owner:'演示店长', target:expert, issue:'下一步动作闭环检查', due:'次日', goal:'动作完成率达到 80%', drill:{expert, connected:'true', group:'expert'}},
+  ];
+}
+
+function callPulseActionStateKey(widget={}, action={}) {
+  return `insightmind:pulse-action:${widget?.id || 'dashboard'}:${action.id}`;
+}
+
+function callPulseActionTableHtml(actions=[], widget={}) {
+  const state = action => localStorage.getItem(callPulseActionStateKey(widget, action)) || '待处理';
+  return `<table class="pulse-action-table"><thead><tr><th>优先级</th><th>负责人</th><th>对象</th><th>改进动作</th><th>目标 / 截止</th><th>状态</th><th>证据</th></tr></thead><tbody>${actions.map(action => { const current = state(action); return `<tr><td><span class="pulse-priority ${action.priority === '中' ? 'medium' : ''}">${action.priority}</span></td><td>${escHtml(action.owner)}</td><td>${escHtml(action.target)}</td><td>${escHtml(action.issue)}</td><td>${escHtml(action.goal)} · ${escHtml(action.due)}</td><td><button type="button" class="pulse-action-state ${current === '已完成' ? 'done' : ''}" data-pulse-action="${escHtml(action.id)}">${escHtml(current)}</button></td><td><button type="button" class="pulse-action-link" data-pulse-evidence="${escHtml(action.id)}">下钻证据</button></td></tr>`; }).join('')}</tbody></table>`;
+}
+
+function callPulseBindActions(root, actions=[], widget={}, filters=[]) {
+  const byId = new Map(actions.map(action => [action.id, action]));
+  root?.querySelectorAll('[data-pulse-action]').forEach(button => button.addEventListener('click', () => {
+    const action = byId.get(button.dataset.pulseAction);
+    if (!action) return;
+    const states = ['待处理','进行中','待验证','已完成'];
+    const next = states[(states.indexOf(button.textContent.trim()) + 1) % states.length];
+    localStorage.setItem(callPulseActionStateKey(widget, action), next);
+    button.textContent = next;
+    button.classList.toggle('done', next === '已完成');
+    showToast(`行动状态已更新为「${next}」`, 'success');
+  }));
+  root?.querySelectorAll('[data-pulse-evidence]').forEach(button => button.addEventListener('click', () => {
+    const action = byId.get(button.dataset.pulseEvidence);
+    if (action) callSopOpenWorkbenchDrill(action.drill || {}, filters);
+  }));
+}
+
 function callSopExpertCardsHtml(expertItems, expertRuleMap=new Map(), expandedExpert='') {
   const rows = callSopSortedExpertItems(expertItems);
   return rows.map(item => {
@@ -8928,6 +9208,134 @@ async function renderCallSopDiagnosisWidget(targetId, spec={}, widget={}) {
       query:{measures:baseMeasures, dimensions:['ad.quality_rule','ad.quality_score_level','ad.sales_expert','ad.quality_issue_category'], filters, callSopSource:sopAnalysis?.source || 'semantic_fallback'},
       name:widget.name || spec.name || title
     };
+  } catch(e) {
+    target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
+  }
+}
+
+function appMotionIcon(name, tone='green', library='fa') {
+  const tones = {
+    green:['#e3f6ef','#198c73'], coral:['#fff0e9','#e85f46'], blue:['#e6f3fb','#277db3'],
+    amber:['#fff2d8','#ad6a10'], red:['#ffe4e1','#c64040'], ink:['#e8efec','#193934'],
+  };
+  const [bg, color] = tones[tone] || tones.green;
+  if (library === 'hero') {
+    const paths = {
+      chart:'<path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>',
+      route:'<path d="M3.75 4.5h16.5M6 9.75h12M8.25 15h7.5M10.5 20.25h3"/>',
+    };
+    return `<span class="motion-icon heroicon" style="--motion-icon-bg:${bg};--motion-icon-color:${color}" aria-hidden="true"><svg viewBox="0 0 24 24">${paths[name] || paths.chart}</svg></span>`;
+  }
+  return `<span class="motion-icon" style="--motion-icon-bg:${bg};--motion-icon-color:${color}" aria-hidden="true"><i class="fa-solid fa-${escHtml(name)}"></i></span>`;
+}
+
+function appMotionRunEntrance(root, mode='pulse') {
+  if (!root || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const selector = mode === 'workbench'
+    ? '.call-workbench-head,.call-workbench-filterbar,.call-workbench-kpi,.call-workbench-list-panel,.call-workbench-panel main,.call-workbench-detail'
+    : '.pulse-hero,.pulse-kpi,.pulse-summary-strip,.pulse-card,.pulse-footer';
+  root.querySelectorAll(selector).forEach((element, index) => {
+    element.animate([
+      {opacity:0, transform:'translateY(18px) scale(.985)', filter:'blur(4px)'},
+      {opacity:1, transform:'translateY(0) scale(1)', filter:'blur(0)'},
+    ], {duration:620, delay:Math.min(index * 52, 420), easing:'cubic-bezier(.22,1,.36,1)', fill:'both'});
+  });
+  root.querySelectorAll('.pulse-bar i,.pulse-track i,.call-workbench-timeline-seg').forEach((element, index) => {
+    element.animate([{transform:'scaleX(0)'},{transform:'scaleX(1)'}], {duration:780, delay:180 + Math.min(index * 45, 400), easing:'cubic-bezier(.22,1,.36,1)', fill:'both'});
+  });
+  root.querySelectorAll('.pulse-kpi strong,.pulse-summary-item b,.call-workbench-kpi strong').forEach((element, index) => {
+    element.animate([{opacity:0, transform:'translateY(8px)'},{opacity:1, transform:'translateY(0)'}], {duration:520, delay:160 + index * 42, easing:'cubic-bezier(.16,1,.3,1)', fill:'both'});
+  });
+}
+
+async function renderCallQualityPulseWidget(targetId, spec={}, widget={}) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  target.innerHTML = `<div class="pulse-board d-flex align-items-center justify-content-center"><span class="spinner-border spinner-border-sm me-2"></span>正在整理通话质量脉搏...</div>`;
+  const filters = callReportFilters(spec);
+  const store = (filters.find(item => item.member === 'ad.store')?.valueLabels && Object.values(filters.find(item => item.member === 'ad.store').valueLabels)[0]) || (filters.find(item => item.member === 'ad.store')?.values || [])[0] || '当前门店';
+  const day = (filters.find(item => item.member === 'ad.date_day')?.values || [])[0] || '当前日期';
+  const measures = ['ad.quality_record_count','ad.phone_call_count','ad.pass_call_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_quality_call_count','ad.low_coverage_call_count','ad.missing_slot_count'];
+  try {
+    const [summaryRows, ruleRows, expertRows, issueRows, analysis] = await Promise.all([
+      execReportLoad({measures, dimensions:[], filters, limit:1000, enableAlerts:false}),
+      execReportLoad({measures:['ad.quality_record_count'], dimensions:['ad.quality_rule','ad.quality_score_level'], filters, order:{'ad.quality_record_count':'desc'}, limit:1000, enableAlerts:false}),
+      execReportLoad({measures:['ad.quality_record_count'], dimensions:['ad.sales_expert','ad.quality_score_level'], filters, order:{'ad.quality_record_count':'desc'}, limit:1000, enableAlerts:false}),
+      execReportLoad({measures:['ad.quality_record_count'], dimensions:['ad.quality_issue_category'], filters, order:{'ad.quality_record_count':'desc'}, limit:12, enableAlerts:false}),
+      callSopLoadAnalysis(filters),
+    ]);
+    const trendRows = await callPulseLoadTrend(filters, day, analysis);
+    const summary = summaryRows[0] || {};
+    const data = analysis?.summary || {};
+    const total = Number(data.totalCalls ?? execReportValue(summary, 'ad.phone_call_count'));
+    const connected = Number(data.connectedCalls ?? execReportValue(summary, 'ad.quality_record_count'));
+    const pass = execReportValue(summary, 'ad.pass_call_count');
+    const avgScore = Number(data.avgQualityScore ?? execReportValue(summary, 'ad.avg_call_quality_score'));
+    const lowQuality = Number(data.lowQualityCallCount ?? execReportValue(summary, 'ad.low_quality_call_count'));
+    const lowCoverage = Number(data.lowCoverageCallCount ?? execReportValue(summary, 'ad.low_coverage_call_count'));
+    const overlap = Number(data.overlappingProblemCallCount || 0);
+    const problem = Number(data.problemCallCount ?? Math.max(0, lowQuality + lowCoverage - overlap));
+    const connectRate = total ? connected / total * 100 : 0;
+    const passRate = data.totalCheckpointCount ? Number(data.coverageRate || 0) * 100 : (connected ? pass / connected * 100 : 0);
+    const issueRate = connected ? problem / connected * 100 : 0;
+    const inviteSuccessRate = Number(data.inviteSuccessRate || 0) * 100;
+    const nextActionRate = Number(data.nextActionCompletionRate || 0) * 100;
+    const rules = analysis?.categories?.length ? callSopItemsFromAnalysis(analysis) : callSopBuildDistributions(ruleRows, 'ad.quality_rule');
+    const experts = analysis?.experts?.length ? callSopExpertItemsFromAnalysis(analysis) : callSopBuildDistributions(expertRows, 'ad.sales_expert');
+    const issues = Array.isArray(analysis?.issues) ? analysis.issues.map(item => ({name:item.name || '未分类', total:Number(item.total || 0)})) : issueRows.map(row => ({name:row['ad.quality_issue_category'] || '未分类', total:Number(row['ad.quality_record_count'] || 0)}));
+    const maxIssue = Math.max(1, ...issues.map(item => item.total));
+    const rankedExperts = callSopSortedExpertItems(experts).slice(0, 8);
+    const weakRule = [...rules].filter(item => Number(item.total || 0) > 0).sort((a, b) => Number(a.achievedRate || 0) - Number(b.achievedRate || 0) || Number(b.total || 0) - Number(a.total || 0))[0] || {};
+    const weakExpert = [...rankedExperts].filter(item => Number(item.total || 0) >= CALL_SOP_EXPERT_MIN_SAMPLE).sort((a, b) => Number(a.achievedRate || 0) - Number(b.achievedRate || 0) || Number(b.total || 0) - Number(a.total || 0))[0] || rankedExperts[rankedExperts.length - 1] || {};
+    const topIssue = [...issues].sort((a, b) => b.total - a.total)[0] || {};
+    const previousTrend = trendRows[trendRows.length - 2] || {};
+    const scoreDelta = avgScore - Number(previousTrend.score || 0);
+    const statusKey = issueRate > 30 || avgScore < 60 ? 'danger' : issueRate > 15 || avgScore < 70 ? 'warn' : 'good';
+    const statusLabel = statusKey === 'danger' ? '需要介入' : statusKey === 'warn' ? '建议关注' : '运行平稳';
+    const conclusion = statusKey === 'good'
+      ? `今日质量运行平稳，平均质量分 ${callReportNum(avgScore,1)}；建议继续抽查 ${callReportNum(Math.min(3, connected))} 通样本，保持当前辅导节奏。`
+      : `平均质量分较昨日 ${callPulseDelta(avgScore, previousTrend.score, 1, ' 分')}，问题通话占比 ${callReportRate(issueRate)}；主要短板是「${callSopRuleDisplay(weakRule.name || '关键环节')}」，建议优先辅导 ${weakExpert.name || '待指定专家'}。`;
+    const actions = callPulseActionRows(weakRule, weakExpert, topIssue.name || '', day);
+    const baseDrillFilters = callReportMergedFilters(filters);
+    const pulseDrill = (measure, label, extra=[]) => callReportDrillAttrs(measure, callReportMergedFilters(filters, extra), {metricLabel:label, rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true});
+    const title = spec.view?.encoding?.reportTitle || '通话质量脉搏';
+    target.innerHTML = `<div class="pulse-board">
+      <div class="pulse-hero"><div><div class="pulse-eyebrow">CALL QUALITY / DAILY SIGNAL</div><div class="pulse-title-row">${appMotionIcon('chart','coral','hero')}<div><h2>${escHtml(title)}</h2><p>把通话样本转成今天可执行的辅导信号</p></div></div></div><div class="pulse-context"><b>${escHtml(store)}</b><span>${escHtml(day)} · SOP ${escHtml(callSopVersionLabel(analysis?.version))}</span></div></div>
+      <div class="pulse-kpis">
+        <div class="pulse-kpi" ${pulseDrill('ad.sop_total_call_count','总通话量')}><span class="pulse-kpi-label">${appMotionIcon('phone-volume','coral')}总通话量</span><strong>${escHtml(callReportNum(total || connected))}</strong><em>纳入质检范围</em></div>
+        <div class="pulse-kpi accent-blue" ${pulseDrill('ad.effective_connect_rate','有效接通率')}><span class="pulse-kpi-label">${appMotionIcon('signal','blue')}有效接通率</span><strong>${escHtml(callReportRate(connectRate))}</strong><em>${escHtml(callReportNum(connected))} 通可识别</em></div>
+        <div class="pulse-kpi accent-green" ${pulseDrill('ad.sop_checkpoint_pass_rate','检查点命中率')}><span class="pulse-kpi-label">${appMotionIcon('list-check','green')}检查点命中率</span><strong>${escHtml(callReportRate(passRate))}</strong><em>按 SOP 检查点计算</em></div>
+        <div class="pulse-kpi accent-red" ${pulseDrill('ad.quality_issue_rate','问题通话占比')}><span class="pulse-kpi-label">${appMotionIcon('triangle-exclamation','red')}问题通话占比</span><strong>${escHtml(callReportRate(issueRate))}</strong><em>${escHtml(callReportNum(problem))} 通待复盘</em></div>
+        <div class="pulse-kpi accent-amber" ${pulseDrill('ad.avg_call_quality_score','平均质量分')}><span class="pulse-kpi-label">${appMotionIcon('gauge-high','amber')}平均质量分</span><strong>${escHtml(callReportNum(avgScore, 1))}</strong><em>通过线 50 分</em></div>
+        <div class="pulse-kpi accent-purple" data-sop-direct="true" ${callSopDrillAttrs({result:'邀约成功', connected:'true'})}><span class="pulse-kpi-label">${appMotionIcon('calendar-check','blue')}邀约成功率</span><strong>${escHtml(callReportRate(inviteSuccessRate))}</strong><em>${escHtml(callReportNum(data.inviteSuccessCallCount || 0))} / ${escHtml(callReportNum(data.inviteEligibleCallCount || connected))} 通</em></div>
+      </div>
+      <div class="pulse-conclusion ${statusKey}"><span>${statusLabel}</span><div><b>今日业务结论</b><p>${escHtml(conclusion)}</p></div><small>质量分环比 ${escHtml(callPulseDelta(avgScore, previousTrend.score, 1))} · SOP ${escHtml(callPulseDelta(passRate, previousTrend.sop, 1, 'pp'))}</small></div>
+      <div class="pulse-summary-strip">
+        <div class="pulse-summary-label"><span>运营节奏</span><b>今日质量快照</b></div>
+        <div class="pulse-summary-item"><i class="pulse-summary-dot coral"></i><div><b>${escHtml(callReportNum(lowQuality))} 通</b><span>低质量样本</span></div></div>
+        <div class="pulse-summary-item"><i class="pulse-summary-dot amber"></i><div><b>${escHtml(callReportNum(lowCoverage))} 通</b><span>低覆盖样本</span></div></div>
+        <div class="pulse-summary-item"><i class="pulse-summary-dot blue"></i><div><b>${escHtml(callReportNum(overlap))} 通</b><span>两类问题重合</span></div></div>
+        <div class="pulse-summary-note">优先把问题池分给辅导负责人，明日复盘同一批规则。</div>
+      </div>
+      <div class="pulse-grid">
+        <section class="pulse-card pulse-focus"><div class="pulse-card-head"><div><span class="pulse-index">01</span><div class="pulse-card-title-row">${appMotionIcon('bolt','coral')}<div><h3>今天先处理什么</h3><p>按影响面排序，点击信号可直接下钻。</p></div></div></div><span class="pulse-status ${issueRate > 30 ? 'danger' : issueRate > 15 ? 'warn' : 'good'}">${issueRate > 30 ? '需要介入' : issueRate > 15 ? '建议关注' : '运行平稳'}</span></div><div class="pulse-actions">
+        <button type="button" class="pulse-action" data-sop-direct="true" ${callSopDrillAttrs({problem:'quality', connected:'true', group:'problem'})}>${appMotionIcon('headset','red')}<div><b>问题通话池</b><p>${escHtml(callReportNum(problem))} 通问题样本，低质量 ${escHtml(callReportNum(lowQuality))} 通，低覆盖 ${escHtml(callReportNum(lowCoverage))} 通。</p></div><i class="fa-solid fa-chevron-right"></i></button>
+        <button type="button" class="pulse-action" data-sop-direct="true" ${callSopDrillAttrs({sop:(weakRule.name || ''), level:'miss', grade:'未达成', connected:'true', group:'sop'})}>${appMotionIcon('route','amber','hero')}<div><b>最该补齐的环节</b><p>${escHtml(weakRule.name ? callSopRuleDisplay(weakRule.name) : '暂无明显短板')}，检查点命中率 ${escHtml(callReportRate(weakRule.achievedRate || 0,0))}。</p></div><i class="fa-solid fa-chevron-right"></i></button>
+        <button type="button" class="pulse-action" data-sop-direct="true" ${callSopDrillAttrs({expert:weakExpert.name || '', connected:'true', group:'expert'})}>${appMotionIcon('user-graduate','green')}<div><b>需要陪练的专家</b><p>${escHtml(weakExpert.name || '暂无')}，${escHtml(callReportNum(weakExpert.total || 0))} 通样本、命中率 ${escHtml(callReportRate(weakExpert.achievedRate || 0,0))}。</p></div><i class="fa-solid fa-chevron-right"></i></button>
+      </div></section>
+        <section class="pulse-card"><div class="pulse-card-head"><div><span class="pulse-index">02</span><div class="pulse-card-title-row">${appMotionIcon('magnifying-glass-chart','blue')}<div><h3>问题从哪里来</h3><p>按问题类型看待复盘容量。</p></div></div></div></div><div class="pulse-issues">${issues.slice(0,6).map((item, idx) => `<button type="button" class="pulse-issue" data-sop-direct="true" ${callSopDrillAttrs({issue:item.name, connected:'true', group:'problem'})}><span>${String(idx + 1).padStart(2,'0')}</span><div><b>${escHtml(item.name)}</b><div class="pulse-bar"><i style="width:${Math.round(item.total / maxIssue * 100)}%"></i></div></div><strong>${escHtml(callReportNum(item.total))}</strong></button>`).join('') || '<div class="text-muted p-3">暂无问题分类数据</div>'}</div></section>
+      </div>
+      <div class="pulse-grid pulse-grid-bottom"><section class="pulse-card"><div class="pulse-card-head"><div><span class="pulse-index">03</span><div class="pulse-card-title-row">${appMotionIcon('route','green','hero')}<div><h3>SOP 旅程健康度</h3><p>从开场到收口，观察每个环节的达成质量。</p></div></div></div><div class="pulse-legend"><i></i>命中率</div></div><div class="pulse-journey">${rules.slice(0,8).map((item, idx) => { const rate = Number(item.achievedRate || 0); return `<button type="button" class="pulse-stage" data-sop-direct="true" ${callSopDrillAttrs({sop:item.name || '', connected:'true', group:'sop'})}><span>${String(idx + 1).padStart(2,'0')}</span><div><b>${escHtml(callSopRuleDisplay(item.name || '未命名环节'))}</b><div class="pulse-track"><i style="width:${Math.max(3, Math.min(100, rate))}%;background:${rate < 50 ? '#ef806f' : rate < 75 ? '#e5b765' : '#49bda7'}"></i></div></div><strong>${escHtml(callReportRate(rate, 0))}</strong></button>`; }).join('') || '<div class="text-muted p-3">暂无 SOP 分布</div>'}</div></section>
+        <section class="pulse-card"><div class="pulse-card-head"><div><span class="pulse-index">04</span><div class="pulse-card-title-row">${appMotionIcon('people-group','amber')}<div><h3>专家辅导榜</h3><p>按检查点命中率排序，小样本仅作参考。</p></div></div></div></div><div class="pulse-experts">${rankedExperts.map((item, idx) => `<button type="button" class="pulse-expert" data-sop-direct="true" ${callSopDrillAttrs({expert:item.name || '', connected:'true', group:'expert'})}><span class="pulse-avatar">${escHtml(String(item.name || '?').slice(-1))}</span><div><b>${escHtml(item.name || '-')}</b><small>${escHtml(callReportNum(item.total))} 通 · 未达成 ${escHtml(callReportNum(item.miss || 0))}</small></div><strong>${escHtml(callReportRate(item.achievedRate || 0, 0))}</strong><i class="fa-solid fa-chevron-right"></i></button>`).join('') || '<div class="text-muted p-3">暂无专家数据</div>'}</div></section></div>
+      <div class="pulse-grid pulse-grid-analysis"><section class="pulse-card"><div class="pulse-card-head"><div><span class="pulse-index">05</span><div class="pulse-card-title-row">${appMotionIcon('chart-line','red')}<div><h3>近 7 日质量趋势</h3><p>平均质量分、SOP 命中率与目标线对比。</p></div></div></div><span class="pulse-status ${scoreDelta < -5 ? 'danger' : scoreDelta < 0 ? 'warn' : 'good'}">质量分 ${escHtml(callPulseDelta(avgScore, previousTrend.score,1))}</span></div>${callPulseTrendHtml(trendRows)}</section><section class="pulse-card"><div class="pulse-card-head"><div><span class="pulse-index">06</span><div class="pulse-card-title-row">${appMotionIcon('link','green')}<div><h3>指标联动解释</h3><p>把质量短板与结果指标放在同一条链路。</p></div></div></div></div><div class="pulse-actions"><div class="pulse-action"><span class="pulse-action-num">1</span><div><b>SOP 命中率 ${escHtml(callReportRate(passRate))}</b><p>较昨日 ${escHtml(callPulseDelta(passRate, previousTrend.sop,1,'pp'))}，最弱环节「${escHtml(callSopRuleDisplay(weakRule.name || '-'))}」。</p></div></div><div class="pulse-action"><span class="pulse-action-num">2</span><div><b>问题通话占比 ${escHtml(callReportRate(issueRate))}</b><p>${escHtml(callReportNum(problem))} 通待复盘，主要来源「${escHtml(topIssue.name || '未分类')}」。</p></div></div><div class="pulse-action"><span class="pulse-action-num">3</span><div><b>邀约成功率 ${escHtml(callReportRate(inviteSuccessRate))}</b><p>下一步动作完成率 ${escHtml(callReportRate(nextActionRate))}，用于验证质量改善是否转成业务结果。</p></div></div></div></section></div>
+      <section class="pulse-card pulse-card-wide"><div class="pulse-card-head"><div><span class="pulse-index">07</span><div class="pulse-card-title-row">${appMotionIcon('clipboard-check','amber')}<div><h3>行动清单与结果追踪</h3><p>点击状态推进处理进度，点击证据进入逐通 ASR 工作台。</p></div></div></div><span class="pulse-status warn">${actions.length} 项待跟进</span></div>${callPulseActionTableHtml(actions, widget)}</section>
+      <div class="pulse-data-note"><span>数据截止 ${escHtml(day)} 23:59 · 来源：DA 通话质检服务 · SOP ${escHtml(callSopVersionLabel(analysis?.version))} · 当前有效样本 ${escHtml(callReportNum(connected))} 通</span><details><summary>查看数据口径</summary><p>问题率 = 低质量或低覆盖问题通话 / 有效接通通话；SOP 命中率 = 已命中检查点 / 应检查点；邀约成功率 = 邀约成功 / 有效邀约场景。专家少于 ${CALL_SOP_EXPERT_MIN_SAMPLE} 通时仅作参考。</p></details></div>
+      <div class="pulse-footer"><span>数据口径：统一质检结果表 · 可点击指标、问题和专家下钻到逐通复盘</span><span>建议每日复盘一次</span></div>
+    </div>`;
+    callSopBindDrillElements(target, baseDrillFilters);
+    callPulseBindActions(target, actions, widget, baseDrillFilters);
+    appMotionRunEntrance(target, 'pulse');
+    _dashboardWidgetResults[widget?.id || targetId] = {rows:[summary, ...issues, ...rules, ...experts], query:{measures, dimensions:['ad.quality_rule','ad.sales_expert','ad.quality_issue_category'], filters}, name:widget.name || spec.name || title};
   } catch(e) {
     target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
   }
@@ -9262,26 +9670,26 @@ function callWorkbenchDetailHtml(record=null, selectedCode='', state={}) {
       </div>
     </div>
     <div class="call-workbench-sopbar">
-      <div class="call-workbench-sopbar-head"><b>单通 SOP 概览</b><span>SOP 总评：${escHtml(record.sopGradeLabel || '-')} · ${achievedCount} / ${evidenceRows.length || 8}</span></div>
+      <div class="call-workbench-sopbar-head"><b class="call-workbench-section-label">${appMotionIcon('list-check','green')}单通 SOP 概览</b><span>SOP 总评：${escHtml(record.sopGradeLabel || '-')} · ${achievedCount} / ${evidenceRows.length || 8}</span></div>
       <div class="call-workbench-sop-pills">
         ${evidenceRows.map(item => `<button class="call-workbench-sop-pill ${callWorkbenchSopClass(item, selectedEvidenceCode)}" type="button" data-sop-code="${escHtml(String(item.code || item.name || ''))}">${escHtml(item.name || '-')} ${Number(item.hitCount || 0) ? '✓' : '-'}</button>`).join('')}
       </div>
     </div>
     <div class="call-workbench-audio">
-      <div class="call-workbench-audio-head"><div class="call-workbench-timeline-info"><span class="call-workbench-timeline-label"><i class="bi bi-diagram-3"></i>SOP 证据时序</span><span class="call-workbench-timeline-legend"><span><i></i>高质量</span><span><i class="standard"></i>标准</span><span><i class="basic"></i>基础</span><span><i class="neutral"></i>未定位</span></span><span class="call-workbench-timeline-note">彩色段为 ASR 命中证据</span></div><span>${escHtml(record.durationLabel || '-')}</span></div>
+      <div class="call-workbench-audio-head"><div class="call-workbench-timeline-info"><span class="call-workbench-timeline-label"><i class="fa-solid fa-wave-square"></i>SOP 证据时序</span><span class="call-workbench-timeline-legend"><span><i></i>高质量</span><span><i class="standard"></i>标准</span><span><i class="basic"></i>基础</span><span><i class="neutral"></i>未定位</span></span><span class="call-workbench-timeline-note">彩色段为 ASR 命中证据</span></div><span>${escHtml(record.durationLabel || '-')}</span></div>
       ${callWorkbenchTimelineHtml(record, selectedEvidenceCode)}
     </div>
     <div class="call-workbench-main">
       <section class="call-workbench-asr">
-        <div class="call-workbench-section-title"><b>全量 ASR 文本</b><span>${escHtml(record.wordCount || 0)}字</span></div>
+        <div class="call-workbench-section-title"><b class="call-workbench-section-label">${appMotionIcon('comments','blue')}全量 ASR 文本</b><span>${escHtml(record.wordCount || 0)}字</span></div>
         ${callWorkbenchAsrHtml(record, selectedEvidence)}
       </section>
       <section class="call-workbench-evidence">
-        <div class="call-workbench-section-title"><b>点选 SOP 相关信息</b><span>${escHtml(titleSopText)}</span></div>
-        <div class="call-workbench-evidence-card"><b>ASR 原文本</b><p>${escHtml(selectedEvidence?.asrText || '暂无命中证据。')}</p></div>
-        <div class="call-workbench-evidence-card"><b>做得好的点</b><p>${escHtml(selectedEvidence?.goodPoint || '暂无稳定命中证据。')}</p></div>
-        <div class="call-workbench-evidence-card"><b>做得不好的点</b><p>${escHtml(selectedEvidence?.badPoint || '暂无待补齐项。')}</p></div>
-        <div class="call-workbench-evidence-card"><b>小达成点</b>${callWorkbenchCheckpointsHtml(selectedEvidence)}</div>
+        <div class="call-workbench-section-title"><b class="call-workbench-section-label">${appMotionIcon('file-waveform','coral')}点选 SOP 相关信息</b><span>${escHtml(titleSopText)}</span></div>
+        <div class="call-workbench-evidence-card"><b><i class="fa-solid fa-quote-left me-2 text-primary"></i>ASR 原文本</b><p>${escHtml(selectedEvidence?.asrText || '暂无命中证据。')}</p></div>
+        <div class="call-workbench-evidence-card"><b><i class="fa-solid fa-circle-check me-2 text-success"></i>做得好的点</b><p>${escHtml(selectedEvidence?.goodPoint || '暂无稳定命中证据。')}</p></div>
+        <div class="call-workbench-evidence-card"><b><i class="fa-solid fa-triangle-exclamation me-2 text-warning"></i>做得不好的点</b><p>${escHtml(selectedEvidence?.badPoint || '暂无待补齐项。')}</p></div>
+        <div class="call-workbench-evidence-card"><b><i class="fa-solid fa-bullseye me-2 text-danger"></i>小达成点</b>${callWorkbenchCheckpointsHtml(selectedEvidence)}</div>
       </section>
     </div>
   </div>`;
@@ -9377,7 +9785,7 @@ function callWorkbenchRender(target, data={}, spec={}, widget={}) {
   target.innerHTML = `<div class="call-workbench-shell">
     <div class="call-workbench-body">
       <div class="call-workbench-head">
-        <div class="call-workbench-title"><h2>${escHtml(title)}</h2><span>通话质检</span></div>
+        <div class="call-workbench-title"><div class="call-workbench-title-row">${appMotionIcon('headset','coral')}<h2>${escHtml(title)}</h2></div><span>通话质检</span></div>
         <div class="call-workbench-sub">${escHtml(data.day || '当前日期')} · ${escHtml(data.store || '当前门店')}</div>
       </div>
       <div class="call-workbench-filterbar">
@@ -9387,20 +9795,21 @@ function callWorkbenchRender(target, data={}, spec={}, widget={}) {
         <label class="call-workbench-filter-control"><span>SOP 环节</span><select data-workbench-filter="sop">${callWorkbenchOptionHtml(options.sopOptions || ['全部SOP'], state.sop)}</select></label>
       </div>
       <div class="call-workbench-kpis">
-        <button type="button" class="call-workbench-kpi" style="--exec-accent:#20332f" data-workbench-kpi-drill="all" title="选择总通话量的明细、业务解释或维度下钻"><b>总通话量</b><strong>${escHtml(callReportNum(summary.totalCalls || 0))}</strong><span>点击选择钻取方式 →</span></button>
-        <button type="button" class="call-workbench-kpi" style="--exec-accent:#14806f" data-workbench-kpi-drill="connected" title="选择有效接通率的明细、业务解释或维度下钻"><b>有效接通率</b><strong>${escHtml(callReportRate(Number(summary.connectRate || 0) * 100, 1))}</strong><span>${escHtml(callReportNum(summary.connectedCalls || 0))} 通可复盘 · 选择钻取 →</span></button>
-        <button type="button" class="call-workbench-kpi" style="--exec-accent:#4e7898" data-workbench-kpi-drill="duration" title="选择当前筛选范围平均通话时长的明细、业务解释或维度下钻"><b>平均通话时长</b><strong>${escHtml(avgDuration)} 分</strong><span>${escHtml(avgWordCount)} 字/通 · 选择钻取 →</span></button>
-        <button type="button" class="call-workbench-kpi" style="--exec-accent:#d99042" data-workbench-kpi-drill="filtered" title="选择当前 ${escHtml(callReportNum(filteredRecords.length))} 通样本的明细、业务解释或维度下钻"><b>筛选后样本</b><strong>${escHtml(callReportNum(filteredRecords.length))}</strong><span>当前条件 · 选择钻取 →</span></button>
+        <button type="button" class="call-workbench-kpi" style="--exec-accent:#20332f" data-workbench-kpi-drill="all" title="选择总通话量的明细、业务解释或维度下钻"><b class="call-workbench-section-label">${appMotionIcon('phone-volume','coral')}总通话量</b><strong>${escHtml(callReportNum(summary.totalCalls || 0))}</strong><span>点击选择钻取方式 <i class="fa-solid fa-chevron-right"></i></span></button>
+        <button type="button" class="call-workbench-kpi" style="--exec-accent:#14806f" data-workbench-kpi-drill="connected" title="选择有效接通率的明细、业务解释或维度下钻"><b class="call-workbench-section-label">${appMotionIcon('signal','green')}有效接通率</b><strong>${escHtml(callReportRate(Number(summary.connectRate || 0) * 100, 1))}</strong><span>${escHtml(callReportNum(summary.connectedCalls || 0))} 通可复盘 · 选择钻取 <i class="fa-solid fa-chevron-right"></i></span></button>
+        <button type="button" class="call-workbench-kpi" style="--exec-accent:#4e7898" data-workbench-kpi-drill="duration" title="选择当前筛选范围平均通话时长的明细、业务解释或维度下钻"><b class="call-workbench-section-label">${appMotionIcon('stopwatch','blue')}平均通话时长</b><strong>${escHtml(avgDuration)} 分</strong><span>${escHtml(avgWordCount)} 字/通 · 选择钻取 <i class="fa-solid fa-chevron-right"></i></span></button>
+        <button type="button" class="call-workbench-kpi" style="--exec-accent:#d99042" data-workbench-kpi-drill="filtered" title="选择当前 ${escHtml(callReportNum(filteredRecords.length))} 通样本的明细、业务解释或维度下钻"><b class="call-workbench-section-label">${appMotionIcon('filter-circle-dollar','amber')}筛选后样本</b><strong>${escHtml(callReportNum(filteredRecords.length))}</strong><span>当前条件 · 选择钻取 <i class="fa-solid fa-chevron-right"></i></span></button>
       </div>
       <div class="call-workbench-layout">
         <aside class="call-workbench-panel call-workbench-list-panel">
-          <div class="call-workbench-list-head"><b>通话列表</b><span>${escHtml(callReportNum(filteredRecords.length))} / ${escHtml(callReportNum(records.length))} 通</span></div>
+          <div class="call-workbench-list-head"><b class="call-workbench-section-label">${appMotionIcon('rectangle-list','blue')}通话列表</b><span>${escHtml(callReportNum(filteredRecords.length))} / ${escHtml(callReportNum(records.length))} 通</span></div>
           <div class="call-workbench-list">${callWorkbenchListHtml(filteredRecords, state.selectedId, state)}</div>
         </aside>
         <main class="call-workbench-panel">${callWorkbenchDetailHtml(selectedRecord, state.selectedSop, state)}</main>
       </div>
     </div>
   </div>`;
+  appMotionRunEntrance(target, 'workbench');
   target.querySelectorAll('[data-workbench-kpi-drill]').forEach(card => {
     card.addEventListener('click', () => callWorkbenchOpenKpiDrill(card.dataset.workbenchKpiDrill || 'all', spec, state));
   });
@@ -10677,6 +11086,10 @@ async function renderExecutiveReportWidget(targetId, spec={}, widget={}) {
   }
   if (reportTemplate === 'call_sop_diagnosis') {
     await renderCallSopDiagnosisWidget(targetId, spec, widget);
+    return;
+  }
+  if (reportTemplate === 'call_quality_pulse') {
+    await renderCallQualityPulseWidget(targetId, spec, widget);
     return;
   }
   if (reportTemplate === 'call_sop_quality_workbench') {
@@ -13000,6 +13413,7 @@ const CALL_QUALITY_DASHBOARD_IDS = new Set([
   'dash_da_tms_call_sop_diagnosis',
   'dash_da_tms_call_sop_workbench',
   'dash_da_tms_call_monitor_alert',
+  'dash_da_tms_call_quality_pulse',
 ]);
 
 const CALL_QUALITY_FILTER_MEMBER_KEYS = {
@@ -16603,7 +17017,7 @@ function renderNlqValidation(validation={}) {
       <i class="bi ${icon} mt-1"></i>
       <div>
         <div class="fw-semibold">${title}
-          <span class="badge bg-light text-dark border ms-1">${_escHtml(validation.confidence || '')}</span>
+          <span class="badge bg-light text-dark border ms-1">${_escHtml(_confidenceLabelCn(validation.confidence))}</span>
         </div>
         <div class="small">${_escHtml(validation.summary || '')}</div>
         ${list}
@@ -18764,7 +19178,9 @@ function _sendAck(partKey, success, errorMsg, ackUrl) {
 // ns:          命名空间前缀，'ana'(默认) 或 'ins'
 function _renderWithAck(backendKey, contentElId, expandNum, renderFn, ns) {
   ns = ns || 'ana';
-  const ackUrl = ns === 'ins' ? '/api/insight/ack' : '/api/analysis/ack';
+  const ackUrl = ns === 'ins' && _insightTaskId
+    ? `/api/insight/${encodeURIComponent(_insightTaskId)}/ack`
+    : '/api/analysis/ack';
   const logElId = ns === 'ins' ? 'insight-log' : 'analysis-log';
   const el = document.getElementById(contentElId);
   try {
@@ -20139,11 +20555,21 @@ function _renderDetailTable(rows, cols, colMap, anomalyCols, highlightAnom) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 let _insightSSE = null;
+let _insightTaskId = null;
 let _insightAnswerBuf = '';
+let _insightTimeInfo = null;
+let _insightMetricName = '';
+let _insightTerminalMode = '';
 let _insightActionPlanDraft = null;
 let _insightActionPlanSubmitted = null;
 let _insightFlowMode = 'standard';
 let _insightFlowState = {};
+
+function _confidenceLabelCn(value) {
+  const raw = String(value || '').trim();
+  const labels = {high:'高置信度', medium:'中置信度', low:'低置信度'};
+  return labels[raw.toLowerCase()] || raw;
+}
 
 const _INSIGHT_FLOW_TOTAL_NODES = [
   {id:'A', title:'用户输入问题', desc:'接收自然语言问题'},
@@ -20229,6 +20655,24 @@ function scheduleInsightFlowResize() {
     _insightFlowResizeFrame = 0;
     resizeInsightFlowScroll();
   });
+}
+
+function toggleInsightFlowFullMap() {
+  const scroll = document.querySelector('#insight-flow-card .insight-flow-scroll');
+  const button = document.getElementById('insight-flow-full-btn');
+  const body = document.getElementById('insight-flow-body');
+  if (!scroll || !button) return;
+  const enable = !scroll.classList.contains('full-map');
+  if (enable && body && !body.classList.contains('show')) {
+    try { bootstrap.Collapse.getOrCreateInstance(body, {toggle:false}).show(); }
+    catch (_) { body.classList.add('show'); }
+  }
+  scroll.classList.toggle('full-map', enable);
+  button.textContent = enable ? '退出全图' : '全图展示';
+  button.classList.toggle('btn-secondary', enable);
+  button.classList.toggle('btn-outline-secondary', !enable);
+  button.setAttribute('aria-pressed', enable ? 'true' : 'false');
+  if (!enable) scheduleInsightFlowResize();
 }
 
 function _insightAnalysisMode(conversation) {
@@ -20367,7 +20811,7 @@ function _insightFlowTargetIds(id) {
     kg_candidates: isDeepInsight ? [] : ['H','I','J'],
     confidence: isDeepInsight ? [] : ['K'],
     plan: mode === 'document_trace' ? ['P'] : (isDeepInsight ? ['U','V'] : ['U','V','L']),
-    execute: mode === 'document_trace' ? ['Q','T'] : (isDeepInsight ? ['W'] : ['O','W']),
+    execute: mode === 'document_trace' ? ['Q','T'] : (isDeepInsight ? ['W','O'] : ['O','W']),
     validation: ['Y','Z'],
     evidence_answer: ['AA','AC','AD'],
     done: ['AD'],
@@ -20807,12 +21251,20 @@ function startInsight(questionOverride, triggerBtn) {
 
   // 重置界面（安全访问可能不存在的元素）
   _insightAnswerBuf = '';
+  _insightTimeInfo = null;
+  _insightMetricName = '';
+  _insightTerminalMode = '';
   const _q = (id) => document.getElementById(id);
   _q('insight-log') && (_q('insight-log').innerHTML = '');
   _q('insight-match-card') && (_q('insight-match-card').style.display = 'none');
   _q('insight-error-card') && (_q('insight-error-card').style.display = 'none');
   _q('insight-answer-card') && (_q('insight-answer-card').style.display = 'none');
   _q('insight-answer-content') && (_q('insight-answer-content').innerHTML = '');
+  _q('insight-followups') && (_q('insight-followups').style.display = 'none');
+  _q('insight-business-summary-card') && (_q('insight-business-summary-card').style.display = 'none');
+  const answerCard = _q('insight-answer-card');
+  const summaryCard = _q('insight-business-summary-card');
+  if (answerCard && summaryCard) summaryCard.insertAdjacentElement('afterend', answerCard);
   ['1','2','3','4','5','6'].forEach(n => {
     const c = _q(`ins-part${n}-content`);
     if (c) c.innerHTML = '<span class="text-muted small">等待分析...</span>';
@@ -20825,6 +21277,7 @@ function startInsight(questionOverride, triggerBtn) {
   });
   _q('insight-start-btn') && (_q('insight-start-btn').disabled = true);
   _q('insight-stop-wrap') && (_q('insight-stop-wrap').style.display = '');
+  _q('smart-insight-stop-btn') && (_q('smart-insight-stop-btn').style.display = '');
   if (triggerBtn) btnLoading(triggerBtn, '分析中…');
 
   // 关闭旧 SSE
@@ -20846,17 +21299,27 @@ function startInsight(questionOverride, triggerBtn) {
     completeInsightFlowStep('precheck');
     completeInsightFlowStep(routeNode);
     if (data.conversationId) conversation.conversationId = data.conversationId;
+    _insightTaskId = data.taskId || null;
     conversation.hasTurns = true;
     _renderSmartNlqContextStatus();
     _insightLog('▶ 分析启动，连接 SSE...', 'info');
-    _insightSSE = new EventSource('/api/insight/log');
+    if (!_insightTaskId) throw new Error('服务端未返回 Insight 任务 ID');
+    _insightSSE = new EventSource(`/api/insight/${encodeURIComponent(_insightTaskId)}/log`);
     _insightSSE.onmessage = _insightOnMsg;
     _insightSSE.onerror = () => { _insightSSE.close(); _insightSSE = null; _insightDone(triggerBtn); };
   }).catch(e => { _insightLog('✗ 启动失败: ' + e, 'error'); _insightDone(triggerBtn); });
 }
 
-function stopInsight() {
+async function stopInsight() {
+  const taskId = _insightTaskId;
   if (_insightSSE) { _insightSSE.close(); _insightSSE = null; }
+  if (taskId) {
+    try { await fetch(`/api/insight/${encodeURIComponent(taskId)}/cancel`, {method:'POST'}); }
+    catch (_) {}
+  }
+  _insightLog('■ 已请求停止分析，后端将终止后续查询和模型调用。', 'info');
+  const summary = document.getElementById('insight-flow-summary');
+  if (summary) summary.textContent = '分析已停止';
   _insightDone();
 }
 
@@ -20864,6 +21327,7 @@ function _insightDone(triggerBtn) {
   const _q = (id) => document.getElementById(id);
   _q('insight-start-btn') && (_q('insight-start-btn').disabled = false);
   _q('insight-stop-wrap') && (_q('insight-stop-wrap').style.display = 'none');
+  _q('smart-insight-stop-btn') && (_q('smart-insight-stop-btn').style.display = 'none');
   const smartBtn = triggerBtn || _q('smart-nlq-run-btn');
   if (smartBtn) btnRestore(smartBtn);
 }
@@ -20880,10 +21344,70 @@ function _insightLog(msg, cls) {
   el.scrollTop = el.scrollHeight;
 }
 
+function _renderInsightBusinessSummary() {
+  const card = document.getElementById('insight-business-summary-card');
+  const body = document.getElementById('insight-business-summary');
+  const confidence = document.getElementById('insight-business-confidence');
+  if (!card || !body) return;
+  card.style.display = '';
+  if (confidence) confidence.textContent = _insightAnswerBuf ? '基于返回数据' : '分析中';
+  const t = _insightTimeInfo || {};
+  body.innerHTML = `<div class="row g-2">
+    <div class="col-md-4"><span class="text-muted">分析指标</span><div class="fw-semibold">${_escHtml(_insightMetricName || '识别中')}</div></div>
+    <div class="col-md-4"><span class="text-muted">实际查询范围</span><div class="fw-semibold">${_escHtml(t.time_start || '-')} 至 ${_escHtml(t.time_end || '-')}</div></div>
+    <div class="col-md-4"><span class="text-muted">对比范围</span><div class="fw-semibold">${_escHtml(t.prev_start || '-')} 至 ${_escHtml(t.prev_end || '-')}</div></div>
+  </div>`;
+}
+
+function useInsightFollowup(text) {
+  const input = document.getElementById('smart-nlq-question');
+  if (input) {
+    input.value = text;
+    input.focus();
+    input.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+}
+
+function _renderInsightFollowups() {
+  const el = document.getElementById('insight-followups');
+  if (!el || !_insightMetricName) return;
+  const questions = [
+    `按门店下钻${_insightMetricName}`,
+    `查看${_insightMetricName}的异常明细`,
+    `解释${_insightMetricName}的统计口径`,
+  ];
+  el.style.display = '';
+  el.innerHTML = `<div class="small text-muted mb-1">继续追问</div><div class="d-flex flex-wrap gap-1"></div>`;
+  const wrap = el.querySelector('.d-flex');
+  questions.forEach(question => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-sm btn-outline-primary';
+    button.textContent = question;
+    button.addEventListener('click', () => useInsightFollowup(question));
+    wrap.appendChild(button);
+  });
+}
+
 function _insightOnMsg(e) {
+  if (e.data === '__CANCELLED__') {
+    if (_insightSSE) { _insightSSE.close(); _insightSSE = null; }
+    _insightLog('■ 分析已停止。', 'info');
+    _insightDone();
+    return;
+  }
   if (e.data === '__DONE__') {
-    completeInsightFlowStep('evidence_answer');
-    completeInsightFlowStep('done');
+    if (_insightSSE) { _insightSSE.close(); _insightSSE = null; }
+    if (_insightTerminalMode === 'no_data') {
+      completeInsightFlowStep('validation');
+      completeInsightFlowStep('no_data');
+    } else if (_insightTerminalMode === 'reject') {
+      completeInsightFlowStep('reject');
+    } else {
+      completeInsightFlowStep('evidence_answer');
+      completeInsightFlowStep('done');
+      _renderInsightFollowups();
+    }
     _insightDone();
     return;
   }
@@ -20896,8 +21420,10 @@ function _insightOnMsg(e) {
   // 步骤事件
   if (obj.step === 'time_parsed') {
     const r = obj.result || {};
+    _insightTimeInfo = r;
     const gran = r.gran === 'week' ? '周' : r.gran === 'month' ? '月' : '日';
     completeInsightFlowStep('plan');
+    _renderInsightBusinessSummary();
     _insightLog(`✓ 时间解析: 当期 ${r.time_start||''}~${r.time_end||''} | 上期 ${r.prev_start||''}~${r.prev_end||''} | 粒度=${gran}`, 'success');
     return;
   }
@@ -20920,6 +21446,8 @@ function _insightOnMsg(e) {
   }
   if (obj.step === 'kg_match') {
     const r = obj.result || {};
+    _insightMetricName = r.cn_name || '';
+    _renderInsightBusinessSummary();
     const mc = document.getElementById('insight-match-card');
     const mc_c = document.getElementById('insight-match-content');
     if (mc && mc_c) {
@@ -20937,7 +21465,26 @@ function _insightOnMsg(e) {
     if (ec && et) { ec.style.display = ''; et.textContent = obj.error || '未知错误'; }
     setInsightFlowStep('kg_candidates', 'error');
     setInsightFlowStep('reject', 'error');
+    _insightTerminalMode = 'reject';
     _insightLog('✗ ' + (obj.error || ''), 'error');
+    _insightDone();
+    return;
+  }
+  if (obj.step === 'no_data') {
+    const r = obj.result || {};
+    const card = document.getElementById('insight-business-summary-card');
+    const body = document.getElementById('insight-business-summary');
+    const confidence = document.getElementById('insight-business-confidence');
+    if (card) card.style.display = '';
+    if (confidence) confidence.textContent = '证据不足';
+    if (body) body.innerHTML = `<div class="alert alert-warning mb-2 py-2"><strong>当前无法完成归因分析</strong><div class="mt-1">${_escHtml(r.message || r.reason || '查询范围内没有足够数据')}</div></div>
+      <div class="text-muted mb-2">实际查询范围：${_escHtml(r.time_start || '-')} 至 ${_escHtml(r.time_end || '-')}</div>
+      <div class="fw-semibold mb-1">建议下一步</div>
+      <div class="d-flex flex-wrap gap-1">${(r.suggestions || []).map(x => `<span class="badge bg-light text-dark border">${_escHtml(x)}</span>`).join('')}</div>`;
+    _insightTerminalMode = 'no_data';
+    completeInsightFlowStep('validation');
+    completeInsightFlowStep('no_data');
+    _insightLog(`⚠ ${r.message || r.reason || '数据不足'}`, 'error');
     _insightDone();
     return;
   }
@@ -20957,7 +21504,14 @@ function _insightOnMsg(e) {
     _insightLog('▶ 生成 Insight 直接回答...', 'info');
     return;
   }
-  if (obj.step === 'done') { completeInsightFlowStep('evidence_answer'); completeInsightFlowStep('done'); _insightDone(); return; }
+  if (obj.step === 'done') {
+    if (_insightSSE) { _insightSSE.close(); _insightSSE = null; }
+    completeInsightFlowStep('evidence_answer');
+    completeInsightFlowStep('done');
+    _renderInsightFollowups();
+    _insightDone();
+    return;
+  }
 
   // Insight 流式直答
   if (obj.insight_text !== undefined) {
@@ -20971,6 +21525,7 @@ function _insightOnMsg(e) {
         content.textContent = _insightAnswerBuf;
       }
     }
+    _renderInsightBusinessSummary();
     return;
   }
 

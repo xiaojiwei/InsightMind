@@ -31,5 +31,7 @@ def test_suggestion_candidates_fall_back_when_table_check_is_unavailable():
     assert [item["code"] for item in selected] == ["MEAS_a", "MEAS_b"]
 
 
-def test_demo_insight_question_contains_recent_four_week_attribution_prompt():
-    assert "请分析最近4周平均电话质量分下降的原因" in NLQ_DEMO_INSIGHT_QUESTIONS
+def test_demo_insight_question_contains_proven_historical_attribution_prompt():
+    question = NLQ_DEMO_INSIGHT_QUESTIONS[0]
+    assert question == "分析6月8日至7月2日平均电话质量分下降原因"
+    assert len(question) <= 24

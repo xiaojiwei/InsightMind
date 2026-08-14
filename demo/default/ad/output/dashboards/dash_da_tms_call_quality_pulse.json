@@ -1,7 +1,7 @@
 {
-  "id": "dash_da_tms_call_sop_diagnosis",
-  "name": "门店店长试驾前通话SOP诊断看板",
-  "summary": "店长视角查看门店总体接通电话质量、每个销售专家SOP达成质量，以及接通电话中的主要质量问题。",
+  "id": "dash_da_tms_call_quality_pulse",
+  "name": "门店质量驾驶舱｜通话质量脉搏",
+  "summary": "面向店长完成看状态、找异常、解释原因、下钻证据、执行动作和追踪结果的质量运营闭环。",
   "globalFilters": [
     {
       "kind": "dimension",
@@ -35,13 +35,13 @@
   "aiInsightEnabled": false,
   "widgets": [
     {
-      "id": "w_call_sop_diagnosis",
+      "id": "w_call_quality_pulse",
       "adhocId": "da_tms_call_sop_diagnosis_board",
-      "name": "试驾前通话质量诊断",
+      "name": "门店质量驾驶舱",
       "spec": {
-        "id": "da_tms_call_sop_diagnosis_board",
-        "name": "门店店长｜试驾前通话SOP诊断看板",
-        "description": "参考试驾邀约诊断页面结构，基于接通电话质检结果，面向店长展示总体通话质量、SOP环节达成分布、销售专家达成分布和接通电话质量问题。",
+        "id": "da_tms_call_quality_pulse_board",
+        "name": "门店运营｜通话质量闭环驾驶舱",
+        "description": "从业务结论进入趋势、问题来源、SOP短板、专家辅导、逐通证据和行动追踪；指标沿用统一质检口径。",
         "query": {
           "measures": [
             "ad.quality_record_count",
@@ -59,24 +59,7 @@
             "ad.sales_expert",
             "ad.quality_issue_category"
           ],
-          "filters": [
-            {
-              "kind": "dimension",
-              "member": "ad.date_day",
-              "operator": "in",
-              "values": [
-                "2026-07-02"
-              ]
-            },
-            {
-              "kind": "dimension",
-              "member": "ad.store",
-              "operator": "equals",
-              "values": [
-                "特斯拉汽车杭州演示体验中心"
-              ]
-            }
-          ],
+          "filters": [],
           "order": {
             "ad.quality_record_count": "desc"
           },
@@ -86,8 +69,8 @@
           "type": "chart",
           "chartType": "executive_report",
           "encoding": {
-            "reportTemplate": "call_sop_diagnosis",
-            "reportTitle": "试驾前通话质量诊断"
+            "reportTemplate": "call_quality_pulse",
+            "reportTitle": "门店质量驾驶舱"
           }
         },
         "settings": {
@@ -112,9 +95,9 @@
         "x": 0,
         "y": 0,
         "w": 12,
-        "h": 20
+        "h": 34
       }
     }
   ],
-  "updatedAt": "2026-07-20 10:00:00"
+  "updatedAt": "2026-08-13 15:30:00"
 }

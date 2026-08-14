@@ -37,11 +37,15 @@ TODAY = datetime.date(2026, 7, 24)
         ),
         (
             "查看近两周的趋势",
-            ("2026-07-13", "2026-07-26", "2026-06-29", "2026-07-12", "week"),
+            ("2026-07-11", "2026-07-24", "2026-06-27", "2026-07-10", "week"),
         ),
         (
             "查看最近一个星期的趋势",
-            ("2026-07-20", "2026-07-26", "2026-07-13", "2026-07-19", "week"),
+            ("2026-07-18", "2026-07-24", "2026-07-11", "2026-07-17", "week"),
+        ),
+        (
+            "查看最近两个完整周的趋势",
+            ("2026-07-06", "2026-07-19", "2026-06-22", "2026-07-05", "week"),
         ),
         (
             "查看过去三个月的趋势",
@@ -131,6 +135,14 @@ def test_named_month_year_over_year_uses_last_year_month():
 
 def test_unknown_time_expression_returns_none_for_caller_fallback():
     assert parse_question_time("分析平均电话质量分的原因", TODAY) is None
+
+
+def test_recent_weeks_never_include_future_dates():
+    parsed = parse_question_time("分析最近4周平均电话质量分", TODAY)
+
+    assert parsed is not None
+    assert parsed["time_end"] == TODAY.isoformat()
+    assert datetime.date.fromisoformat(parsed["time_end"]) <= TODAY
 
 
 def test_invalid_date_does_not_degrade_to_a_month_expression():
