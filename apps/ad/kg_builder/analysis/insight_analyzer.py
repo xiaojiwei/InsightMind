@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Callable, Generator, List, Optional
 
 from kg_builder.analysis.time_parser import parse_question_time
+from kg_builder.semantic_retrieval.normalizer import normalize_text
 from kg_builder.utils.http_client import urlopen as _urlopen
 
 
@@ -56,6 +57,7 @@ class InsightAnalyzer:
         log_cb: Callable[[str], None],
         cancel_cb: Optional[Callable[[], bool]] = None,
         context: Optional[dict] = None,
+        semantic_mapping_service: Any | None = None,
     ) -> None:
         self._data_agent_url = data_agent_url
         self._ttl_path = ttl_path
@@ -63,6 +65,7 @@ class InsightAnalyzer:
         self._log = log_cb
         self._cancel_cb = cancel_cb or (lambda: False)
         self._context = context if isinstance(context, dict) else {}
+        self._semantic_mapping_service = semantic_mapping_service
 
         # 懒加载 KG 数据（通过内嵌 IndicatorAnalyzer 的缓存方法）
         self._kg_cache: Optional[dict] = None  # {meas_code: {...}}
@@ -117,6 +120,21 @@ class InsightAnalyzer:
         self._log("▶ Step 3: 知识图谱指标匹配...")
         meas_info = self._find_meas_in_kg(intent.get("meas_keywords", []), question)
 
+        if meas_info and meas_info.get("needs_clarification"):
+            candidates = meas_info.get("semantic_mapping", {}).get("measureCandidates", [])
+            names = "、".join(
+                str(item.get("name") or item.get("code") or "") for item in candidates[:3]
+            )
+            message = f"语义召回到候选指标：{names}。请确认指标后再执行分析。"
+            self._log(f"  ⚠ {message}")
+            yield {
+                "step": "kg_clarify",
+                "action": "clarify",
+                "message": message,
+                "result": meas_info,
+            }
+            return
+
         if not meas_info:
             all_cn = [v["cn_name"] for v in self._load_kg_cache().values()][:15]
             hint = "、".join(all_cn)
@@ -147,6 +165,7 @@ class InsightAnalyzer:
             "dim_list":   meas_info.get("dim_codes", [])[:20],
             "time_dims":  meas_info.get("time_dims", {}),
             "secondary":  [{"meas_code": s["meas_code"], "cn_name": s["cn_name"]} for s in secondary],
+            "semantic_mapping": meas_info.get("semantic_mapping") or {},
         }}
 
         if self._cancel_cb():
@@ -953,13 +972,100 @@ class InsightAnalyzer:
                 seen.add(tl)
                 clean_tokens.append(tl)
 
-        if not clean_tokens and not bound_measure_code:
-            return None
-
         if clean_tokens:
             self._log(f"  匹配候选 tokens: {clean_tokens}")
 
         preferred_tables = set(self._context.get("factTables") or [])
+        semantic_candidates: list[Any] = []
+        semantic_scored: list[tuple[str, int, str, str]] = []
+        semantic_clarification: dict[str, Any] = {}
+        if self._semantic_mapping_service is not None and (question or keywords):
+            try:
+                semantic_recall = self._semantic_mapping_service.search(
+                    question or " ".join(keywords),
+                    semantic_types={"measure"},
+                    allowed_codes=set(cache),
+                    allowed_tables=preferred_tables,
+                    top_k=10,
+                    include_vector=True,
+                )
+                semantic_candidates = list(semantic_recall.candidates or [])
+                if semantic_candidates:
+                    top = semantic_candidates[0]
+                    def _matched_terms(candidate: Any) -> set[str]:
+                        return {
+                            normalize_text(str(getattr(evidence, "matched_text", "")))
+                            for evidence in list(getattr(candidate, "evidence", []) or [])
+                            if str(getattr(evidence, "match_type", "")) != "vector"
+                            and normalize_text(str(getattr(evidence, "matched_text", "")))
+                        }
+
+                    ambiguous = False
+                    if len(semantic_candidates) > 1 and semantic_candidates[1].score >= top.score - 0.06:
+                        top_terms = _matched_terms(top)
+                        second_terms = _matched_terms(semantic_candidates[1])
+                        ambiguous = bool(top_terms & second_terms) or any(
+                            left in right or right in left
+                            for left in top_terms
+                            for right in second_terms
+                        )
+                    if top.confidence == "high" and not ambiguous:
+                        for candidate in semantic_candidates:
+                            if candidate.confidence != "high" or candidate.code not in cache:
+                                continue
+                            if not _matched_terms(candidate):
+                                continue
+                            tables = self._kg_meas_table_cache.get(candidate.code, []) or [""]
+                            table = next(
+                                (name for name in tables if not preferred_tables or name in preferred_tables),
+                                tables[0],
+                            )
+                            semantic_scored.append((
+                                candidate.code,
+                                1000 + int(candidate.score * 100),
+                                cache[candidate.code]["cn_name"],
+                                table,
+                            ))
+                        self._log(
+                            f"  语义目录命中: {top.name} ({top.code})，"
+                            f"来源={top.match_type}，置信度={top.confidence}"
+                        )
+                    elif top.confidence == "high" and ambiguous and not bound_measure_code:
+                        names = "、".join(candidate.name for candidate in semantic_candidates[:3])
+                        self._log(f"  ⚠ 语义目录候选冲突，需明确指标: {names}")
+                        return {
+                            "needs_clarification": True,
+                            "semantic_mapping": {
+                                "decision": "clarify",
+                                "confidence": "medium",
+                                "measureCandidates": [
+                                    candidate.to_dict() for candidate in semantic_candidates[:5]
+                                ],
+                            },
+                        }
+                    elif (
+                        top.confidence == "medium"
+                        and top.match_type == "vector"
+                        and (
+                            len(semantic_candidates) == 1
+                            or semantic_candidates[1].score < top.score - 0.06
+                        )
+                    ):
+                        semantic_clarification = {
+                            "needs_clarification": True,
+                            "semantic_mapping": {
+                                "decision": "clarify",
+                                "confidence": "medium",
+                                "measureCandidates": [
+                                    candidate.to_dict() for candidate in semantic_candidates[:5]
+                                ],
+                            },
+                        }
+            except Exception as exc:
+                self._log(f"  语义召回不可用，使用原匹配规则: {exc}")
+
+        if not clean_tokens and not bound_measure_code and not semantic_scored:
+            return semantic_clarification or None
 
         def _score_all_indicators(restrict_tables: bool) -> list[tuple[str, int, str, str]]:
             """返回 [(code, score, cn_name, table_name), ...] 按score降序"""
@@ -997,7 +1103,15 @@ class InsightAnalyzer:
             keyword_scored = _score_all_indicators(restrict_tables=True) if clean_tokens else []
             if not keyword_scored and clean_tokens:
                 keyword_scored = _score_all_indicators(restrict_tables=False)
+            keyword_scored = [*semantic_scored, *keyword_scored]
             scored.extend(item for item in keyword_scored if item[0] != bound_measure_code)
+        elif semantic_scored:
+            scored = list(semantic_scored)
+            legacy_scored = _score_all_indicators(restrict_tables=True)
+            if not legacy_scored:
+                legacy_scored = _score_all_indicators(restrict_tables=False)
+            semantic_codes = {item[0] for item in scored}
+            scored.extend(item for item in legacy_scored if item[0] not in semantic_codes)
         else:
             # 第一轮：用上轮对话的事实表范围约束匹配
             scored = _score_all_indicators(restrict_tables=True)
@@ -1006,6 +1120,11 @@ class InsightAnalyzer:
                 if preferred_tables:
                     self._log("  表约束下无匹配，全图谱放开搜索...")
                 scored = _score_all_indicators(restrict_tables=False)
+
+        if semantic_clarification and not bound_measure_code and (
+            not scored or scored[0][1] < 50
+        ):
+            return semantic_clarification
 
         if not scored:
             inherited_code = str(self._context.get("activeMeasureCode") or "").strip()
@@ -1076,6 +1195,11 @@ class InsightAnalyzer:
             "secondary":    secondary,  # [{meas_code, cn_name, table_name, score}, ...]
             "dim_codes":    regular_dims[:10],  # 最多10个业务维度
             "time_dims":    time_dims,           # {day/week/month: dim_code}
+            "semantic_mapping": {
+                "measureCandidates": [
+                    candidate.to_dict() for candidate in semantic_candidates[:5]
+                ],
+            } if semantic_candidates else {},
         }
 
     # ── Step 3: 构造 query_params ────────────────────────────────────────── #

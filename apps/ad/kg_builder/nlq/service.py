@@ -83,6 +83,7 @@ class NaturalLanguageQueryService:
         data_agent_url: str,
         source_ttl_path: str | Path | None = None,
         log_cb: Optional[Callable[[str], None]] = None,
+        semantic_mapping_service: Any | None = None,
     ) -> None:
         self.ttl_path = Path(ttl_path)
         self.data_agent_url = data_agent_url
@@ -102,11 +103,13 @@ class NaturalLanguageQueryService:
         self._source_column_by_uri: dict[str, dict[str, Any]] = {}
         self._source_rows_by_table_col_value: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
         self._dynamic_column_labels: dict[str, str] = {}
+        self._semantic_mapping_service = semantic_mapping_service
 
     def query(
         self,
         question: str,
         *,
+        trace_id: str = "",
         execute: bool = True,
         page_size: int = 100,
         page_num: int = 1,
@@ -175,6 +178,7 @@ class NaturalLanguageQueryService:
             "daPayload": plan.get("daPayload"),
             "graphContext": graph_context,
             "diagnostics": plan["diagnostics"],
+            "semanticMapping": plan.get("semanticMapping") or {},
             "elapsedMs": int((time.time() - started) * 1000),
         }
         self._attach_resolved_context(response, conversation_context, is_follow_up)
@@ -206,6 +210,9 @@ class NaturalLanguageQueryService:
             )
             return response
 
+        if trace_id and isinstance(plan.get("daPayload"), dict):
+            plan["daPayload"]["traceId"] = trace_id
+            response["daPayload"] = plan["daPayload"]
         da_result = self._execute_da(plan["daPayload"])
         response["result"] = da_result
         response["ok"] = da_result.get("ok", False)
@@ -236,7 +243,9 @@ class NaturalLanguageQueryService:
         if not isinstance(context, dict):
             return {}
         normalized = dict(context)
-        for key in ("factTables", "measureCodes", "dimensionCodes"):
+        for key in (
+            "factTables", "executionTableCandidates", "measureCodes", "dimensionCodes",
+        ):
             value = normalized.get(key)
             normalized[key] = [str(item) for item in value if item] if isinstance(value, list) else []
         filters = normalized.get("filters")
@@ -253,7 +262,11 @@ class NaturalLanguageQueryService:
         intent = dict(route_intent or {})
         if not is_follow_up or not context:
             return intent
-        fact_tables = context.get("factTables") or []
+        fact_tables = (
+            context.get("executionTableCandidates")
+            or context.get("factTables")
+            or []
+        )
         if fact_tables:
             intent.setdefault("preferredFactTables", fact_tables)
         active_measure = str(context.get("activeMeasureCode") or "").strip()
@@ -289,6 +302,10 @@ class NaturalLanguageQueryService:
             resolved["activeMeasureCode"] = measure_code
         if matched.get("factTables"):
             resolved["factTables"] = list(matched["factTables"])
+        if matched.get("executionTableCandidates") is not None:
+            resolved["executionTableCandidates"] = list(
+                matched.get("executionTableCandidates") or []
+            )
         if matched.get("dimensionCodes") is not None:
             resolved["dimensionCodes"] = list(matched.get("dimensionCodes") or [])
         if intent.get("filters"):
@@ -764,6 +781,7 @@ class NaturalLanguageQueryService:
             }:
                 return {}
             parsed["mode"] = mode
+            parsed["semanticHintSource"] = "llm_router"
             return parsed
         except Exception as exc:
             self._log(f"[NLQ] LLM 统一意图解析不可用，使用规则兜底: {exc}")
@@ -2669,6 +2687,162 @@ class NaturalLanguageQueryService:
             "values": values,
         }
 
+    def _semantic_recall(
+        self,
+        question: str,
+        *,
+        semantic_types: set[str],
+        allowed_codes: Optional[set[str]] = None,
+        allowed_tables: Optional[set[str]] = None,
+        top_k: int = 10,
+    ) -> Any | None:
+        """Best-effort shared recall; index failures must preserve legacy NLQ."""
+        if self._semantic_mapping_service is None:
+            return None
+        try:
+            return self._semantic_mapping_service.search(
+                question,
+                semantic_types=semantic_types,
+                allowed_codes=allowed_codes,
+                allowed_tables=allowed_tables,
+                top_k=top_k,
+                include_vector=True,
+            )
+        except Exception as exc:
+            self._log(f"[NLQ] 语义召回不可用，回退原规则: {exc}")
+            return None
+
+    def _semantic_map(
+        self,
+        question: str,
+        *,
+        measure_code: str,
+        dimension_codes: set[str],
+        preferred_tables: set[str],
+        assume_inherited_primary: bool = False,
+    ) -> dict[str, Any]:
+        if self._semantic_mapping_service is None:
+            return {}
+        try:
+            result = self._semantic_mapping_service.map(
+                question,
+                allowed_measure_codes=[measure_code],
+                allowed_dimension_codes=dimension_codes,
+                preferred_tables=preferred_tables,
+                assumed_measure_code=(
+                    measure_code if assume_inherited_primary else None
+                ),
+                top_k=10,
+                include_vector=True,
+            )
+            payload = result.to_dict()
+            return payload
+        except Exception as exc:
+            self._log(f"[NLQ] 语义映射不可用，继续原规划链路: {exc}")
+            return {"diagnostics": {"fallbackReason": str(exc)}}
+
+    def _validated_inherited_value_bindings(
+        self,
+        inherited_filters: list[dict[str, Any]],
+        *,
+        compatible_dimension_codes: set[str],
+        measure_tables: set[str],
+        replaced_dimension_codes: set[str],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Revalidate prior value filters against the current governed snapshot."""
+        valid: list[dict[str, Any]] = []
+        invalid: list[dict[str, Any]] = []
+        for item in inherited_filters:
+            if not isinstance(item, dict) or item.get("type") != "dimensionValue":
+                continue
+            dimension_code = str(item.get("dimensionCode") or "").strip()
+            canonical_value = str(item.get("value") or "").strip()
+            if dimension_code in replaced_dimension_codes:
+                continue
+            if (
+                not dimension_code
+                or not canonical_value
+                or dimension_code not in compatible_dimension_codes
+            ):
+                invalid.append(item)
+                continue
+            response = self._semantic_recall(
+                canonical_value,
+                semantic_types={"value"},
+                allowed_codes={dimension_code},
+                allowed_tables=measure_tables,
+                top_k=20,
+            )
+            matched = next((
+                candidate
+                for candidate in list(getattr(response, "candidates", []) or [])
+                if str(getattr(candidate, "dimension_code", "")) == dimension_code
+                and self._norm(str(getattr(candidate, "canonical_value", "")))
+                == self._norm(canonical_value)
+                and str(getattr(candidate, "confidence", "")) == "high"
+            ), None)
+            if matched is None:
+                invalid.append(item)
+                continue
+            prior_scope = {
+                str(table) for table in (item.get("applicableTables") or []) if table
+            }
+            applicable_tables = set(getattr(matched, "tables", set()) or set()) & measure_tables
+            if prior_scope:
+                applicable_tables &= prior_scope
+            safe_tables = {
+                str(table)
+                for table in (getattr(matched, "metadata", {}).get("safeTables") or [])
+                if table
+            }
+            if not applicable_tables or not applicable_tables.issubset(safe_tables):
+                invalid.append(item)
+                continue
+            evidence = list(getattr(matched, "evidence", []) or [])
+            valid.append({
+                "dimensionCode": dimension_code,
+                "input": canonical_value,
+                "canonicalValue": canonical_value,
+                "score": float(getattr(matched, "score", 0.0) or 0.0),
+                "confidence": "high",
+                "source": (
+                    str(getattr(evidence[0], "source", "")) if evidence else "inherited_context"
+                ),
+                "filterSafe": True,
+                "applicableTables": sorted(applicable_tables),
+                "evidence": [
+                    evidence_item.to_dict() for evidence_item in evidence
+                    if hasattr(evidence_item, "to_dict")
+                ],
+                "inherited": True,
+            })
+        return valid, invalid
+
+    @staticmethod
+    def _semantic_legacy_score(candidate: Any) -> float:
+        match_type = str(getattr(candidate, "match_type", ""))
+        score = float(getattr(candidate, "score", 0.0) or 0.0)
+        if match_type == "explicit_code":
+            return 200.0
+        if str(getattr(candidate, "confidence", "")) == "high":
+            return 100.0 + score * 10.0
+        return score * 80.0
+
+    @staticmethod
+    def _semantic_candidates_ambiguous(candidates: list[Any]) -> bool:
+        if len(candidates) < 2:
+            return False
+        top_type = str(getattr(candidates[0], "match_type", ""))
+        second_type = str(getattr(candidates[1], "match_type", ""))
+        exact_types = {"explicit_code", "exact_name", "exact_alias"}
+        if top_type == "explicit_code" and second_type != "explicit_code":
+            return False
+        if top_type in exact_types and second_type not in exact_types:
+            return False
+        top = float(getattr(candidates[0], "score", 0.0) or 0.0)
+        second = float(getattr(candidates[1], "score", 0.0) or 0.0)
+        return second >= top - 0.06
+
     def _plan(
         self,
         question: str,
@@ -2681,13 +2855,77 @@ class NaturalLanguageQueryService:
     ) -> dict[str, Any]:
         q_tokens = self._tokens(question)
         route_intent = route_intent or {}
-        hinted_measure_code = str(route_intent.get("measureCode") or "").strip()
-        hinted_measure = self._measures.get(hinted_measure_code)
-        measure_hits = [(999.0, hinted_measure)] if hinted_measure else self._rank_measures(question, q_tokens)
         preferred_tables = {
             str(table) for table in (route_intent.get("preferredFactTables") or [])
             if table
         }
+        hinted_measure_code = str(route_intent.get("measureCode") or "").strip()
+        hinted_measure = self._measures.get(hinted_measure_code)
+        hint_from_llm = route_intent.get("semanticHintSource") == "llm_router"
+        semantic_recall = self._semantic_recall(
+            question,
+            semantic_types={"measure"},
+            allowed_codes=set(self._measures),
+            allowed_tables=preferred_tables,
+            top_k=10,
+        )
+        semantic_candidates = list(getattr(semantic_recall, "candidates", []) or [])
+        semantic_diagnostics: dict[str, Any] = {
+            "measureCandidates": [candidate.to_dict() for candidate in semantic_candidates[:5]],
+            "vectorUsed": bool(getattr(semantic_recall, "vector_used", False)),
+            "vectorDisabledReason": str(
+                getattr(semantic_recall, "vector_disabled_reason", "") or ""
+            ),
+        } if semantic_recall is not None else {}
+
+        semantic_high = bool(
+            semantic_candidates
+            and getattr(semantic_candidates[0], "confidence", "") == "high"
+        )
+        semantic_ambiguous = self._semantic_candidates_ambiguous(semantic_candidates)
+        if semantic_high and semantic_ambiguous and not (hinted_measure and not hint_from_llm):
+            return self._clarify_plan(
+                question,
+                "语义目录中存在多个同样匹配的指标，请明确要查哪个指标",
+                {
+                    "measureCandidates": [candidate.to_dict() for candidate in semantic_candidates[:5]],
+                    "semanticMapping": semantic_diagnostics,
+                },
+            )
+
+        semantic_hits: list[tuple[float, MeasureMeta]] = []
+        for candidate in semantic_candidates:
+            meta = self._measures.get(str(getattr(candidate, "code", "")))
+            if meta is not None:
+                semantic_hits.append((self._semantic_legacy_score(candidate), meta))
+
+        if hinted_measure and not hint_from_llm:
+            measure_hits = [(999.0, hinted_measure)]
+        elif semantic_high and not semantic_ambiguous and semantic_hits:
+            if hinted_measure and hinted_measure.code != semantic_hits[0][1].code:
+                return self._clarify_plan(
+                    question,
+                    "LLM 路由候选与语义目录候选不一致，请确认要查哪个指标",
+                    {
+                        "measureCandidates": [candidate.to_dict() for candidate in semantic_candidates[:5]],
+                        "llmRouteMeasure": {
+                            "code": hinted_measure.code,
+                            "name": hinted_measure.cn_name,
+                        },
+                        "semanticMapping": semantic_diagnostics,
+                    },
+                )
+            measure_hits = semantic_hits
+        elif hinted_measure:
+            measure_hits = [(999.0, hinted_measure)]
+        else:
+            measure_hits = self._rank_measures(question, q_tokens)
+            legacy_by_code = {meta.code: (score, meta) for score, meta in measure_hits}
+            for score, meta in semantic_hits:
+                if meta.code not in legacy_by_code or score > legacy_by_code[meta.code][0]:
+                    legacy_by_code[meta.code] = (score, meta)
+            measure_hits = sorted(legacy_by_code.values(), key=lambda hit: (-hit[0], hit[1].code))
+
         if preferred_tables and measure_hits:
             compatible_hits = [
                 hit for hit in measure_hits
@@ -2705,10 +2943,37 @@ class NaturalLanguageQueryService:
             return self._failed_plan(
                 question,
                 "没有在业务图谱中匹配到指标",
-                {"measureCandidates": self._top_measure_examples()},
+                {
+                    "measureCandidates": self._top_measure_examples(),
+                    "semanticMapping": semantic_diagnostics,
+                },
             )
 
         measure_score, measure = measure_hits[0]
+        if (
+            semantic_candidates
+            and semantic_candidates[0].code == measure.code
+            and semantic_candidates[0].confidence == "medium"
+            and not hinted_measure
+        ):
+            plan = self._clarify_plan(
+                question,
+                f"系统召回到「{measure.cn_name}」，但匹配置信度为中等，请确认后再执行",
+                {
+                    "measureCandidates": [candidate.to_dict() for candidate in semantic_candidates[:5]],
+                    "semanticMapping": semantic_diagnostics,
+                },
+            )
+            plan["diagnosticCode"] = "SEMANTIC_MEDIUM_CONFIDENCE"
+            plan["matched"] = {
+                "measureCode": measure.code,
+                "measureName": measure.cn_name,
+                "factTables": sorted(measure.tables),
+                "dimensionCodes": [],
+                "dimensions": [],
+            }
+            plan["semanticMapping"] = semantic_diagnostics
+            return plan
         # 低置信度检测：所有指标得分都很低（< 30），说明问题中的业务概念在 KG 中没有对应
         LOW_CONFIDENCE_THRESHOLD = 30
         if measure_score < LOW_CONFIDENCE_THRESHOLD:
@@ -2718,6 +2983,7 @@ class NaturalLanguageQueryService:
                 llm_measure = llm_mapped["measure"]
                 llm_diagnostics = {
                     "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "semanticMapping": semantic_diagnostics,
                     "llmMeasureMatch": {
                         "code": llm_measure.code,
                         "name": llm_measure.cn_name,
@@ -2759,6 +3025,7 @@ class NaturalLanguageQueryService:
                     {
                         "measureCandidates": available,
                         "suggestion": "可以尝试的指标名：" + names,
+                        "semanticMapping": semantic_diagnostics,
                     },
                 )
                 if rewritten:
@@ -2768,18 +3035,240 @@ class NaturalLanguageQueryService:
             return self._clarify_plan(
                 question,
                 "指标匹配不唯一，请明确要查哪个指标",
-                {"measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]]},
+                {
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "semanticMapping": semantic_diagnostics,
+                },
             )
 
         compatible_dims = [
             d for d in self._dimensions.values() if d.tables & measure.tables
         ]
+        semantic_mapping = self._semantic_map(
+            question,
+            measure_code=measure.code,
+            dimension_codes={dimension.code for dimension in compatible_dims},
+            preferred_tables=set(measure.tables),
+            assume_inherited_primary=bool(
+                route_intent.get("contextInherited")
+                and inherited_measure_code == measure.code
+                and not any(
+                    str(getattr(candidate, "code", "")) == measure.code
+                    and str(getattr(candidate, "confidence", "")) == "high"
+                    for candidate in semantic_candidates
+                )
+            ),
+        )
+        fallback_reason = str(
+            (semantic_mapping.get("diagnostics") or {}).get("fallbackReason") or ""
+        )
+        if self._semantic_mapping_service is not None and fallback_reason:
+            plan = self._clarify_plan(
+                question,
+                "语义目录当前不可用，为避免遗漏维值过滤，本次查询未执行",
+                {
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "SEMANTIC_MAPPING_UNAVAILABLE"
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+        if (semantic_mapping.get("diagnostics") or {}).get("unsupportedValueOperator"):
+            plan = self._clarify_plan(
+                question,
+                "检测到维值排除或纠正表达；当前版本不会把它误转成正向过滤，请明确最终要保留的维值",
+                {
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "DIMENSION_VALUE_OPERATOR_UNSUPPORTED"
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+        unknown_explicit_codes = list(
+            (semantic_mapping.get("diagnostics") or {}).get("unknownExplicitCodes")
+            or []
+        )
+        if unknown_explicit_codes:
+            plan = self._clarify_plan(
+                question,
+                "查询中包含未收录或不适用于当前范围的显式语义编码；为避免忽略该编码，本次未执行",
+                {
+                    "unknownExplicitCodes": unknown_explicit_codes,
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "SEMANTIC_EXPLICIT_CODE_UNKNOWN"
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+        if (semantic_mapping.get("diagnostics") or {}).get("unresolvedValueIntent"):
+            plan = self._clarify_plan(
+                question,
+                "检测到可能的维值表达，但受治理目录中没有可信映射；为避免退化成无过滤查询，请明确维度和值",
+                {
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "DIMENSION_VALUE_UNRESOLVED"
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+        if (semantic_mapping.get("diagnostics") or {}).get("valueAmbiguous"):
+            plan = self._clarify_plan(
+                question,
+                "同一维值可对应多个维度，请明确维度名称后再查询",
+                {
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "DIMENSION_VALUE_AMBIGUOUS"
+            plan["matched"] = {
+                "measureCode": measure.code,
+                "measureName": measure.cn_name,
+                "factTables": sorted(measure.tables),
+                "dimensionCodes": [],
+                "dimensions": [],
+            }
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+        if (semantic_mapping.get("diagnostics") or {}).get("dimensionAmbiguous"):
+            plan = self._clarify_plan(
+                question,
+                "同一维度词对应多个语义维度，请明确要使用的维度",
+                {
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "SEMANTIC_DIMENSION_AMBIGUOUS"
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+        if (semantic_mapping.get("diagnostics") or {}).get("dimensionUncertain"):
+            plan = self._clarify_plan(
+                question,
+                "维度匹配置信度不足，请确认分组维度后再执行",
+                {
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "SEMANTIC_DIMENSION_LOW_CONFIDENCE"
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+        uncertain_value_bindings = [
+            binding
+            for binding in (semantic_mapping.get("valueBindings") or [])
+            if isinstance(binding, dict) and binding.get("confidence") != "high"
+        ]
+        if uncertain_value_bindings:
+            plan = self._clarify_plan(
+                question,
+                "检测到可能的维值，但匹配置信度不足；为避免执行成无过滤查询，请先确认",
+                {
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "uncertainValueBindings": uncertain_value_bindings,
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "DIMENSION_VALUE_LOW_CONFIDENCE"
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+        unsafe_value_bindings = [
+            binding
+            for binding in (semantic_mapping.get("valueBindings") or [])
+            if isinstance(binding, dict)
+            and binding.get("confidence") == "high"
+            and binding.get("filterSafe") is not True
+        ]
+        if unsafe_value_bindings:
+            plan = self._clarify_plan(
+                question,
+                "已识别维值，但当前目录尚未确认其可执行过滤键，请明确维度或由管理员审核映射",
+                {
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "unsafeValueBindings": unsafe_value_bindings,
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "DIMENSION_VALUE_FILTER_UNVERIFIED"
+            plan["matched"] = {
+                "measureCode": measure.code,
+                "measureName": measure.cn_name,
+                "factTables": sorted(measure.tables),
+                "dimensionCodes": [],
+                "dimensions": [],
+                "valueBindings": unsafe_value_bindings,
+            }
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+        if any(
+            (semantic_mapping.get("diagnostics") or {}).get(key)
+            for key in ("dimensionTableIncompatible", "valueTableIncompatible")
+        ):
+            plan = self._clarify_plan(
+                question,
+                "指标、维度与维值没有一致且已审核的事实表执行范围，请明确查询范围后重试",
+                {
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "DIMENSION_VALUE_TABLE_SCOPE_AMBIGUOUS"
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+        if semantic_mapping.get("decision") == "clarify":
+            plan = self._clarify_plan(
+                question,
+                "语义元素映射仍存在待确认项，为避免执行错误查询，请确认后重试",
+                {
+                    "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "SEMANTIC_MAPPING_REQUIRES_CLARIFICATION"
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+        inherited_filters = [
+            item for item in (route_intent.get("inheritedFilters") or [])
+            if isinstance(item, dict)
+        ]
+        current_value_dimensions = {
+            str(binding.get("dimensionCode") or "")
+            for binding in (semantic_mapping.get("valueBindings") or [])
+            if isinstance(binding, dict) and binding.get("dimensionCode")
+        }
+        inherited_value_bindings, invalid_inherited_values = (
+            self._validated_inherited_value_bindings(
+                inherited_filters,
+                compatible_dimension_codes={dimension.code for dimension in compatible_dims},
+                measure_tables=set(measure.tables),
+                replaced_dimension_codes=current_value_dimensions,
+            )
+        )
+        if invalid_inherited_values:
+            plan = self._clarify_plan(
+                question,
+                "上一轮维值过滤已失效或与当前指标不兼容，请重新选择维值",
+                {
+                    "invalidInheritedFilters": invalid_inherited_values,
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "INHERITED_DIMENSION_VALUE_STALE"
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+
         time_dim = self._choose_time_dim(question, compatible_dims)
         time_filter = self._parse_time_filter(question)
         if not time_filter:
-            inherited_filters = route_intent.get("inheritedFilters") or []
-            if inherited_filters and isinstance(inherited_filters[0], dict):
-                inherited = inherited_filters[0]
+            inherited = next((
+                item for item in inherited_filters
+                if item.get("type") == "timeRange" and item.get("start") and item.get("end")
+            ), None)
+            if inherited:
                 if inherited.get("start") and inherited.get("end"):
                     time_filter = {
                         "label": str(inherited.get("label") or "继承上一轮时间范围"),
@@ -2791,6 +3280,55 @@ class NaturalLanguageQueryService:
             if time_filter else None
         )
         dimension_hits = self._rank_dimensions(question, q_tokens, compatible_dims)
+        suppressed_measure_dimension_codes = {
+            str(code)
+            for code in (
+                (semantic_mapping.get("diagnostics") or {}).get(
+                    "suppressedMeasureOverlapDimensionCodes"
+                ) or []
+            )
+            if code
+        }
+        if suppressed_measure_dimension_codes:
+            dimension_hits = [
+                hit for hit in dimension_hits
+                if hit[1].code not in suppressed_measure_dimension_codes
+            ]
+        semantic_dimension_hits: dict[str, tuple[float, DimensionMeta]] = {}
+        for candidate in (semantic_mapping.get("dimensionCandidates") or []):
+            if isinstance(candidate, dict) and candidate.get("matchType") == "value_implied_dimension":
+                continue
+            code = str(candidate.get("code") or "") if isinstance(candidate, dict) else ""
+            meta = self._dimensions.get(code)
+            if meta is None or meta not in compatible_dims:
+                continue
+            score = float(candidate.get("score") or 0.0)
+            confidence = str(candidate.get("confidence") or "")
+            if confidence != "high":
+                continue
+            legacy_score = 100.0 + score * 10.0 if confidence == "high" else score * 80.0
+            semantic_dimension_hits[code] = (legacy_score, meta)
+        if len(semantic_dimension_hits) > max_dimensions:
+            plan = self._clarify_plan(
+                question,
+                "显式识别出的分组维度超过本次查询上限；为避免静默丢弃维度，请减少维度或提高受控上限",
+                {
+                    "maxDimensions": max_dimensions,
+                    "explicitDimensionCodes": sorted(semantic_dimension_hits),
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "SEMANTIC_DIMENSION_LIMIT_EXCEEDED"
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+        if semantic_dimension_hits:
+            merged_dimension_hits = {meta.code: (score, meta) for score, meta in dimension_hits}
+            for code, hit in semantic_dimension_hits.items():
+                if code not in merged_dimension_hits or hit[0] > merged_dimension_hits[code][0]:
+                    merged_dimension_hits[code] = hit
+            dimension_hits = sorted(
+                merged_dimension_hits.values(), key=lambda hit: (-hit[0], hit[1].code)
+            )
         selected_dims = self._select_dimensions_from_intent(
             route_intent,
             compatible_dims,
@@ -2810,27 +3348,103 @@ class NaturalLanguageQueryService:
                 "hasSubtotal": False,
             })
 
+        value_bindings = [
+            binding
+            for binding in (semantic_mapping.get("valueBindings") or [])
+            if isinstance(binding, dict)
+            and binding.get("confidence") == "high"
+            and binding.get("filterSafe") is True
+            and binding.get("dimensionCode") in {dimension.code for dimension in compatible_dims}
+        ]
+        existing_value_keys = {
+            (
+                str(binding.get("dimensionCode") or ""),
+                self._norm(str(binding.get("canonicalValue") or "")),
+            )
+            for binding in value_bindings
+        }
+        value_bindings.extend(
+            binding for binding in inherited_value_bindings
+            if (
+                str(binding.get("dimensionCode") or ""),
+                self._norm(str(binding.get("canonicalValue") or "")),
+            ) not in existing_value_keys
+        )
+
+        execution_dimensions: dict[str, DimensionMeta] = {
+            dimension.code: dimension for dimension in selected_dims
+        }
+        if filter_time_dim is not None:
+            execution_dimensions[filter_time_dim.code] = filter_time_dim
+        for binding in value_bindings:
+            dimension_code = str(binding.get("dimensionCode") or "")
+            dimension = self._dimensions.get(dimension_code)
+            if dimension is not None:
+                execution_dimensions[dimension.code] = dimension
+        execution_tables = set(measure.tables)
+        for dimension in execution_dimensions.values():
+            execution_tables &= set(dimension.tables)
+
+        invalid_table_bindings = []
+        for binding in value_bindings:
+            applicable_tables = {
+                str(table) for table in (binding.get("applicableTables") or []) if table
+            }
+            if (
+                not execution_tables
+                or not applicable_tables
+                or not execution_tables.issubset(applicable_tables)
+            ):
+                invalid_table_bindings.append(binding)
+        if (
+            (execution_dimensions and not execution_tables)
+            or invalid_table_bindings
+        ):
+            plan = self._clarify_plan(
+                question,
+                "当前指标、分组维度与维值过滤无法落到同一组已审核事实表，未执行查询",
+                {
+                    "executionTableCandidates": sorted(execution_tables),
+                    "invalidValueBindings": invalid_table_bindings,
+                    "semanticMapping": semantic_mapping,
+                },
+            )
+            plan["diagnosticCode"] = "DIMENSION_VALUE_TABLE_SCOPE_AMBIGUOUS"
+            plan["semanticMapping"] = semantic_mapping
+            return plan
+
+        intent_filters = [
+            {
+                "type": "timeRange",
+                "label": time_filter["label"],
+                "start": time_filter["start"],
+                "end": time_filter["end"],
+                "dimensionCode": filter_time_dim.code if filter_time_dim else "",
+                "dimensionName": filter_time_dim.cn_name if filter_time_dim else "",
+            }
+        ] if time_filter else []
+        intent_filters.extend({
+            "type": "dimensionValue",
+            "label": f"{binding.get('dimensionCode')}={binding.get('canonicalValue')}",
+            "dimensionCode": binding.get("dimensionCode"),
+            "value": binding.get("canonicalValue"),
+            "source": binding.get("source") or "semantic_retrieval",
+            "applicableTables": list(binding.get("applicableTables") or []),
+        } for binding in value_bindings)
+
         intent = {
             "queryMode": query_mode,
             "measureText": self._best_label_for_question(question, measure),
             "dimensionTexts": [d.cn_name for d in selected_dims],
             "timeLevel": time_dim.level_code if time_dim else "",
-            "filters": [
-                {
-                    "type": "timeRange",
-                    "label": time_filter["label"],
-                    "start": time_filter["start"],
-                    "end": time_filter["end"],
-                    "dimensionCode": filter_time_dim.code if filter_time_dim else "",
-                    "dimensionName": filter_time_dim.cn_name if filter_time_dim else "",
-                }
-            ] if time_filter else [],
+            "filters": intent_filters,
             "limit": page_size,
         }
         matched = {
             "measureCode": measure.code,
             "measureName": measure.cn_name,
             "factTables": sorted(measure.tables),
+            "executionTableCandidates": sorted(execution_tables),
             "dimensionCodes": [d.code for d in selected_dims],
             "dimensions": [
                 {
@@ -2842,6 +3456,7 @@ class NaturalLanguageQueryService:
                 }
                 for d in selected_dims
             ],
+            "valueBindings": value_bindings,
         }
         diagnostics = {
             "measureScore": measure_score,
@@ -2849,6 +3464,7 @@ class NaturalLanguageQueryService:
             "preferredFactTables": sorted(preferred_tables),
             "measureCandidates": [self._measure_hit_payload(h) for h in measure_hits[:5]],
             "dimensionCandidates": [self._dimension_hit_payload(h) for h in dimension_hits[:8]],
+            "semanticMapping": semantic_mapping or semantic_diagnostics,
             "availableDimensions": [
                 {
                     "code": d.code,
@@ -2863,6 +3479,16 @@ class NaturalLanguageQueryService:
         filter_list = []
         if time_filter and filter_time_dim:
             filter_list.append(self._build_da_time_filter(filter_time_dim, time_filter))
+        values_by_dimension: dict[str, list[str]] = {}
+        for binding in value_bindings:
+            dimension_code = str(binding.get("dimensionCode") or "")
+            canonical_value = str(binding.get("canonicalValue") or "")
+            if dimension_code and canonical_value:
+                values_by_dimension.setdefault(dimension_code, [])
+                if canonical_value not in values_by_dimension[dimension_code]:
+                    values_by_dimension[dimension_code].append(canonical_value)
+        for dimension_code, values in values_by_dimension.items():
+            filter_list.append(self._build_da_value_filter(dimension_code, values))
 
         da_payload = {
             "configureList": configure_list,
@@ -2879,6 +3505,7 @@ class NaturalLanguageQueryService:
             "matched": matched,
             "daPayload": da_payload if query_mode != "explain" else None,
             "diagnostics": diagnostics,
+            "semanticMapping": semantic_mapping,
         }
 
     def _rank_measures(self, question: str, tokens: list[str]) -> list[tuple[float, MeasureMeta]]:
@@ -3094,6 +3721,20 @@ class NaturalLanguageQueryService:
         if dim.level_code == "week":
             payload["viewType"] = 2
         return payload
+
+    @staticmethod
+    def _build_da_value_filter(dimension_code: str, values: list[str]) -> dict[str, Any]:
+        """Build the DA equality filter only for reviewed/sampled, unambiguous values."""
+        return {
+            "code": dimension_code,
+            "operatorList": [{
+                "sqlOprType": 0,
+                "dataList": list(values),
+                "sqlLogicalType": 0,
+                "timeRange": 0,
+            }],
+            "internal": True,
+        }
 
     def _resolve_query_mode(self, question: str, query_mode: str) -> str:
         requested = (query_mode or "auto").strip().lower()
@@ -4831,7 +5472,7 @@ class NaturalLanguageQueryService:
 
     def _failed_plan(self, question: str, error: str, diagnostics: dict[str, Any]) -> dict[str, Any]:
         boundary = self._failure_boundary(error, diagnostics)
-        return {
+        plan = {
             "ok": False,
             "action": boundary["action"],
             "diagnosticCode": boundary["diagnosticCode"],
@@ -4843,6 +5484,9 @@ class NaturalLanguageQueryService:
             "matched": {},
             "diagnostics": diagnostics,
         }
+        if diagnostics.get("semanticMapping"):
+            plan["semanticMapping"] = diagnostics["semanticMapping"]
+        return plan
 
     def _clarify_plan(self, question: str, message: str, diagnostics: dict[str, Any]) -> dict[str, Any]:
         plan = self._failed_plan(question, message, diagnostics)

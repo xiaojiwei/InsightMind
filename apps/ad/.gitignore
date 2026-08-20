@@ -17,6 +17,7 @@ build/
 # 输出文件（体积大）
 output/
 *.ttl
+!kg_builder/business_kg/default-business-scenario.ttl
 *.log
 server.log
 

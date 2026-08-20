@@ -103,7 +103,9 @@ http://localhost:8092/mcp
 | `INSIGHTMIND_MCP_TIMEOUT` | `60` | 后端请求超时秒数 |
 | `INSIGHTMIND_MCP_MAX_PAGE_SIZE` | `1000` | 查询 page size 上限 |
 | `INSIGHTMIND_MCP_ALLOW_RAW_SPARQL` | `false` | 是否允许 raw SPARQL SELECT |
+| `INSIGHTMIND_MCP_ALLOW_LEGACY_VALUE_LOOKUP` | `false` | 仅在受治理维值服务不可用时允许回退旧 DA 反查；默认关闭以防绕过 PUBLIC_ENUM/PII 策略 |
 | `INSIGHTMIND_AD_BEARER_TOKEN` | 空 | 转发给 AD 的 bearer token |
+| `INSIGHTMIND_SEMANTIC_API_TOKEN` | 空 | 调用 AD 语义 catalog/search/map 所需的服务 token；必须与 AD 配置一致 |
 | `INSIGHTMIND_DA_BEARER_TOKEN` | 空 | 转发给 DA 的 bearer token |
 | `INSIGHTMIND_DA_USERNAME` | 空 | 默认 DA 用户名 |
 
@@ -175,7 +177,7 @@ http://localhost:8092/mcp
 | `semantic_sql` | AD | 将 semantic query 翻译成 DA payload，可选 SQL review |
 | `graph_query_preset` | AD | 源图谱预设查询 |
 | `related_codes` | DA | 查询给定指标/维度相关的指标和维度 |
-| `find_dimensions_by_value` | DA | 根据维值反查可能所属维度 |
+| `find_dimensions_by_value` | AD Semantic | 仅从受治理的 PUBLIC_ENUM 维值索引反查；空结果不会自动绕过到 DA |
 | `raw_sparql_select` | AD | raw SPARQL SELECT，默认关闭 |
 | `da_ai_query` | DA | DA DataGPT 自然语言查询 |
 | `da_text_to_sql` | DA | DA DataGPT 文本转 SQL |

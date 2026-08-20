@@ -36,10 +36,36 @@ class CatalogTests(unittest.TestCase):
                 }
             ]
         }
-        with patch.object(gateway, "get_semantic_meta", return_value=meta):
+        with patch.object(gateway, "_request", return_value={"ok": False}), patch.object(
+            gateway, "get_semantic_meta", return_value=meta
+        ):
             result = gateway.search_catalog("通话")
         self.assertEqual("MEAS_calls", result["measures"][0]["code"])
         self.assertEqual("质检通话数", result["measures"][0]["name"])
+
+    def test_search_catalog_prefers_shared_semantic_retrieval(self):
+        semantic = {
+            "ok": True,
+            "vectorUsed": False,
+            "items": [{
+                "semanticType": "measure",
+                "code": "MEAS_calls",
+                "name": "质检通话数",
+                "score": 0.98,
+                "matchType": "exact_alias",
+                "confidence": "high",
+                "evidence": [{"source": "manual"}],
+            }],
+        }
+        with patch.object(gateway, "_request", return_value=semantic), patch.object(
+            gateway, "get_semantic_meta"
+        ) as legacy:
+            result = gateway.search_catalog("通话")
+
+        self.assertEqual("semantic_retrieval", result["source"])
+        self.assertEqual("MEAS_calls", result["measures"][0]["code"])
+        self.assertEqual("exact_alias", result["measures"][0]["matchType"])
+        legacy.assert_not_called()
 
     def test_compatible_dimensions_falls_back_to_ad_graph(self):
         meta = {
@@ -74,6 +100,46 @@ class SafetyTests(unittest.TestCase):
         with patch.object(gateway, "ALLOW_RAW_SPARQL", True):
             result = gateway.raw_sparql_select("DELETE WHERE { ?s ?p ?o }")
         self.assertFalse(result["ok"])
+
+    def test_governed_value_no_match_does_not_fall_back_to_da(self):
+        with patch.object(
+            gateway,
+            "_request",
+            return_value={"ok": True, "items": []},
+        ) as request:
+            result = gateway.find_dimensions_by_value("13800138000")
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["governedNoMatch"])
+        self.assertEqual([], result["dimensions"])
+        request.assert_called_once()
+
+    def test_unavailable_governed_value_index_fails_closed_by_default(self):
+        with patch.object(
+            gateway,
+            "_request",
+            return_value={"ok": False, "error": "unavailable"},
+        ) as request, patch.object(gateway, "ALLOW_LEGACY_VALUE_LOOKUP", False):
+            result = gateway.find_dimensions_by_value("东区")
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["degraded"])
+        request.assert_called_once()
+
+    def test_legacy_value_lookup_requires_explicit_compatibility_switch(self):
+        with patch.object(
+            gateway,
+            "_request",
+            side_effect=[
+                {"ok": False, "error": "unavailable"},
+                {"ok": True, "data": [{"code": "DIM_region"}]},
+            ],
+        ) as request, patch.object(gateway, "ALLOW_LEGACY_VALUE_LOOKUP", True):
+            result = gateway.find_dimensions_by_value("东区")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual("da_value_lookup", result["source"])
+        self.assertEqual(2, request.call_count)
 
 
 if __name__ == "__main__":

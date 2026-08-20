@@ -186,7 +186,7 @@ def _evidence_items(
     if context_label and context_label != "全部":
         items.append({
             "type": "context",
-            "label": "透视表单元格切片",
+            "label": "当前分析范围",
             "detail": context_label,
             "weight": 60,
         })
@@ -244,8 +244,8 @@ def _diagnostic_hypotheses(
         first_dim = contributions[0].get("dimensionName") or contributions[0].get("dimensionCode")
         out.append({
             "type": "dimension_drill",
-            "title": "维度切片待下钻",
-            "reason": f"当前缺少直接异常规则命中，建议先按「{first_dim}」验证是否由局部切片贡献导致。",
+            "title": "建议继续下钻核查",
+            "reason": f"当前未发现规则判定的直接异常，建议先按「{first_dim}」查看不同业务分组的贡献差异。",
         })
     if not out:
         out.append({
@@ -369,8 +369,8 @@ class CellInsightService:
             anomaly_title = "发现指标预警"
             anomaly_reason = f"当前单元格命中 {alert_count} 个指标预警：{names}。"
         else:
-            anomaly_title = "未发现单据级命中"
-            anomaly_reason = "当前单元格暂无单据追踪命中，可继续查看维度贡献或明细。"
+            anomaly_title = "未发现单据级异常"
+            anomaly_reason = "基于当前已配置的单据追踪规则，当前单元格未发现异常单据；仍可继续查看维度贡献或明细。"
 
         recommendations: list[dict[str, Any]] = []
         if doc_count:
@@ -401,12 +401,17 @@ class CellInsightService:
         else:
             summary = (
                 f"{measure_name} 在 {context_label} 下当前值为 {cell_value}。"
-                f"暂未发现单据级命中，可先按{first_dim or '推荐维度'}继续下钻观察贡献结构。"
+                f"基于当前已配置的单据追踪规则，未发现单据级异常。"
+                f"可按{first_dim or '推荐维度'}继续下钻观察贡献结构。"
             )
 
         return {
             "measure": {"code": measure_code, "name": measure_name},
-            "cellContext": {"label": context_label, "filters": path_items},
+            "cellContext": {
+                "label": context_label,
+                "filters": path_items,
+                "entryType": _text(payload.get("entryType") or "metric_value"),
+            },
             "cellValue": cell_value,
             "anomaly": {
                 "level": level,

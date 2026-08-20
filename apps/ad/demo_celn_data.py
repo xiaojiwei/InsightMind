@@ -19,7 +19,7 @@ import pymysql
 
 
 DEMO_DAY = date(2026, 7, 2)
-DEMO_STORE = "小鹏汽车杭州演示体验中心"
+DEMO_STORE = "理想汽车杭州演示体验中心"
 DEMO_CITY = "杭州"
 DEMO_MANAGER = "演示店长"
 

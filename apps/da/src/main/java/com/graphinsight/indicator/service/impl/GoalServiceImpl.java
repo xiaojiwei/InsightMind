@@ -1,5 +1,6 @@
 package com.graphinsight.indicator.service.impl;
 
+import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -223,6 +224,31 @@ public class GoalServiceImpl implements GoalService {
             res.add(loadAndCompute(goal));
         }
         return res;
+    }
+
+    @Override
+    public GoalDTO detail(Long goalId) {
+        Goal goal = goalMapper.selectById(goalId);
+        if (goal == null) return null;
+        GoalDTO result = loadAndCompute(goal);
+        if (StringUtil.isEmpty(result.getFiltersJson())) {
+            List<Map<String,Object>> filters = new LinkedList<>();
+            Goal node = goal;
+            while (node != null) {
+                if (!ViewType.isDate(node.getDimViewType())) {
+                    Map<String,Object> filter = new LinkedHashMap<>();
+                    filter.put("member", node.getDimensionCode());
+                    filter.put("operator", "equals");
+                    filter.put("values", Collections.singletonList(
+                            StringUtil.isEmpty(node.getDimensionValueId())
+                                    ? node.getDimensionValue() : node.getDimensionValueId()));
+                    filters.add(filter);
+                }
+                node = node.getParentId() == null ? null : goalMapper.selectById(node.getParentId());
+            }
+            result.setFiltersJson(JSON.toJSONString(filters));
+        }
+        return result;
     }
 
     private GoalDTO loadAndCompute(Goal goal){

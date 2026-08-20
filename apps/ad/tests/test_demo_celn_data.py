@@ -31,6 +31,6 @@ def test_demo_celn_customers_are_synthetic_and_match_latest_snapshot():
     assert all(row["phone"].startswith("DEMO-") for row in customers)
 
     payload = json.dumps(customers, ensure_ascii=False, default=str)
-    assert "小鹏汽车" not in payload  # Store data lives in the fact rows, not personal rows.
-    assert "理" + "想" not in payload
+    assert "理想汽车" not in payload  # Store data lives in the fact rows, not personal rows.
+    assert "小" + "鹏" not in payload
     assert "Li" + " Auto" not in payload

@@ -1,0 +1,107 @@
+# Governed business semantic dictionary.
+#
+# Only ENABLED/APPROVED entries participate in online recall. New aliases from
+# user feedback must be reviewed before being added here (or enabled through
+# the feedback dictionary API). Generic source-schema synonyms remain in
+# synonyms.yaml and are imported with lower recall priority.
+
+version: "1"
+
+entries: []
+# Example:
+#   - term: GMV
+#     semanticType: measure
+#     canonicalCode: MEAS_gmv
+#     domainCode: retail
+#     source: manual
+#     status: APPROVED
+
+values:
+  # Grounded in scripts/load_mall_robot_marketing_marts.py. These are direct
+  # fact-column enums, so the canonical values are valid DA filter values.
+  - term: 东区
+    dimensionCode: DIM_region
+    canonicalValue: 东区
+    source: mart_loader
+    status: APPROVED
+    filterSafe: true
+    tables: &region_tables
+      - dws_cost_roi_day
+      - dws_coupon_region_day
+      - dws_coupon_store_day
+      - dws_delivery_region_day
+      - dws_employee_day
+      - dws_rights_region_day
+      - dws_rights_store_day
+  - term: 南区
+    dimensionCode: DIM_region
+    canonicalValue: 南区
+    source: mart_loader
+    status: APPROVED
+    filterSafe: true
+    tables: *region_tables
+  - term: 西区
+    dimensionCode: DIM_region
+    canonicalValue: 西区
+    source: mart_loader
+    status: APPROVED
+    filterSafe: true
+    tables: *region_tables
+  - term: 北区
+    dimensionCode: DIM_region
+    canonicalValue: 北区
+    source: mart_loader
+    status: APPROVED
+    filterSafe: true
+    tables: *region_tables
+  - term: 未分区
+    dimensionCode: DIM_region
+    canonicalValue: 未分区
+    source: mart_loader
+    status: APPROVED
+    filterSafe: true
+    tables: *region_tables
+  - term: 交付场景
+    dimensionCode: DIM_scene_type
+    canonicalValue: DELIVERY
+    source: mart_loader
+    status: APPROVED
+    filterSafe: true
+    tables: &scene_tables
+      - dws_cost_roi_day
+      - dws_coupon_region_day
+      - dws_coupon_store_day
+      - dws_employee_day
+      - dws_rights_region_day
+      - dws_rights_store_day
+      - dws_vehicle_model_day
+  - term: 服务场景
+    dimensionCode: DIM_scene_type
+    canonicalValue: SERVICE
+    source: mart_loader
+    status: APPROVED
+    filterSafe: true
+    tables: *scene_tables
+# Example:
+#   - term: 东区
+#     dimensionCode: DIM_region
+#     canonicalValue: 华东
+#     domainCode: retail
+#     source: manual
+#     status: APPROVED
+#     filterSafe: true  # only after confirming this is a valid DA filter value
+
+# Dimension values are deny-by-default. Only PUBLIC_ENUM dimensions may enter
+# the online value index; INTERNAL_ENUM/PII/UNKNOWN remain unavailable.
+valuePolicies:
+  - dimensionCode: DIM_region
+    policy: PUBLIC_ENUM
+    status: APPROVED
+    # Fail closed if a different business graph reuses the generic DIM_region code.
+    requiredTables: *region_tables
+  - dimensionCode: DIM_scene_type
+    policy: PUBLIC_ENUM
+    status: APPROVED
+    requiredTables: *scene_tables
+# Example:
+#   DIM_region: PUBLIC_ENUM

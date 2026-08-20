@@ -21,43 +21,42 @@ from kg_builder.call_quality_workspace import WORKSPACE_VERSION, build_workspace
 from kg_builder.call_sop import SOP_CATALOG, SOP_VERSION, analyze_call_sop_record, json_dumps
 
 
-DEMO_START_DAY = "2026-06-08"
-DEMO_END_DAY = "2026-07-02"
-DEMO_STORE = "特斯拉汽车杭州演示体验中心"
+DEMO_DAY = "2026-07-02"
+DEMO_WEEK_START = "2026-06-26"
+DEMO_STORE = "理想汽车杭州演示体验中心"
 DEMO_CITY = "杭州"
 DEMO_MANAGER = "演示店长"
 
 _EXPERTS: tuple[tuple[str, int, int], ...] = (
-    ("顾晨", 25, 82),
-    ("林悦", 25, 84),
-    ("周航", 25, 80),
-    ("许安", 25, 83),
-    ("蒋宁", 25, 86),
-    ("宋妍", 25, 81),
-    ("韩宇", 25, 87),
+    ("王宇航", 11, 44),
+    ("赵明轩", 10, 58),
+    ("林若琪", 9, 66),
+    ("陈思源", 9, 52),
+    ("周书言", 8, 74),
+    ("刘雨萱", 7, 62),
 )
 
 _DIALOGS = {
     "high": (
-        "专家:您好，我是特斯拉汽车杭州演示体验中心的产品专家小顾。看您在官网留资关注了Model Y，"
-        "上次提到家里有孩子、日常通勤也会跑长途，比较关心空间、智驾和充电。Model Y的空间和智驾"
+        "专家:您好，我是理想汽车的产品专家小顾。看您在官网留资关注了L9，"
+        "上次提到家里有孩子、日常通勤也会跑长途，比较关心空间、智驾和充电。G9的空间和智驾"
         "更适合到店实际体验。您是明天下午三点还是周六上午十点方便来店试驾？客户:周六上午吧，"
         "预算大概三十万，也想对比一下续航。专家:好的，我给您预约周六上午十点，门店在文一西路"
         "西溪附近，稍后加微信发定位，周五再提前联系确认。客户:可以，没问题。"
     ),
     "standard": (
-        "专家:您好，我是特斯拉汽车门店产品专家小林。看您官网关注了Model 3，邀请您到店试驾。"
+        "专家:您好，我是理想汽车门店产品专家小林。看您官网关注了L6，邀请您到店试驾。"
         "客户:最近忙，想了解智驾。专家:试驾可以体验智驾，明天下午方便吗？"
         "客户:行。专家:那我加微信发定位。"
     ),
     "basic": (
-        "专家:您好，我是特斯拉汽车门店顾问。看您关注过Model S，想邀请您到店试驾。"
+        "专家:您好，我是理想汽车门店顾问。看您关注过L7，想邀请您到店试驾。"
         "客户:最近没时间。专家:好的，之后再联系。"
     ),
     "miss": (
         "专家:您好，这边想问下您看的车型还考虑吗？客户:最近没时间，之后再说。专家:好的，那不打扰了。"
     ),
-    "unconnected": "专家:您好，这里是特斯拉汽车门店，本次电话未接通，已进入语音留言。",
+    "unconnected": "专家:您好，这里是理想汽车门店，本次电话未接通，已进入语音留言。",
 }
 
 
@@ -73,20 +72,7 @@ def _style_for(index: int, expert_index: int) -> str:
         ("standard", "basic", "standard", "high", "miss", "standard"),
         ("high", "standard", "high", "high", "standard", "high"),
     )
-    if index < 8:
-        early = ("high", "standard", "high", "standard")
-        return early[(index + expert_index) % len(early)]
-    if index < 17:
-        middle = ("standard", "high", "standard", "basic")
-        return middle[(index + expert_index) % len(middle)]
-    # The final eight days contain an intentional, deterministic deterioration.
-    # 顾晨、林悦 are the strongest contributors; other experts provide a stable
-    # comparison group so contribution analysis has a clear, truthful answer.
-    if expert_index in {0, 1}:
-        late = ("miss", "basic", "miss", "unconnected")
-    else:
-        late = ("basic", "standard", "miss", "standard")
-    return late[(index + expert_index) % len(late)]
+    return sequence[expert_index][index % len(sequence[expert_index])]
 
 
 def _issue_category(index: int, connected: bool, score: int, coverage: float) -> str:
@@ -100,15 +86,16 @@ def _issue_category(index: int, connected: bool, score: int, coverage: float) ->
 
 
 def build_demo_records() -> list[dict[str, Any]]:
-    """Return 175 deterministic, multi-week calls without touching a database."""
+    """Return 54 deterministic call records without touching a database."""
     rows: list[dict[str, Any]] = []
     serial = 0
-    first_day = datetime.strptime(DEMO_START_DAY, "%Y-%m-%d")
+    week_start = datetime.strptime(f"{DEMO_WEEK_START} 09:05:00", "%Y-%m-%d %H:%M:%S")
+    disconnected_serials = {11, 31}
 
     for expert_index, (expert_name, count, score_base) in enumerate(_EXPERTS):
         for local_index in range(count):
             serial += 1
-            style = _style_for(local_index, expert_index)
+            style = "unconnected" if serial in disconnected_serials else _style_for(local_index, expert_index)
             connected = style != "unconnected"
             actual_next_action = {
                 "high": "已预约试驾；添加微信并发送门店定位；到店前再次确认",
@@ -127,19 +114,22 @@ def build_demo_records() -> list[dict[str, Any]]:
             analysis = analyze_call_sop_record(base_record)
             workspace = build_workspace_payload({**base_record, "sop_analysis": analysis})
             coverage = float(analysis.get("coverage_rate") or 0)
-            score_adjustment = {"high": 10, "standard": 3, "basic": -8, "miss": -19, "unconnected": -27}[style]
-            trend_penalty = max(0, local_index - 12)
-            contributor_penalty = max(0, local_index - 16) * 2 if expert_index in {0, 1} else 0
-            score = max(22, min(96, score_base + score_adjustment - trend_penalty - contributor_penalty))
+            score_adjustment = {"high": 15, "standard": 7, "basic": -1, "miss": -10, "unconnected": -18}[style]
+            score = max(22, min(96, score_base + score_adjustment + ((local_index % 3) - 1) * 3))
             hit_count = int(analysis.get("hit_checkpoint_count") or 0)
             total_count = int(analysis.get("total_checkpoint_count") or 24)
             missing_count = max(0, total_count - hit_count)
             grade = str(workspace["detail"].get("sopGradeLabel") or "未达成")
             issue_category = _issue_category(serial, connected, score, coverage)
             rule_name = SOP_CATALOG[(serial - 1) % len(SOP_CATALOG)].name
-            activity_day = first_day + timedelta(days=local_index)
-            conversation_time = activity_day.replace(hour=9 + expert_index, minute=(local_index * 7) % 60)
-            week_start = activity_day - timedelta(days=activity_day.weekday())
+            # Spread the 54 calls across a real seven-day reporting window.
+            # Each day has 7-8 calls, matching a plausible single-store load.
+            conversation_time = week_start + timedelta(
+                days=(serial - 1) % 7,
+                minutes=((serial - 1) // 7) * 67,
+            )
+            activity_date = conversation_time.strftime("%Y-%m-%d")
+            iso_year, iso_week, _ = conversation_time.isocalendar()
             next_action_done = int(actual_next_action not in {"", "无", "再次外呼"})
             quality_pass = int(score > 50 and connected)
             required_names = [checkpoint.name for category in SOP_CATALOG for checkpoint in category.checkpoints]
@@ -160,12 +150,9 @@ def build_demo_records() -> list[dict[str, Any]]:
                 {
                     "quality_id": 910000 + serial,
                     "customer_account_id": base_record["customer_account_id"],
-                    "activity_date": activity_day.strftime("%Y-%m-%d"),
-                    # DA formats date dimensions with date_format().  Store a
-                    # real representative date rather than display labels so
-                    # its day/week/month rollups remain queryable.
-                    "activity_month": activity_day.replace(day=1).strftime("%Y-%m-%d"),
-                    "activity_week": week_start.strftime("%Y-%m-%d"),
+                    "activity_date": activity_date,
+                    "activity_month": conversation_time.strftime("%Y-%m"),
+                    "activity_week": f"{iso_year}-W{iso_week:02d}",
                     "latest_conversation_time": conversation_time.strftime("%Y-%m-%d %H:%M:%S"),
                     "expert_id": f"demo-expert-{expert_index + 1:02d}",
                     "expert_name": expert_name,
@@ -250,7 +237,7 @@ CREATE TABLE im_call_quality_fact (
   issue_category VARCHAR(128), min_pass_score DECIMAL(10,2), answer_framework_matched TINYINT,
   low_coverage_call_count INT, low_quality_call_count INT, processing_status VARCHAR(32),
   create_time DATETIME, update_time DATETIME,
-  KEY idx_fact_scope_order (activity_date, store_name, expert_name, latest_conversation_time DESC, quality_id DESC),
+  KEY idx_fact_scope (activity_date, store_name),
   KEY idx_fact_expert (expert_name),
   KEY idx_fact_rule (rule_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

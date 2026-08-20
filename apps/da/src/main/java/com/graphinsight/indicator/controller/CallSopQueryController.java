@@ -28,8 +28,9 @@ import java.util.Map;
 @RequestMapping("/indicator/api/v1/call-sop")
 public class CallSopQueryController {
 
-    private static final String DEFAULT_DAY = "2026-07-02";
-    private static final String DEFAULT_STORE = "特斯拉汽车杭州演示体验中心";
+    private static final String DEFAULT_WEEK_START = "2026-06-26";
+    private static final String DEFAULT_WEEK_END = "2026-07-02";
+    private static final String DEFAULT_STORE = "理想汽车杭州演示体验中心";
 
     private static final Map<String, String> FILTER_COLUMNS;
 
@@ -90,13 +91,20 @@ public class CallSopQueryController {
                     args.add(values.get(0));
                     continue;
                 }
+                if (Arrays.asList("between", "range").contains(operator) && values.size() >= 2) {
+                    where.add(column + " BETWEEN ? AND ?");
+                    args.add(values.get(0));
+                    args.add(values.get(1));
+                    continue;
+                }
                 where.add(column + " IN (" + placeholders(values.size()) + ")");
                 args.addAll(values);
             }
         }
         if (!hasDay) {
-            where.add("f.activity_date = ?");
-            args.add(DEFAULT_DAY);
+            where.add("f.activity_date BETWEEN ? AND ?");
+            args.add(DEFAULT_WEEK_START);
+            args.add(DEFAULT_WEEK_END);
         }
         if (!hasStore) {
             where.add("f.store_name = ?");

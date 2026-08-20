@@ -43,6 +43,21 @@ TEMPLATES = Jinja2Templates(directory=str(BASE_DIR / "kg_builder" / "web" / "tem
 # ── Alert management ──────────────────────────────────────────────────────── #
 from kg_builder.alerts import alerts_router, init_db, get_db
 from kg_builder.alerts import scheduler as alert_scheduler
+from kg_builder.feedback import (
+    FeedbackObservationMiddleware,
+    begin_query_trace as _feedback_begin_query_trace,
+    complete_query_trace as _feedback_complete_query_trace,
+    feedback_router,
+    init_feedback_store,
+    record_schema_snapshot as _feedback_record_schema_snapshot,
+)
+from kg_builder.insights import (
+    configure_insight_runtime,
+    init_insight_store,
+    insights_router,
+)
+from kg_builder.semantic_retrieval import get_semantic_mapping_service
+from kg_builder.semantic_retrieval.router import create_semantic_retrieval_router
 from kg_builder.utils.http_client import urlopen as _urlopen
 
 # app.include_router(alerts_router)  -- deferred after app creation
@@ -51,6 +66,9 @@ OUTPUT_DIR = BASE_DIR / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 BKG_DIR = OUTPUT_DIR / "business_kg"
 BKG_DIR.mkdir(exist_ok=True)
+DEFAULT_BKG_SCENARIO_PATH = (
+    BASE_DIR / "kg_builder" / "business_kg" / "default-business-scenario.ttl"
+)
 ADHOC_DIR = OUTPUT_DIR / "adhoc"
 ADHOC_DIR.mkdir(exist_ok=True)
 DASHBOARD_DIR = OUTPUT_DIR / "dashboards"
@@ -60,6 +78,7 @@ INSIGHT_ACTION_DIR.mkdir(exist_ok=True)
 SEMANTIC_DIR = OUTPUT_DIR / "semantic"
 SEMANTIC_DIR.mkdir(exist_ok=True)
 FORMULA_REGISTRY_PATH = SEMANTIC_DIR / "formulas.json"
+SEMANTIC_SOURCE_MANIFEST_PATH = BKG_DIR / "indicator-data.source.json"
 DEMO_OUTPUT_DIR = BASE_DIR.parents[1] / "demo" / "default" / "ad" / "output"
 # KG files are named kg_YYYYMMDD_NNN.ttl; legacy kg.ttl is still auto-detected
 _current_kg_path: Optional[Path] = None
@@ -147,7 +166,75 @@ def _archive_bkg() -> Optional[Path]:
     seq = (int(existing[-1].stem.rsplit("-", 1)[-1]) + 1) if existing else 1
     archive = BKG_DIR / f"indicator-data-{today}-{seq:03d}.ttl"
     current.rename(archive)
+    if SEMANTIC_SOURCE_MANIFEST_PATH.exists():
+        archive_manifest = BKG_DIR / f"{archive.stem}.source.json"
+        SEMANTIC_SOURCE_MANIFEST_PATH.replace(archive_manifest)
     return archive
+
+
+def _semantic_source_path() -> Optional[Path]:
+    """Resolve the source KG explicitly bound to the active business KG.
+
+    A newest-file heuristic can cross business domains after a cold restart, so
+    an unbound legacy BKG deliberately gets no source samples.
+    """
+    configured = os.getenv("INSIGHTMIND_SEMANTIC_SOURCE_TTL", "").strip()
+    if configured:
+        candidate = Path(configured).expanduser().resolve()
+        return candidate if candidate.is_file() else None
+    if not SEMANTIC_SOURCE_MANIFEST_PATH.exists():
+        return None
+    try:
+        payload = json.loads(SEMANTIC_SOURCE_MANIFEST_PATH.read_text(encoding="utf-8"))
+        source_name = str(payload.get("sourceKg") or "").strip()
+        expected_business_hash = str(payload.get("businessKgSha256") or "").strip()
+        expected_source_hash = str(payload.get("sourceKgSha256") or "").strip()
+    except (OSError, ValueError, TypeError):
+        return None
+    if not source_name or not expected_business_hash or not expected_source_hash:
+        return None
+    candidate = (OUTPUT_DIR / Path(source_name).name).resolve()
+    if candidate.parent != OUTPUT_DIR.resolve() or not candidate.is_file():
+        return None
+    business_path = BKG_DIR / "indicator-data.ttl"
+    if not business_path.is_file():
+        return None
+    try:
+        from kg_builder.feedback.graph_version import graph_identity
+
+        business_hash = str(graph_identity(business_path).get("sha256") or "")
+        source_hash = str(graph_identity(candidate).get("sha256") or "")
+    except Exception:
+        return None
+    if business_hash != expected_business_hash or source_hash != expected_source_hash:
+        logging.getLogger("uvicorn").warning(
+            "[Semantic] BKG/source manifest hash mismatch; source value samples disabled"
+        )
+        return None
+    return candidate
+
+
+def _write_semantic_source_manifest(source_path: Optional[Path]) -> None:
+    if source_path is None:
+        SEMANTIC_SOURCE_MANIFEST_PATH.unlink(missing_ok=True)
+        return
+    business_path = BKG_DIR / "indicator-data.ttl"
+    if not business_path.is_file() or not source_path.is_file():
+        SEMANTIC_SOURCE_MANIFEST_PATH.unlink(missing_ok=True)
+        return
+    from kg_builder.feedback.graph_version import graph_identity
+
+    payload = {
+        "businessKg": "indicator-data.ttl",
+        "sourceKg": source_path.name,
+        "businessKgSha256": graph_identity(business_path).get("sha256") or "",
+        "sourceKgSha256": graph_identity(source_path).get("sha256") or "",
+        "boundAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    SEMANTIC_SOURCE_MANIFEST_PATH.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _get_active_path() -> Optional[Path]:
@@ -165,8 +252,24 @@ def _get_active_path() -> Optional[Path]:
         return legacy
     return None
 
+
+def _semantic_mapping_service(
+    ttl_path: Path | None = None,
+    source_ttl_path: Path | None = None,
+):
+    """Return the shared, mtime-aware semantic index used by NLQ and Insight."""
+    return get_semantic_mapping_service(
+        ttl_path or (BKG_DIR / "indicator-data.ttl"),
+        source_ttl_path if source_ttl_path is not None else _semantic_source_path(),
+        log_cb=lambda message: logging.getLogger("uvicorn").info(message),
+    )
+
 app = FastAPI(title="KG Builder Web UI")
+app.add_middleware(FeedbackObservationMiddleware)
 app.include_router(alerts_router)
+app.include_router(feedback_router)
+app.include_router(insights_router)
+app.include_router(create_semantic_retrieval_router(_semantic_mapping_service))
 
 # ── Shared state ────────────────────────────────────────────────────────── #
 
@@ -271,6 +374,8 @@ class NLQRequest(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict)
     isFollowUp: bool = False
     resetContext: bool = False
+    parentTraceId: str = ""
+    source: str = "nlq"
 
 class EntityLookupRequest(BaseModel):
     question: str
@@ -555,6 +660,15 @@ def _build_worker(req: BuildRequest) -> None:
                 _log(f"  … 共 {len(violations)} 条")
         step(15, f"{len(violations)} 处问题" if violations else "无问题")
 
+        # Feedback observation is deliberately stored outside the RDF graphs.
+        # Only a credential-free structural snapshot is persisted here.
+        feedback_snapshot = _feedback_record_schema_snapshot(schema_info)
+        if feedback_snapshot.get("ok") and not feedback_snapshot.get("disabled"):
+            _log(
+                "[反馈观测] 元数据快照已记录"
+                + (f"，发现 {feedback_snapshot.get('changeCount', 0)} 处结构变化" if not feedback_snapshot.get("unchanged") else "，结构无变化")
+            )
+
         connector.close()
         _log("=== 构建完成 ===")
         _set_state("done", f"完成，共 {triple_count} 条三元组", 100)
@@ -568,13 +682,28 @@ def _build_worker(req: BuildRequest) -> None:
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return TEMPLATES.TemplateResponse(request, "index.html")
+    response = TEMPLATES.TemplateResponse(request, "index.html")
+    # The UI contains inline JavaScript. Never serve a stale validation client
+    # after a deploy/restart, otherwise an old selector can keep sending the
+    # source KG filename to business-KG endpoints.
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 
 @app.get("/alerts", response_class=HTMLResponse)
 async def alerts_page(request: Request):
     return TEMPLATES.TemplateResponse(request, "alerts.html")
+
+
+@app.get("/feedback", response_class=HTMLResponse)
+async def feedback_page(request: Request):
+    response = TEMPLATES.TemplateResponse(request, "feedback.html")
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
+
+
 @app.get("/dashboard/view/{item_id}", response_class=HTMLResponse)
 async def dashboard_view(request: Request, item_id: str):
     return TEMPLATES.TemplateResponse(request, "index.html")
@@ -1747,10 +1876,19 @@ def _bkg_worker(domain_hint: str, model_override: str, source_kg_file: str,
                 log_cb=blog,
             )
 
+            scenario_context = ""
+            if DEFAULT_BKG_SCENARIO_PATH.exists():
+                scenario_context = DEFAULT_BKG_SCENARIO_PATH.read_text(encoding="utf-8")
+                blog(
+                    f"加载默认业务场景: {DEFAULT_BKG_SCENARIO_PATH.name} "
+                    f"（{len(scenario_context):,} 字符）"
+                )
+
             turtle_str, ok = builder.build(
                 summary,
                 domain_hint=domain_hint,
                 pattern_context=pattern_context,
+                scenario_context=scenario_context,
                 progress_cb=step,
                 preserve_all_tables=bool(target_schema),
             )
@@ -1871,6 +2009,7 @@ def _bkg_worker(domain_hint: str, model_override: str, source_kg_file: str,
             "source_kg": active.name if active else "",
             "source_schema": source_schema or "",
         }
+        _write_semantic_source_manifest(active)
         _bkg_state  = {"status": "done", "message": "业务图谱生成完成"}
         blog("=== 业务图谱构建完成 ===")
 
@@ -1978,6 +2117,13 @@ async def business_kg_activate(req: ActivateRequest):
         return {"ok": True, "message": "已是当前版本", "active": target.name}
     # 直接复制历史版本覆盖当前，不归档旧版本
     target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    source_manifest = BKG_DIR / f"{src.stem}.source.json"
+    if source_manifest.exists():
+        SEMANTIC_SOURCE_MANIFEST_PATH.write_text(
+            source_manifest.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+    else:
+        SEMANTIC_SOURCE_MANIFEST_PATH.unlink(missing_ok=True)
     _materialize_business_inferences(target.read_text(encoding="utf-8"))
     _current_bkg_path = target
     return {"ok": True, "active": target.name, "archived_from": src.name}
@@ -2079,6 +2225,11 @@ def _bkg_refine_worker(user_prompt: str, target_file: str, auto_empty_dim: bool 
                 blog("[错误] 当前没有激活的业务图谱，请先生成")
                 _bkg_state.update({"status": "error", "message": "尚未生成业务图谱"})
                 return
+        active_bkg_path = (BKG_DIR / "indicator-data.ttl").resolve()
+        bound_source = (
+            _semantic_source_path()
+            if biz_path.resolve() == active_bkg_path else None
+        )
         biz_ttl = biz_path.read_text(encoding="utf-8")
         blog(f"  当前业务图谱: {biz_path.name}（{len(biz_ttl):,} 字符）")
 
@@ -2384,6 +2535,7 @@ def _bkg_refine_worker(user_prompt: str, target_file: str, auto_empty_dim: bool 
             blog(f"  归档原版本: {archive.name}")
         out = BKG_DIR / "indicator-data.ttl"
         out.write_text(new_ttl, encoding="utf-8")
+        _write_semantic_source_manifest(bound_source)
         triples_after = len(g)
         blog(f"  写入新版本: {out.name}（{len(new_ttl):,} 字符，三元组 {triples_before} → {triples_after}）")
 
@@ -2705,9 +2857,23 @@ def _select_nlq_suggestion_candidates(
     )
 
 
-NLQ_DEMO_INSIGHT_QUESTIONS = (
-    "分析6月8日至7月2日平均电话质量分下降原因",
-)
+def _build_nlq_attribution_questions(
+    primary_measure: dict[str, Any],
+    second_measure: dict[str, Any],
+    business_dims: list[dict[str, Any]],
+    time_dims: list[dict[str, Any]],
+) -> list[str]:
+    """Build attribution prompts only from the active graph's compatible members."""
+    primary_name = str(primary_measure.get("name") or "核心指标")
+    second_name = str(second_measure.get("name") or primary_name)
+    questions = [f"分析{primary_name}变化原因"]
+    if business_dims:
+        questions.append(f"分析不同{business_dims[0]['name']}的{second_name}差异原因")
+    elif time_dims:
+        questions.append(f"分析{second_name}在{time_dims[0]['name']}上的波动原因")
+    elif second_name != primary_name:
+        questions.append(f"分析{primary_name}与{second_name}变化差异的原因")
+    return questions[:2]
 
 
 @app.get("/api/nlq/suggestions")
@@ -2753,6 +2919,7 @@ async def nlq_suggestions(file: str = ""):
             "code": code,
             "name": _val(m, "cnName") or _val(m, "enName") or code,
             "tables": tables,
+            "northStar": _val(m, "northStar").lower() in {"1", "true", "yes"},
         })
 
     dims = []
@@ -2766,10 +2933,21 @@ async def nlq_suggestions(file: str = ""):
             table_name = _val(tbl, "tableName") if tbl else ""
             if table_name:
                 tables.add(table_name)
+        view_type_raw = _val(d, "viewTypeCode")
+        try:
+            view_type = int(view_type_raw or 0)
+        except (TypeError, ValueError):
+            view_type = 0
+        level = _val(d, "levelCode")
+        hierarchy = _val(d, "hierarchyCode")
         dims.append({
             "code": code,
             "name": _val(d, "cnName") or _val(d, "enName") or code,
             "tables": tables,
+            "viewType": view_type,
+            "level": level,
+            "hierarchy": hierarchy,
+            "isTime": bool(view_type or level or "time" in hierarchy.lower()),
         })
 
     live_tables: set[str] = set()
@@ -2830,28 +3008,40 @@ async def nlq_suggestions(file: str = ""):
     measures = _select_nlq_suggestion_candidates(
         measures,
         live_tables,
-        (
-            "MEAS_quality_record_count",
-            "MEAS_avg_call_quality_score",
-            "MEAS_pass_call_count",
-        ),
+        (),
     )
     dims = _select_nlq_suggestion_candidates(
         dims,
         live_tables,
-        (
-            "DIM_date_day",
-            "DIM_store",
-            "DIM_sales_expert",
-            "DIM_quality_issue_category",
-        ),
+        (),
     )
+    measures.sort(key=lambda item: (not bool(item.get("northStar")), str(item.get("code") or "")))
 
     primary_measure = measures[0] if measures else {"name": "核心指标", "tables": set()}
     second_measure = measures[1] if len(measures) > 1 else primary_measure
     compatible_dims = [d for d in dims if d["tables"] & primary_measure["tables"]] or dims
-    first_dim = compatible_dims[0] if compatible_dims else {"name": "业务维度"}
-    second_dim = compatible_dims[1] if len(compatible_dims) > 1 else first_dim
+    second_compatible_dims = [d for d in dims if d["tables"] & second_measure["tables"]] or dims
+    time_dims = sorted(
+        [d for d in compatible_dims if d.get("isTime")],
+        key=lambda item: (0 if item.get("viewType") == 3 else 1, int(item.get("viewType") or 0), str(item.get("code") or "")),
+    )
+    business_dims = sorted(
+        [d for d in compatible_dims if not d.get("isTime")],
+        key=lambda item: str(item.get("code") or ""),
+    )
+    second_business_dims = sorted(
+        [d for d in second_compatible_dims if not d.get("isTime")],
+        key=lambda item: str(item.get("code") or ""),
+    )
+    first_dim = business_dims[0] if business_dims else {"name": "业务维度"}
+    second_dim = second_business_dims[0] if second_business_dims else first_dim
+    time_dim = time_dims[0] if time_dims else {"name": "时间"}
+    attribution_questions = _build_nlq_attribution_questions(
+        primary_measure,
+        second_measure,
+        business_dims,
+        time_dims,
+    )
 
     entity_examples: list[str] = []
     try:
@@ -2993,22 +3183,21 @@ async def nlq_suggestions(file: str = ""):
         ("指标分析", [
             f"查看{primary_measure['name']}整体情况",
             f"查看{second_measure['name']}整体情况",
-            f"按{first_dim['name']}分析{primary_measure['name']}",
-            f"按{second_dim['name']}对比{second_measure['name']}",
+            f"对比{primary_measure['name']}与{second_measure['name']}的变化",
         ]),
         ("时间分析", [
-            f"按{first_dim['name']}查看{primary_measure['name']}",
-            f"按{first_dim['name']}统计{second_measure['name']}",
+            f"按{time_dim['name']}查看{primary_measure['name']}趋势",
+            f"按{time_dim['name']}统计{second_measure['name']}",
         ]),
         ("维度分析", [
-            f"按{second_dim['name']}查看{primary_measure['name']}",
+            f"按{first_dim['name']}查看{primary_measure['name']}",
             f"按{second_dim['name']}统计{second_measure['name']}",
         ]),
         ("结构分析", [
-            f"按{first_dim['name']}统计{primary_measure['name']}",
-            f"按{second_dim['name']}统计{second_measure['name']}",
+            f"查看{primary_measure['name']}在{first_dim['name']}的贡献结构",
+            f"比较{second_measure['name']}在{second_dim['name']}间的结构差异",
         ]),
-        ("洞察归因", list(NLQ_DEMO_INSIGHT_QUESTIONS)),
+        ("洞察归因", attribution_questions),
         ("属性检索", entity_examples[:4]),
         ("图谱解释", [
             f"解释{primary_measure['name']}有哪些可分析维度",
@@ -3037,7 +3226,15 @@ async def nlq_suggestions(file: str = ""):
         categories.append({"name": "图谱解释", "questions": [item]})
         flat.append(item)
 
-    return {"file": p.name, "categories": categories, "questions": flat}
+    return {
+        "file": p.name,
+        "source": {
+            "type": "active_business_kg",
+            "mtime": p.stat().st_mtime,
+        },
+        "categories": categories,
+        "questions": flat,
+    }
 
 
 @app.get("/api/business-kg/ontology")
@@ -3045,6 +3242,17 @@ async def business_kg_ontology():
     """Return the fixed RDFS/OWL ontology preamble (classes + properties)."""
     from kg_builder.business_kg.llm_builder import _ONTOLOGY_PREAMBLE
     return {"content": _ONTOLOGY_PREAMBLE}
+
+
+@app.get("/api/business-kg/default-scenario")
+async def business_kg_default_scenario():
+    """Return the checked-in default business scenario Turtle source."""
+    if not DEFAULT_BKG_SCENARIO_PATH.exists():
+        return JSONResponse(status_code=404, content={"error": "默认业务场景源文件不存在"})
+    return {
+        "filename": DEFAULT_BKG_SCENARIO_PATH.name,
+        "content": DEFAULT_BKG_SCENARIO_PATH.read_text(encoding="utf-8"),
+    }
 
 
 @app.get("/api/business-kg/prompt")
@@ -3250,7 +3458,11 @@ async def business_kg_clear():
     global _bkg_turtle, _bkg_graph, _current_bkg_path
     if _bkg_state.get("status") == "running":
         return JSONResponse(status_code=409, content={"error": "图谱正在生成中，请稍后再试"})
-    files = [BKG_DIR / "indicator-data.ttl", _bkg_inferred_path()]
+    files = [
+        BKG_DIR / "indicator-data.ttl",
+        _bkg_inferred_path(),
+        SEMANTIC_SOURCE_MANIFEST_PATH,
+    ]
     deleted = 0
     for f in files:
         try:
@@ -3753,15 +3965,35 @@ async def business_kg_validate_stream(file: str = ""):
 
 
 def _resolve_bkg_path(file: str) -> Optional[Path]:
+    def active_business_graph() -> Optional[Path]:
+        if _current_bkg_path and _current_bkg_path.exists():
+            try:
+                _current_bkg_path.resolve().relative_to(BKG_DIR.resolve())
+                return _current_bkg_path
+            except ValueError:
+                pass
+        default = BKG_DIR / "indicator-data.ttl"
+        return default if default.exists() else None
+
     if file:
-        p = (BKG_DIR / Path(file).name).resolve()
+        filename = Path(file).name
+        p = (BKG_DIR / filename).resolve()
         if str(p).startswith(str(BKG_DIR.resolve())) and p.exists():
             return p
+
+        # Backward compatibility for a cached frontend that used to send the
+        # selected source KG (for example kg_tpcds.ttl). A source KG cannot be
+        # accuracy-validated as an indicator graph, so transparently use the
+        # active business KG instead of returning an immediate 404.
+        source_kg = (OUTPUT_DIR / filename).resolve()
+        if (
+            str(source_kg).startswith(str(OUTPUT_DIR.resolve()))
+            and source_kg.parent == OUTPUT_DIR.resolve()
+            and source_kg.exists()
+        ):
+            return active_business_graph()
         return None
-    if _current_bkg_path and _current_bkg_path.exists():
-        return _current_bkg_path
-    p = BKG_DIR / "indicator-data.ttl"
-    return p if p.exists() else None
+    return active_business_graph()
 
 
 def _validate_bkg_iter(ttl_path: Path):
@@ -3981,6 +4213,11 @@ async def business_kg_validate_fix(req: BkgFixRequest):
             ttl_path = existing[-1]
     if not ttl_path:
         return JSONResponse(status_code=404, content={"error": "未找到 TTL"})
+    active_bkg_path = (BKG_DIR / "indicator-data.ttl").resolve()
+    bound_source = (
+        _semantic_source_path()
+        if ttl_path.resolve() == active_bkg_path else None
+    )
 
     IND = Namespace("http://indicator.insightmind.com/ontology#")
     g = Graph()
@@ -4199,6 +4436,8 @@ async def business_kg_validate_fix(req: BkgFixRequest):
 
     if fixed_count > 0:
         ttl_path.write_text(content, encoding="utf-8")
+        if ttl_path.resolve() == active_bkg_path:
+            _write_semantic_source_manifest(bound_source)
 
     # ── 6. 重测 ──────────────────────────────────────────────────────── #
     time.sleep(4)
@@ -4431,6 +4670,7 @@ def _insight_worker(
                 log_cb=ilog,
                 cancel_cb=task["cancel_event"].is_set,
                 context=context,
+                semantic_mapping_service=_semantic_mapping_service(),
             )
         for step_result in analyzer.analyze(question):
             if task["cancel_event"].is_set():
@@ -5819,12 +6059,18 @@ def _build_result_evidence(result: dict[str, Any]) -> list[dict[str, Any]]:
     return evidence[:20]
 
 
-def _attach_trace(result: dict[str, Any]) -> dict[str, Any]:
+def _attach_trace(
+    result: dict[str, Any],
+    trace_id: str = "",
+    conversation_id: str = "",
+    source: str = "nlq",
+) -> dict[str, Any]:
     if not isinstance(result, dict):
         return result
-    trace_id = str(uuid.uuid4())
+    trace_id = trace_id or str(uuid.uuid4())
     trace = {
         "traceId": trace_id,
+        "conversationId": conversation_id,
         "ts": time.time(),
         "question": result.get("question") or "",
         "queryMode": result.get("queryMode") or "",
@@ -5842,6 +6088,12 @@ def _attach_trace(result: dict[str, Any]) -> dict[str, Any]:
         _nlq_trace_store.append(trace)
     result["traceId"] = trace_id
     result["trace"] = trace
+    _feedback_complete_query_trace(
+        trace_id,
+        result,
+        conversation_id=conversation_id,
+        source=source,
+    )
     return result
 
 
@@ -6404,14 +6656,40 @@ async def nlq_query(req: NLQRequest):
     question = (req.question or "").strip()
     if not question:
         return JSONResponse({"ok": False, "error": "question 不能为空"}, status_code=400)
+    request_started = time.time()
+    conversation_id = (req.conversationId or "").strip() or str(uuid.uuid4())
+    trace_id = str(uuid.uuid4())
+    trace_source = re.sub(r"[^A-Za-z0-9_\-]", "", (req.source or "nlq"))[:40] or "nlq"
+    _feedback_begin_query_trace(
+        trace_id,
+        question,
+        conversation_id=conversation_id,
+        parent_trace_id=(req.parentTraceId or "").strip(),
+        source=trace_source,
+    )
+
+    def _finish_result(result: dict[str, Any]) -> dict[str, Any]:
+        result.setdefault("question", question)
+        result.setdefault("queryMode", req.queryMode)
+        result.setdefault("elapsedMs", int((time.time() - request_started) * 1000))
+        result["conversationId"] = conversation_id
+        _attach_trace(
+            result,
+            trace_id=trace_id,
+            conversation_id=conversation_id,
+            source=trace_source,
+        )
+        return result
+
     ttl_path = BKG_DIR / "indicator-data.ttl"
     if not ttl_path.exists():
-        return JSONResponse({
+        result = _finish_result({
             "ok": False,
+            "diagnosticCode": "BUSINESS_KG_NOT_FOUND",
             "error": "尚未生成业务图谱，请先在「业务图谱」生成 indicator-data.ttl",
-        }, status_code=404)
+        })
+        return JSONResponse(result, status_code=404)
 
-    conversation_id = (req.conversationId or "").strip() or str(uuid.uuid4())
     with _nlq_context_lock:
         if req.resetContext:
             _nlq_context_store.pop(conversation_id, None)
@@ -6431,8 +6709,7 @@ async def nlq_query(req: NLQRequest):
             _attach_result_validation(result)
             await _attach_cross_validation(result)
             result["evidence"] = _build_result_evidence(result)
-            _attach_trace(result)
-            result["conversationId"] = conversation_id
+            _finish_result(result)
             resolved_context = result.get("resolvedContext")
             if isinstance(resolved_context, dict):
                 with _nlq_context_lock:
@@ -6441,7 +6718,8 @@ async def nlq_query(req: NLQRequest):
                     _nlq_context_store[conversation_id] = dict(resolved_context)
             return JSONResponse(result)
         except Exception as e:
-            return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+            result = _finish_result({"ok": False, "error": str(e)})
+            return JSONResponse(result, status_code=500)
 
     if _is_problem_order_question(question):
         try:
@@ -6453,8 +6731,7 @@ async def nlq_query(req: NLQRequest):
             _attach_result_validation(result)
             await _attach_cross_validation(result)
             result["evidence"] = _build_result_evidence(result)
-            _attach_trace(result)
-            result["conversationId"] = conversation_id
+            _finish_result(result)
             resolved_context = result.get("resolvedContext")
             if isinstance(resolved_context, dict):
                 with _nlq_context_lock:
@@ -6463,19 +6740,22 @@ async def nlq_query(req: NLQRequest):
                     _nlq_context_store[conversation_id] = dict(resolved_context)
             return JSONResponse(result)
         except Exception as e:
-            return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+            result = _finish_result({"ok": False, "error": str(e)})
+            return JSONResponse(result, status_code=500)
 
     def _run():
         from kg_builder.nlq import NaturalLanguageQueryService
-        source_ttl_path = _get_active_path()
+        source_ttl_path = _semantic_source_path()
         service = NaturalLanguageQueryService(
             ttl_path=ttl_path,
             data_agent_url=_DATA_AGENT_URL,
             source_ttl_path=source_ttl_path,
             log_cb=lambda msg: logging.getLogger("uvicorn").info(msg),
+            semantic_mapping_service=_semantic_mapping_service(ttl_path, source_ttl_path),
         )
         return service.query(
             question,
+            trace_id=trace_id,
             execute=req.execute,
             page_size=max(1, min(req.pageSize, 10000)),
             page_num=max(1, req.pageNum),
@@ -6490,8 +6770,7 @@ async def nlq_query(req: NLQRequest):
         _attach_result_validation(result)
         await _attach_cross_validation(result)
         result["evidence"] = _build_result_evidence(result)
-        _attach_trace(result)
-        result["conversationId"] = conversation_id
+        _finish_result(result)
         resolved_context = result.get("resolvedContext")
         if isinstance(resolved_context, dict):
             with _nlq_context_lock:
@@ -6500,7 +6779,8 @@ async def nlq_query(req: NLQRequest):
                 _nlq_context_store[conversation_id] = dict(resolved_context)
         return JSONResponse(result)
     except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        result = _finish_result({"ok": False, "error": str(e)})
+        return JSONResponse(result, status_code=500)
 
 
 @app.get("/api/nlq/traces")
@@ -6726,12 +7006,31 @@ async def nlq_entity_lookup(req: EntityLookupRequest):
     question = (req.question or "").strip()
     if not question:
         return JSONResponse({"ok": False, "error": "question 不能为空"}, status_code=400)
+    trace_id = str(uuid.uuid4())
+    conversation_id = str(uuid.uuid4())
+    started = time.time()
+    _feedback_begin_query_trace(
+        trace_id, question, conversation_id=conversation_id, source="entity_lookup"
+    )
+
+    def _finish(result: dict[str, Any]) -> dict[str, Any]:
+        result.setdefault("question", question)
+        result.setdefault("queryMode", "entity_lookup")
+        result.setdefault("elapsedMs", int((time.time() - started) * 1000))
+        result["conversationId"] = conversation_id
+        _attach_trace(
+            result, trace_id=trace_id, conversation_id=conversation_id, source="entity_lookup"
+        )
+        return result
+
     ttl_path = BKG_DIR / "indicator-data.ttl"
     if not ttl_path.exists():
-        return JSONResponse({
+        result = _finish({
             "ok": False,
+            "diagnosticCode": "BUSINESS_KG_NOT_FOUND",
             "error": "尚未生成业务图谱，请先在「业务图谱」生成 indicator-data.ttl",
-        }, status_code=404)
+        })
+        return JSONResponse(result, status_code=404)
 
     def _run():
         from kg_builder.nlq import NaturalLanguageQueryService
@@ -6749,10 +7048,12 @@ async def nlq_entity_lookup(req: EntityLookupRequest):
 
     try:
         result = await asyncio.to_thread(_run)
+        _finish(result)
         status = 200 if result.get("ok") else 400
         return JSONResponse(result, status_code=status)
     except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        result = _finish({"ok": False, "error": str(e)})
+        return JSONResponse(result, status_code=500)
 
 
 # ── 透视分析 API ────────────────────────────────────────────────────────── #
@@ -6883,14 +7184,20 @@ def _semantic_formula_registry():
     return FormulaRegistry(FORMULA_REGISTRY_PATH)
 
 
-def _pivot_da_post(url: str, payload: dict[str, Any]) -> dict[str, Any]:
+def _pivot_da_post(
+    url: str,
+    payload: dict[str, Any],
+    extra_headers: Optional[dict[str, str]] = None,
+) -> dict[str, Any]:
     import urllib.error as url_error
     import urllib.request as url_request
 
+    headers = {"Content-Type": "application/json"}
+    headers.update(extra_headers or {})
     request = url_request.Request(
         url,
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="POST",
     )
     try:
@@ -6905,6 +7212,44 @@ def _pivot_da_post(url: str, payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(
             result.get("errorMessage") or result.get("message") or "DA 查询失败"
         )
+    return result
+
+
+def _insight_series_loader(query: dict[str, Any], authorization: str = "") -> dict[str, Any]:
+    """Run a semantic metric-series query while preserving the DA user context."""
+    from kg_builder.semantic import AdSemanticService
+
+    auth_headers = {"Authorization": authorization} if authorization else {}
+    service = AdSemanticService(
+        catalog=_pivot_catalog(),
+        da_query=lambda payload: _pivot_da_post(_DATA_AGENT_URL, payload, auth_headers),
+        da_filter_builder=_pivot_da_filters,
+    )
+    return service.load(query)
+
+
+def _insight_goal_loader(goal_id: str, authorization: str = "") -> dict[str, Any]:
+    """Load one governed DA goal without exposing the caller's token."""
+    import urllib.error as url_error
+    import urllib.request as url_request
+
+    da_base_url = os.getenv("INSIGHTMIND_DA_BASE_URL", "http://127.0.0.1:8091").rstrip("/")
+    headers = {"Accept": "application/json"}
+    if authorization:
+        headers["Authorization"] = authorization
+    request = url_request.Request(
+        f"{da_base_url}/goalManagement/detail/{goal_id}",
+        headers=headers,
+        method="GET",
+    )
+    try:
+        with _urlopen(request, timeout=30) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except url_error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:1000]
+        raise ValueError(f"DA 目标查询 HTTP {exc.code}: {detail}") from exc
+    if result.get("code") not in (None, 200):
+        raise ValueError(result.get("message") or "DA 目标查询失败")
     return result
 
 
@@ -7536,6 +7881,8 @@ def _call_sop_filter_value(payload: dict[str, Any], member: str, fallback: str) 
             continue
         values = item.get("values")
         if isinstance(values, list) and values:
+            if member == "ad.date_day" and len(values) >= 2:
+                return f"{values[0]} ~ {values[1]}"
             return str(values[0])
         if values not in (None, ""):
             return str(values)
@@ -7556,6 +7903,98 @@ _CALL_SOP_RECORD_FILTER_COLUMNS = {
     "ad.call_flow_total": "f.call_flow_total",
     "ad.quality_rule": "COALESCE(r.sop_category_name, r.sop_category_code, f.rule_id)",
 }
+
+
+_CALL_SOP_EXPERT_NAME_STOPWORDS = {
+    "理想汽车", "产品专家", "销售顾问", "销售专家", "门店顾问", "线上客服",
+    "先生", "女士", "老师", "姐姐", "哥哥", "哥", "姐", "客户", "专家", "小鹏", "小米",
+    "房子", "小伙儿", "满意", "谢谢", "辛苦", "那边", "妹妹", "好好",
+    "问界", "智界", "领克", "特斯拉", "宝马", "奥迪",
+}
+_CALL_SOP_COMMON_SURNAMES = set(
+    "赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜"
+    "戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐"
+    "费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平"
+    "黄和穆萧尹姚邵湛汪祁毛禹狄米贝明臧计伏成戴谈宋茅庞熊纪舒屈项祝"
+    "董梁杜阮蓝闵席季麻强贾路娄危江童颜郭梅盛林刁钟徐邱骆高夏蔡田樊"
+    "胡凌霍虞万支柯管卢莫经房裘缪干解应宗丁宣邓郁单杭洪包诸左石崔吉"
+    "钮龚程嵇邢滑裴陆荣翁荀羊甄曲封芮储靳汲邴糜松井段富巫乌焦巴弓牧隗"
+    "山谷车侯宓蓬全郗班仰秋仲伊宫宁仇栾暴甘钭厉戎祖武符刘景詹束龙叶幸"
+    "司韶黎乔苍双闻莘党翟谭贡劳逄姬申扶堵冉宰郦雍郤璩桑桂濮牛寿通边扈"
+    "燕冀郏浦尚农温别庄晏柴瞿阎充慕连茹习艾鱼容向古易慎戈廖庾终暨居衡"
+    "步都耿满弘匡国文寇广禄阙东欧殳沃利蔚越夔隆师巩厍聂晁勾敖融冷訾辛"
+    "阚那简饶空曾毋沙乜养鞠须丰巢关蒯相查后荆红游竺权逯盖益桓公"
+)
+
+
+def _call_sop_source_expert_name(row: dict[str, Any]) -> str:
+    """Extract a source-backed display name without changing the drill filter key.
+
+    The imported call data only carries ``specialist_id`` as a structured field;
+    real names are present in explicit self-introductions in the ASR text.
+    Keep this deliberately conservative so the UI
+    never turns ordinary dialogue into a fabricated employee name.
+    """
+
+    raw_name = str(row.get("expert_name") or "").strip()
+    if raw_name and not re.fullmatch(r"\d+", raw_name):
+        return raw_name
+
+    text = str(row.get("aggregated_content") or "")
+    if not text:
+        return ""
+
+    # Only inspect expert utterances.  Customer dialogue often contains phrases
+    # such as “我是……” and must never be promoted to the employee label.
+    expert_segments = []
+    for segment in text.split("｜"):
+        normalized = re.sub(r"^\[时间\s*[:：][^\]]+\]\s*", "", segment.strip())
+        if normalized.startswith(("专家:", "专家：")):
+            expert_segments.append(re.sub(r"^专家[:：]", "", normalized, count=1))
+    expert_text = "｜".join(expert_segments)
+    if not expert_text:
+        return ""
+
+    def clean(value: Any) -> str:
+        candidate = re.sub(r"[^\u4e00-\u9fff]", "", str(value or ""))
+        candidate = re.sub(r"^(?:那个|这个|阿)", "", candidate)
+        candidate = re.sub(r"[的有是哎呀呢哈啊了吧嘛]+$", "", candidate)
+        candidate = re.sub(r"(?:老师|经理|顾问|销售|专家|姐姐|哥哥|哥|姐|总)+$", "", candidate)
+        if not 2 <= len(candidate) <= 4:
+            return ""
+        if candidate in _CALL_SOP_EXPERT_NAME_STOPWORDS:
+            return ""
+        if any(word in candidate for word in (
+            "理想", "汽车", "专家", "销售", "门店", "客服", "小鹏", "小米", "问界", "智界", "领克", "宝马", "奥迪",
+        )):
+            return ""
+        if candidate.startswith("小"):
+            return candidate
+        if len(candidate) == 2 and candidate[0] == candidate[1]:
+            return candidate
+        return candidate if candidate[0] in _CALL_SOP_COMMON_SURNAMES else ""
+
+    patterns = (
+        r"我姓([\u4e00-\u9fff])(?:[，,\s]*我)?([\u4e00-\u9fff]{2,3})",
+        r"我是(?:那个)?理想汽车(?:的|那个)?([\u4e00-\u9fff]{2,4})(?=[，。！？｜]|看您|前一段|$)",
+        r"我是理想汽车(?:产品专家|销售顾问|销售专家|顾问|销售|产品)[，,]?阿?([\u4e00-\u9fff]{2,4})(?=看|，|。|！|？|｜|$)",
+        r"我是([小][\u4e00-\u9fff]{1,3})(?=[，。！？｜]|$)",
+        r"我是([\u4e00-\u9fff]{2,4})[，,]理想汽车",
+        r"我这边[^｜]{0,24}?理想汽车(?:的)?(?:那个)?(?:小王)?([\u4e00-\u9fff]{2,4})(?=[，。！？｜]|$)",
+        r"我(?:这边)?(?:那个)?理想(?:汽车)?的(?:那个)?([小][\u4e00-\u9fff]{1,3})(?:哥|姐)?(?=[，。！？｜]|$)",
+        r"我叫([\u4e00-\u9fff]{2,4})(?=[，。！？｜]|$)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, expert_text)
+        if not match:
+            continue
+        # “我姓丁，我丁帅” uses the complete second capture.
+        value = match.group(2) if match.lastindex and match.lastindex >= 2 else match.group(1)
+        candidate = clean(value)
+        if candidate:
+            return candidate
+
+    return ""
 
 
 def _call_sop_record_filter_conditions(payload: dict[str, Any]) -> tuple[list[str], dict[str, Any], bool]:
@@ -7605,7 +8044,7 @@ def _call_sop_record_filter_conditions(payload: dict[str, Any]) -> tuple[list[st
         params["default_day"] = _call_sop_filter_value(payload, "ad.date_day", "2026-07-02")
         where.append("f.activity_date = :default_day")
     if "ad.store" not in seen:
-        params["default_store"] = _call_sop_filter_value(payload, "ad.store", "特斯拉汽车杭州演示体验中心")
+        params["default_store"] = _call_sop_filter_value(payload, "ad.store", "理想汽车杭州演示体验中心")
         where.append("f.store_name = :default_store")
     return where, params, uses_rule
 
@@ -7694,7 +8133,7 @@ def _call_sop_diagnosis(payload: dict[str, Any]) -> dict[str, Any]:
     )
 
     day = _call_sop_filter_value(payload, "ad.date_day", "2026-07-02")
-    store = _call_sop_filter_value(payload, "ad.store", "特斯拉汽车杭州演示体验中心")
+    store = _call_sop_filter_value(payload, "ad.store", "理想汽车杭州演示体验中心")
     catalog = catalog_payload()
     category_template = {item["code"]: item for item in catalog}
     categories = {item["code"]: _call_sop_empty_category(item) for item in catalog}
@@ -7755,10 +8194,12 @@ def _call_sop_diagnosis(payload: dict[str, Any]) -> dict[str, Any]:
             issue_name = str(row.get("issue_category") or "未分类")
             issue_counts[issue_name] = issue_counts.get(issue_name, 0) + 1
         expert_name = str(row.get("expert_name") or row.get("specialist_id") or "-")
+        source_expert_name = _call_sop_source_expert_name(row)
         if expert_name not in experts:
             experts[expert_name] = {
                 "name": expert_name,
                 "specialistId": row.get("specialist_id"),
+                "sourceNameCounts": {},
                 "total": 0,
                 "hitCheckpointCount": 0,
                 "totalCheckpointCount": 0,
@@ -7770,6 +8211,9 @@ def _call_sop_diagnosis(payload: dict[str, Any]) -> dict[str, Any]:
                 "categories": {item["code"]: _call_sop_empty_category(item) for item in catalog},
             }
         expert = experts[expert_name]
+        if source_expert_name:
+            source_counts = expert["sourceNameCounts"]
+            source_counts[source_expert_name] = source_counts.get(source_expert_name, 0) + 1
         expert["total"] += 1
         expert["hitCheckpointCount"] += int(analysis.get("hit_checkpoint_count") or 0)
         expert["totalCheckpointCount"] += int(analysis.get("total_checkpoint_count") or 0)
@@ -7789,6 +8233,19 @@ def _call_sop_diagnosis(payload: dict[str, Any]) -> dict[str, Any]:
     category_rows = [_call_sop_finalize_category(categories[item["code"]]) for item in catalog]
     expert_rows = []
     for expert in experts.values():
+        source_counts = expert.pop("sourceNameCounts", {})
+        for longer_name in list(source_counts):
+            for shorter_name in list(source_counts):
+                if (
+                    longer_name != shorter_name
+                    and len(longer_name) > len(shorter_name)
+                    and longer_name.endswith(shorter_name)
+                    and longer_name[0] in _CALL_SOP_COMMON_SURNAMES
+                ):
+                    source_counts[longer_name] += source_counts.pop(shorter_name, 0)
+        display_name = max(source_counts.items(), key=lambda item: item[1])[0] if source_counts else ""
+        expert["displayName"] = display_name or expert.get("name") or "-"
+        expert["sourceNameMatchedCalls"] = int(source_counts.get(display_name, 0)) if display_name else 0
         check_total = int(expert.get("totalCheckpointCount") or 0)
         hit = int(expert.get("hitCheckpointCount") or 0)
         expert["coverageRate"] = hit / check_total if check_total else 0
@@ -7920,7 +8377,7 @@ def _call_sop_workbench(payload: dict[str, Any]) -> dict[str, Any]:
     from kg_builder.call_sop import SOP_VERSION, catalog_payload
 
     day = _call_sop_filter_value(payload, "ad.date_day", "2026-07-02")
-    store = _call_sop_filter_value(payload, "ad.store", "特斯拉汽车杭州演示体验中心")
+    store = _call_sop_filter_value(payload, "ad.store", "理想汽车杭州演示体验中心")
     catalog = catalog_payload()
     catalog_names = [str(item.get("name") or "") for item in catalog if item.get("name")]
     fallback_count = 0
@@ -7970,6 +8427,7 @@ def _call_sop_workbench(payload: dict[str, Any]) -> dict[str, Any]:
         grade = str(row.get("sop_grade_label") or detail.get("sopGradeLabel") or row.get("quality_score_level") or "未识别")
         primary_sop = str(row.get("primary_sop_category") or detail.get("primarySopCategory") or "")
         expert_name = str(row.get("expert_name") or row.get("specialist_id") or "-")
+        expert_display_name = _call_sop_source_expert_name(row) or expert_name
         customer_id = str(row.get("customer_account_id") or "")
         customer_display_name = str(detail.get("customerDisplayName") or (f"客户{customer_id[-4:]}" if customer_id else "未知客户"))
         latest_time = row.get("latest_conversation_time")
@@ -7978,6 +8436,7 @@ def _call_sop_workbench(payload: dict[str, Any]) -> dict[str, Any]:
             "activityDate": _call_workbench_iso_date(row.get("activity_date")),
             "storeName": row.get("store_name"),
             "expertName": expert_name,
+            "expertDisplayName": expert_display_name,
             "specialistId": row.get("specialist_id"),
             "customerAccountId": customer_id,
             "customerDisplayName": customer_display_name,
@@ -8257,7 +8716,7 @@ def _celn_stage_code(raw: str) -> str:
 def _celn_store_insight(payload: dict[str, Any]) -> dict[str, Any]:
     from sqlalchemy import text
 
-    store = str(payload.get("store") or payload.get("storeName") or "特斯拉汽车杭州演示体验中心").strip()
+    store = str(payload.get("store") or payload.get("storeName") or "理想汽车杭州演示体验中心").strip()
     day = str(payload.get("date") or payload.get("day") or "2026-07-02").strip()
     engine = _cached_da_tms_engine()
     stage_meta = {
@@ -8553,7 +9012,7 @@ def _celn_store_insight(payload: dict[str, Any]) -> dict[str, Any]:
         "stageFlows": stage_flow,
         "ln": {"current": ln_current, "previous": ln_prev, "change": ln_change, "direction": direction},
         "businessGraph": {
-            "ontology": "特斯拉汽车 CELN 用户分层与跟进闭环业务场景本体",
+            "ontology": "理想汽车 CELN 用户分层与跟进闭环业务场景本体",
             "storeManagers": [row.get("manager_name") for row in manager_rows if row.get("manager_name")],
             "coreQuestion": "查询某用户当前处于 CELN 的哪个阶段，并追溯阶段判断、证据、标签、跟进闭环和转化结果。",
             "path": [
@@ -8589,7 +9048,7 @@ async def da_tms_celn_store_insight(request: Request):
 
 
 @app.get("/api/da-tms/celn/customers")
-async def da_tms_celn_customers(store: str = "特斯拉汽车杭州演示体验中心", stage: str = "", limit: int = 100):
+async def da_tms_celn_customers(store: str = "理想汽车杭州演示体验中心", stage: str = "", limit: int = 100):
     from sqlalchemy import text
 
     try:
@@ -10102,10 +10561,25 @@ async def stats_analyze(request: Request):
 @app.on_event("startup")
 async def on_startup():
     """Initialize alert DB and start the background scanner."""
+    configure_insight_runtime(
+        series_loader=_insight_series_loader,
+        goal_loader=_insight_goal_loader,
+        catalog_loader=_pivot_catalog,
+    )
+
+    try:
+        init_insight_store()
+    except Exception as e:
+        logging.getLogger(__name__).warning("Insight DB init failed: %s", e)
+
+    try:
+        init_feedback_store()
+    except Exception as e:
+        logging.getLogger(__name__).warning("Feedback DB init failed: %s", e)
+
     try:
         init_db()
     except Exception as e:
-        import logging
         logging.getLogger(__name__).warning("Alert DB init failed: %s", e)
 
     try:
@@ -10114,7 +10588,6 @@ async def on_startup():
         init_scan_loader(_execute_semantic_load_for_alerts)
         await alert_scheduler.start(interval=300)
     except Exception as e:
-        import logging
         logging.getLogger(__name__).warning("Alert scheduler start failed: %s", e)
 
 

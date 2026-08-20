@@ -1,0 +1,95 @@
+[
+  {
+    "id": "measure_name_001",
+    "question": "查询优惠券转化率",
+    "expectedMeasure": "MEAS_coupon_conversion_rate",
+    "expectedDimensions": [],
+    "expectedValues": [],
+    "expectedDecision": "auto"
+  },
+  {
+    "id": "measure_name_002",
+    "question": "查看领券量",
+    "expectedMeasure": "MEAS_coupon_received_cnt",
+    "expectedDimensions": [],
+    "expectedValues": [],
+    "expectedDecision": "auto"
+  },
+  {
+    "id": "measure_code_001",
+    "question": "查询 MEAS_service_order_amount",
+    "expectedMeasure": "MEAS_service_order_amount",
+    "expectedDimensions": [],
+    "expectedValues": [],
+    "expectedDecision": "auto"
+  },
+  {
+    "id": "dimension_001",
+    "question": "按战区查看优惠券转化率",
+    "expectedMeasure": "MEAS_coupon_conversion_rate",
+    "expectedDimensions": ["DIM_region"],
+    "expectedValues": [],
+    "expectedDecision": "auto"
+  },
+  {
+    "id": "dimension_002",
+    "question": "按营销场景查看权益成本",
+    "expectedMeasure": "MEAS_rights_cost",
+    "expectedDimensions": ["DIM_scene_type"],
+    "expectedValues": [],
+    "expectedDecision": "auto"
+  },
+  {
+    "id": "dimension_003",
+    "question": "按车型看交车发券率",
+    "expectedMeasure": "MEAS_delivery_send_rate",
+    "expectedDimensions": ["DIM_vehicle_model"],
+    "expectedValues": [],
+    "expectedDecision": "auto"
+  },
+  {
+    "id": "reject_001",
+    "question": "查询不存在的火星指标ABCXYZ",
+    "expectedDimensions": [],
+    "expectedValues": [],
+    "expectedDecision": "reject"
+  },
+  {
+    "id": "long_question_001",
+    "question": "请帮我深入分析最近三个月优惠券转化率为什么持续下降以及可能的业务原因",
+    "expectedMeasure": "MEAS_coupon_conversion_rate",
+    "expectedDimensions": [],
+    "expectedValues": [],
+    "expectedDecision": "auto"
+  },
+  {
+    "id": "value_region_001",
+    "question": "查询东区优惠券转化率",
+    "expectedMeasure": "MEAS_coupon_conversion_rate",
+    "expectedDimensions": ["DIM_region"],
+    "expectedValues": ["DIM_region=东区"],
+    "expectedFilterSafe": true,
+    "requiresExecution": true,
+    "expectedFilterColumn": "region_name",
+    "expectedDecision": "auto"
+  },
+  {
+    "id": "value_entity_overlap_001",
+    "question": "查询服务销售额",
+    "expectedMeasure": "MEAS_service_order_amount",
+    "expectedDimensions": [],
+    "expectedValues": [],
+    "expectedDecision": "auto"
+  },
+  {
+    "id": "vector_definition_001",
+    "requiresVector": true,
+    "question": "已完成交付的车辆数量",
+    "expectedMeasure": "MEAS_delivery_cnt",
+    "expectedDimensions": [],
+    "expectedValues": [],
+    "expectedTopMatchType": "vector",
+    "expectedVectorUsed": true,
+    "expectedDecision": "clarify"
+  }
+]

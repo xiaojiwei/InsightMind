@@ -701,6 +701,45 @@
     body.dashboard-view-mode .dashboard-canvas { background:#fff; border-color:#dde5ee; padding:0; }
     body.dashboard-view-mode .dashboard-fallback-grid { gap:0; }
     body.dashboard-view-mode .dashboard-widget { box-shadow:none; }
+    body.dashboard-view-mode .dashboard-fallback-grid .dashboard-kpi-widget {
+      height:188px !important;
+      min-height:188px;
+    }
+    body.dashboard-view-mode .dashboard-kpi-widget .dashboard-view-grid-item-content {
+      height:100%;
+      padding:4px;
+    }
+    body.dashboard-view-mode .dashboard-kpi-widget .dashboard-widget {
+      min-height:0;
+      border-top:2px solid #7189ad;
+      background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%);
+    }
+    body.dashboard-view-mode .dashboard-kpi-widget .dashboard-widget-header {
+      height:32px;
+      padding:4px 8px;
+    }
+    body.dashboard-view-mode .dashboard-kpi-widget .dashboard-widget-body {
+      min-height:0;
+      padding:4px 6px;
+      overflow:hidden;
+    }
+    body.dashboard-view-mode .dashboard-kpi-widget .dashboard-widget-chart {
+      height:100%;
+      min-height:0;
+      overflow:hidden;
+    }
+    body.dashboard-view-mode .dashboard-kpi-widget [data-adhoc-kpi-click] {
+      padding-left:16px !important;
+      padding-right:10px !important;
+    }
+    body.dashboard-view-mode .dashboard-kpi-widget [data-adhoc-kpi-click] > .text-muted.mb-2 {
+      margin-bottom:4px !important;
+      font-size:12px;
+    }
+    body.dashboard-view-mode .dashboard-kpi-widget .adhoc-kpi {
+      font-size:30px;
+      line-height:1.1;
+    }
     body.dashboard-view-mode .dashboard-report-widget {
       height:auto !important;
       min-height:0;
@@ -732,15 +771,581 @@
     body.dashboard-standalone-view .app-topbar,
     body.dashboard-standalone-view nav.navbar,
     body.dashboard-standalone-view > .container-fluid > .nav.nav-tabs { display:none !important; }
-    body.dashboard-standalone-view { background:#eef2f6; }
+    body.dashboard-standalone-view {
+      --dash-warm-bg:#f5f0e8;
+      --dash-warm-card:#fffdf8;
+      --dash-warm-header:#eee7dc;
+      --dash-warm-border:#d8cdbf;
+      --dash-forest:#183f35;
+      --dash-forest-mid:#2f6f5e;
+      --dash-forest-soft:#dce8e2;
+      --dash-coral:#ed7052;
+      --dash-coral-soft:#fff0eb;
+      background:var(--dash-warm-bg);
+      color:var(--dash-forest);
+    }
     body.dashboard-standalone-view .app-shell,
-    body.dashboard-standalone-view .app-main { display:block; min-height:100vh; }
+    body.dashboard-standalone-view .app-main {
+      display:block;
+      min-height:100vh;
+      background:var(--dash-warm-bg);
+    }
     body.dashboard-standalone-view .app-content,
     body.dashboard-standalone-view > .container-fluid { padding:12px !important; }
     body.dashboard-standalone-view #tab-dashboard { display:block !important; opacity:1 !important; }
-    body.dashboard-standalone-view #dashboard-filter-card { margin-bottom:8px !important; }
-    body.dashboard-standalone-view #dashboard-filter-card .card-header { padding:6px 10px !important; min-height:34px; }
+    body.dashboard-standalone-view #dashboard-filter-card {
+      margin-bottom:8px !important;
+      border-color:var(--dash-warm-border);
+      background:var(--dash-warm-card);
+    }
+    body.dashboard-standalone-view #dashboard-filter-card .card-header {
+      padding:6px 10px !important;
+      min-height:34px;
+      color:var(--dash-forest);
+      background:var(--dash-warm-header);
+      border-bottom-color:var(--dash-warm-border);
+    }
     body.dashboard-standalone-view #dashboard-filter-summary { display:inline-flex !important; }
+    body.dashboard-standalone-view .dashboard-canvas {
+      background:var(--dash-warm-bg);
+      border-color:var(--dash-warm-border);
+    }
+    body.dashboard-standalone-view #dashboard-main-panel > .card {
+      background:var(--dash-warm-card);
+      border-color:var(--dash-warm-border);
+    }
+    body.dashboard-standalone-view #dashboard-main-panel > .card > .card-header {
+      color:var(--dash-forest);
+      background:var(--dash-warm-header);
+      border-bottom-color:var(--dash-warm-border);
+    }
+    body.dashboard-standalone-view .dashboard-widget {
+      color:var(--dash-forest);
+      background:var(--dash-warm-card);
+      border-color:var(--dash-warm-border);
+      box-shadow:0 2px 8px rgba(43,61,52,.055);
+    }
+    body.dashboard-standalone-view .dashboard-widget-header {
+      color:var(--dash-forest);
+      background:linear-gradient(180deg,#f4eee5,#ebe3d7);
+      border-bottom-color:var(--dash-warm-border);
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget .dashboard-widget {
+      border-top-color:var(--dash-forest-mid);
+      background:linear-gradient(180deg,#fffdf8 0%,#faf6ef 100%);
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget .adhoc-kpi {
+      color:var(--dash-forest);
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget [data-adhoc-kpi-click] > .text-muted,
+    body.dashboard-standalone-view .dashboard-widget .text-muted {
+      color:#6f7f76 !important;
+    }
+    body.dashboard-standalone-view .dashboard-widget-actions .btn {
+      color:var(--dash-forest-mid);
+      border-color:#b9c8c0;
+      background:#fffdf8;
+    }
+    body.dashboard-standalone-view .dashboard-widget-actions .btn:hover {
+      color:#fff;
+      border-color:var(--dash-forest-mid);
+      background:var(--dash-forest-mid);
+    }
+    body.dashboard-standalone-view #dashboard-filter-query,
+    body.dashboard-standalone-view .btn-primary {
+      color:#fff;
+      border-color:var(--dash-forest);
+      background:var(--dash-forest);
+    }
+    body.dashboard-standalone-view #dashboard-filter-query:hover,
+    body.dashboard-standalone-view .btn-primary:hover {
+      border-color:var(--dash-forest-mid);
+      background:var(--dash-forest-mid);
+    }
+    body.dashboard-standalone-view #dashboard-global-filters .badge {
+      color:var(--dash-forest) !important;
+      border-color:#b9c8c0 !important;
+      background:var(--dash-forest-soft) !important;
+    }
+    body.dashboard-standalone-view .dashboard-card-active {
+      border-color:var(--dash-forest-mid) !important;
+      box-shadow:inset 3px 0 0 var(--dash-forest-mid);
+    }
+    body.dashboard-standalone-view .pivot-table {
+      border-color:var(--dash-warm-border) !important;
+      background:var(--dash-warm-card);
+    }
+    body.dashboard-standalone-view .pivot-table th {
+      color:var(--dash-forest);
+      background:var(--dash-forest-soft) !important;
+      border-color:#c3d0ca !important;
+    }
+    body.dashboard-standalone-view .pivot-table td {
+      border-color:#ded5ca !important;
+    }
+    body.dashboard-standalone-view .ad-doc-alert-cell::after,
+    body.dashboard-standalone-view .ad-doc-alert-cell.ad-alert-cell .pivot-value::after {
+      background:var(--ad-doc-alert-color,var(--dash-coral));
+    }
+    body.dashboard-standalone-view .ad-doc-alert-panel,
+    body.dashboard-standalone-view .alert-danger,
+    body.dashboard-standalone-view .alert-warning {
+      color:#813a2b;
+      border-color:var(--dash-coral);
+      background:var(--dash-coral-soft);
+    }
+
+    /* Coupler-inspired dashboard presentation: compact scorecards, airy chart cards and a sticky insight rail. */
+    body.dashboard-standalone-view {
+      --dash-warm-bg:#f4f3ee;
+      --dash-warm-card:#fffefa;
+      --dash-warm-header:#fffefa;
+      --dash-warm-border:#d9e0dc;
+      --dash-forest:#173f35;
+      --dash-forest-mid:#2f6f5e;
+      --dash-forest-soft:#e5eee9;
+      --dash-coral:#ed7052;
+      --dash-coral-soft:#fff0eb;
+      color:#1f2d29;
+    }
+    body.dashboard-standalone-view .app-content,
+    body.dashboard-standalone-view > .container-fluid {
+      padding:14px 18px 24px !important;
+    }
+    body.dashboard-standalone-view #tab-dashboard > .row {
+      --bs-gutter-x:0;
+      --bs-gutter-y:12px;
+    }
+    body.dashboard-standalone-view #dashboard-filter-card {
+      margin-bottom:0 !important;
+      border:1px solid var(--dash-warm-border);
+      border-radius:12px;
+      box-shadow:none;
+      overflow:hidden;
+    }
+    body.dashboard-standalone-view #dashboard-main-panel #dashboard-filter-card {
+      margin:0 0 12px !important;
+    }
+    body.dashboard-standalone-view .dashboard-filter-host-empty { display:none !important; }
+    body.dashboard-standalone-view #dashboard-filter-card .card-header {
+      min-height:42px;
+      padding:9px 14px !important;
+      background:var(--dash-warm-card);
+    }
+    body.dashboard-standalone-view #dashboard-filter-card .card-body {
+      padding:10px 14px 12px !important;
+      background:var(--dash-warm-card);
+    }
+    body.dashboard-standalone-view #dashboard-main-panel > .card {
+      border:0;
+      border-radius:0;
+      background:transparent;
+      box-shadow:none;
+    }
+    body.dashboard-standalone-view #dashboard-main-panel > .card > .card-header {
+      min-height:72px;
+      padding:12px 10px 10px !important;
+      border:0;
+      background:transparent;
+    }
+    body.dashboard-standalone-view .dashboard-header-copy {
+      display:flex;
+      min-width:0;
+      flex-direction:column;
+      gap:3px;
+    }
+    body.dashboard-standalone-view .dashboard-header-title {
+      color:#1f2d29;
+      font-size:19px;
+      font-weight:750;
+      letter-spacing:-.2px;
+    }
+    body.dashboard-standalone-view .dashboard-header-subtitle {
+      max-width:900px;
+      color:#66736e;
+      font-size:12.5px;
+      font-weight:400;
+      white-space:normal;
+    }
+    body.dashboard-standalone-view #dashboard-mode-hint { display:none; }
+    body.dashboard-standalone-view #dashboard-view-print-btn {
+      align-self:flex-start;
+      margin-left:auto;
+      border-color:#b9c8c0;
+      border-radius:8px;
+      color:var(--dash-forest);
+      background:var(--dash-warm-card);
+    }
+    body.dashboard-standalone-view #dashboard-insight-open-btn {
+      align-self:flex-start;
+      border-color:#963cff;
+      border-radius:8px;
+      color:#7131c9;
+      background:var(--dash-warm-card);
+    }
+    body.dashboard-standalone-view #dashboard-insight-open-btn:hover {
+      color:#fff;
+      background:#963cff;
+    }
+    body.dashboard-standalone-view #dashboard-main-panel > .card > .card-body {
+      padding:0 !important;
+    }
+    body.dashboard-standalone-view #dashboard-main-panel > .card > .card-body:has(#dashboard-ai-insight-panel:not(.d-none)) {
+      display:grid;
+      grid-template-columns:minmax(0, 1fr) 318px;
+      gap:16px;
+      align-items:start;
+    }
+    body.dashboard-standalone-view .dashboard-canvas {
+      min-height:0;
+      padding:0;
+      border:0;
+      border-radius:0;
+      background:transparent;
+    }
+    body.dashboard-standalone-view .dashboard-fallback-grid {
+      gap:14px;
+    }
+    body.dashboard-standalone-view .dashboard-view-grid-item-content {
+      padding:0;
+    }
+    body.dashboard-standalone-view .dashboard-widget {
+      border:1px solid var(--dash-warm-border);
+      border-radius:12px;
+      background:var(--dash-warm-card);
+      box-shadow:none;
+    }
+    body.dashboard-standalone-view .dashboard-widget:hover {
+      border-color:#c4d0ca;
+      box-shadow:0 8px 24px rgba(25,63,53,.07);
+    }
+    body.dashboard-standalone-view .dashboard-widget-header {
+      height:42px;
+      padding:10px 14px 6px;
+      border-bottom:0;
+      color:#1f2d29;
+      background:transparent;
+      font-size:13px;
+    }
+    body.dashboard-standalone-view .dashboard-widget-header > span {
+      font-size:13.5px;
+      font-weight:700 !important;
+    }
+    body.dashboard-standalone-view .dashboard-widget-actions {
+      opacity:.42;
+      transition:opacity .15s ease;
+    }
+    body.dashboard-standalone-view .dashboard-widget:hover .dashboard-widget-actions {
+      opacity:1;
+    }
+    body.dashboard-standalone-view .dashboard-widget-actions .btn {
+      width:22px;
+      height:22px;
+      padding:0 !important;
+      border-color:transparent;
+      border-radius:6px;
+      background:transparent;
+    }
+    body.dashboard-standalone-view .dashboard-widget-body {
+      padding:4px 14px 14px;
+    }
+    body.dashboard-standalone-view .dashboard-fallback-grid .dashboard-kpi-widget {
+      height:106px !important;
+      min-height:106px;
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget .dashboard-widget {
+      position:relative;
+      border-top:1px solid var(--dash-warm-border);
+      background:var(--dash-warm-card);
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget .dashboard-widget-header {
+      position:absolute;
+      z-index:3;
+      top:7px;
+      right:7px;
+      width:auto;
+      height:auto;
+      padding:0;
+      background:transparent;
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget .dashboard-widget-header > span {
+      display:none !important;
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget .dashboard-widget-actions {
+      opacity:0;
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget .dashboard-widget:hover .dashboard-widget-actions {
+      opacity:1;
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget .dashboard-widget-body {
+      padding:0;
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget .dashboard-widget-chart {
+      min-height:0;
+      overflow:hidden;
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget [data-adhoc-kpi-click] {
+      align-items:flex-start !important;
+      justify-content:center !important;
+      padding:14px 20px !important;
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget [data-adhoc-kpi-click] > .text-muted.mb-2 {
+      margin-bottom:5px !important;
+      color:#66736e !important;
+      font-size:12px;
+      line-height:1.1;
+    }
+    body.dashboard-standalone-view .dashboard-kpi-widget .adhoc-kpi {
+      color:#1f2d29;
+      font-size:25px;
+      font-weight:760;
+      line-height:1.05;
+      letter-spacing:-.35px;
+    }
+    body.dashboard-standalone-view .dashboard-ai-panel.dashboard-insight-rail {
+      position:sticky;
+      top:14px;
+      max-height:calc(100vh - 28px);
+      margin:0;
+      padding:20px 20px 24px;
+      overflow:auto;
+      border:2px solid #963cff;
+      border-radius:12px;
+      color:#25332f;
+      background:var(--dash-warm-card);
+      box-shadow:none;
+      font-size:13px;
+      line-height:1.62;
+    }
+    body.dashboard-standalone-view .dashboard-insight-title {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:18px;
+      color:#1f2d29;
+      font-size:17px;
+      font-weight:750;
+    }
+    body.dashboard-standalone-view .dashboard-insight-title-copy {
+      display:inline-flex;
+      align-items:center;
+      gap:9px;
+    }
+    body.dashboard-standalone-view .dashboard-insight-close {
+      display:inline-flex;
+      width:28px;
+      height:28px;
+      flex:0 0 28px;
+      align-items:center;
+      justify-content:center;
+      padding:0;
+      border:0;
+      border-radius:7px;
+      color:#4f5660;
+      background:transparent;
+      font-size:16px;
+    }
+    body.dashboard-standalone-view .dashboard-insight-title-actions {
+      display:inline-flex;
+      align-items:center;
+      gap:2px;
+    }
+    body.dashboard-standalone-view .dashboard-insight-refresh {
+      display:inline-flex;
+      width:28px;
+      height:28px;
+      flex:0 0 28px;
+      align-items:center;
+      justify-content:center;
+      padding:0;
+      border:0;
+      border-radius:7px;
+      color:#7131c9;
+      background:transparent;
+      font-size:16px;
+    }
+    body.dashboard-standalone-view .dashboard-insight-refresh:hover {
+      background:#f3eaff;
+    }
+    body.dashboard-standalone-view .dashboard-insight-refresh:disabled {
+      cursor:wait;
+      opacity:.65;
+    }
+    body.dashboard-standalone-view .dashboard-insight-close:hover {
+      color:#7131c9;
+      background:#f3eaff;
+    }
+    body.dashboard-standalone-view .dashboard-insight-title i {
+      color:#963cff;
+      font-size:21px;
+    }
+    body.dashboard-standalone-view .dashboard-insight-kicker {
+      margin:18px 0 7px;
+      color:var(--dash-forest-mid);
+      font-size:12.5px;
+      font-weight:750;
+    }
+    body.dashboard-standalone-view .dashboard-insight-kicker.insight-overview { color:#785ee8; }
+    body.dashboard-standalone-view .dashboard-insight-kicker.insight-findings { color:#17465c; }
+    body.dashboard-standalone-view .dashboard-insight-kicker.insight-actions { color:#248656; }
+    body.dashboard-standalone-view .dashboard-insight-copy {
+      margin:0;
+      color:#5e6b66;
+    }
+    body.dashboard-standalone-view .dashboard-insight-finding {
+      padding:10px 0;
+      border-bottom:1px solid #e7ebe8;
+    }
+    body.dashboard-standalone-view .dashboard-insight-finding summary {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      cursor:pointer;
+      color:#26342f;
+      font-weight:650;
+      list-style:none;
+    }
+    body.dashboard-standalone-view .dashboard-insight-finding summary::-webkit-details-marker { display:none; }
+    body.dashboard-standalone-view .dashboard-insight-finding summary::before {
+      content:'›';
+      color:var(--dash-forest-mid);
+      font-size:19px;
+      line-height:1;
+      transition:transform .15s ease;
+    }
+    body.dashboard-standalone-view .dashboard-insight-finding[open] summary::before { transform:rotate(90deg); }
+    body.dashboard-standalone-view .dashboard-insight-finding p {
+      margin:8px 0 0 18px;
+      color:#67746f;
+      font-size:12.5px;
+    }
+    body.dashboard-standalone-view .dashboard-insight-risk {
+      margin-top:12px;
+      padding:10px 12px;
+      border-left:3px solid #3a9a67;
+      border-radius:6px;
+      color:#285d42;
+      background:#edf8f1;
+    }
+    body.dashboard-standalone-view .dashboard-insight-risk.is-normal {
+      border-left-color:#3a9a67;
+      color:#285d42;
+      background:#edf8f1;
+    }
+    body.dashboard-standalone-view .dashboard-insight-risk.is-warning {
+      border-left-color:#e99a35;
+      color:#744b18;
+      background:#fff6e8;
+    }
+    body.dashboard-standalone-view .dashboard-insight-risk.is-danger {
+      border-left-color:var(--dash-coral);
+      color:#7b3b2d;
+      background:var(--dash-coral-soft);
+    }
+    body.dashboard-standalone-view .dashboard-insight-list {
+      margin:0;
+      padding-left:20px;
+      color:#56645f;
+    }
+    body.dashboard-standalone-view .dashboard-insight-list li { margin-bottom:10px; }
+    body.dashboard-standalone-view .dashboard-insight-meta {
+      margin-top:16px;
+      padding-top:12px;
+      border-top:1px solid #e7ebe8;
+      color:#7a8681;
+      font-size:11px;
+    }
+    body.dashboard-standalone-view .dashboard-widget-table-heatmap-wrap {
+      border:1px solid #dde3e8;
+      border-radius:10px;
+      background:#fff;
+      overflow:auto;
+    }
+    body.dashboard-standalone-view .dashboard-widget-table-heatmap {
+      margin:0;
+      border-collapse:separate;
+      border-spacing:0;
+      color:#27323d;
+      font-size:12.5px;
+      font-variant-numeric:tabular-nums;
+    }
+    body.dashboard-standalone-view .dashboard-widget-table-heatmap thead th {
+      position:sticky;
+      z-index:2;
+      top:0;
+      padding:9px 12px;
+      border:0;
+      border-right:1px solid #dde3e8;
+      border-bottom:1px solid #d5dce3;
+      color:#202934;
+      background:#f3f6fa;
+      font-weight:750;
+      white-space:nowrap;
+    }
+    body.dashboard-standalone-view .dashboard-widget-table-heatmap thead th:last-child { border-right:0; }
+    body.dashboard-standalone-view .dashboard-widget-table-heatmap tbody td {
+      padding:8px 12px;
+      border:0;
+      border-right:1px solid rgba(220,226,232,.86);
+      border-bottom:1px solid #e2e7ec;
+      background:#fff;
+      transition:filter .12s ease, background-color .12s ease;
+    }
+    body.dashboard-standalone-view .dashboard-widget-table-heatmap tbody tr:last-child td { border-bottom:0; }
+    body.dashboard-standalone-view .dashboard-widget-table-heatmap tbody td:last-child { border-right:0; }
+    body.dashboard-standalone-view .dashboard-widget-table-heatmap tbody tr:hover td { filter:brightness(.975); }
+    body.dashboard-standalone-view .dashboard-widget-table-heatmap .dashboard-table-dimension-cell {
+      color:#303a45;
+      background:#fff !important;
+      font-weight:500;
+    }
+    body.dashboard-standalone-view .dashboard-widget-table-heatmap .dashboard-table-heat-cell {
+      font-weight:550;
+    }
+    #dashboard-kpi-drill-modal .modal-dialog { max-width:min(1160px, 96vw); }
+    #dashboard-kpi-drill-modal .modal-content {
+      overflow:hidden;
+      border:1px solid #d9e0dc;
+      border-radius:14px;
+      box-shadow:0 20px 60px rgba(31,45,41,.18);
+    }
+    #dashboard-kpi-drill-modal .modal-header {
+      padding:12px 16px;
+      color:#1f2d29;
+      background:#fffefa;
+      border-bottom-color:#dfe5e1;
+    }
+    #dashboard-kpi-drill-modal .modal-body {
+      min-height:480px;
+      padding:12px 16px 16px;
+      background:#f6f7f4;
+    }
+    #dashboard-kpi-drill-chart {
+      width:100%;
+      height:min(68vh, 580px);
+      min-height:440px;
+      overflow:hidden;
+      border:1px solid #d9e0dc;
+      border-radius:12px;
+      background:#fffefa;
+    }
+    @media (max-width:1199.98px) {
+      body.dashboard-standalone-view #dashboard-main-panel > .card > .card-body:has(#dashboard-ai-insight-panel:not(.d-none)) {
+        grid-template-columns:minmax(0, 1fr) 280px;
+        gap:12px;
+      }
+    }
+    @media (max-width:991.98px) {
+      body.dashboard-standalone-view #dashboard-main-panel > .card > .card-body:has(#dashboard-ai-insight-panel:not(.d-none)) {
+        display:block;
+      }
+      body.dashboard-standalone-view .dashboard-ai-panel.dashboard-insight-rail {
+        position:static;
+        max-height:none;
+        margin-top:14px;
+      }
+    }
     .adhoc-svg-chart { width:100%; height:100%; min-height:240px; }
     .adhoc-svg-point { cursor:pointer; }
     .adhoc-svg-point:hover { opacity:.78; }
@@ -1464,6 +2069,7 @@
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-dashboard" onclick="initDashboardTab()" title="Dashboard"><i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span></a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-my-dashboards" onclick="initMyDashboardsTab()" title="我的看板"><i class="bi bi-person-workspace"></i><span>我的看板</span></a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-alerts" onclick="initAlertsTab()" title="监控预警"><i class="bi bi-exclamation-triangle-fill"></i><span>监控预警</span></a></li>
+      <li class="nav-item"><a class="nav-link" href="/feedback" title="反馈记录"><i class="bi bi-chat-square-dots-fill"></i><span>反馈记录</span></a></li>
     </ul>
   </aside>
 
@@ -1474,6 +2080,9 @@
         <span>连接、构建、分析与看板编排</span>
       </div>
       <div id="global-status">
+        <a href="/feedback" class="btn btn-sm btn-outline-secondary me-2" title="查询图谱使用反馈">
+          <i class="bi bi-chat-square-dots me-1"></i>反馈记录
+        </a>
         <span class="status-badge bg-secondary text-white" id="status-pill">● 空闲</span>
       </div>
     </header>
@@ -2083,6 +2692,22 @@
               <!-- 「生成业务图谱」专属配置 -->
               <div id="bkg-build-config">
                 <div class="mb-3">
+                  <label class="form-label small fw-semibold">默认业务场景输入</label>
+                  <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-file-earmark-code"></i></span>
+                    <button type="button" id="bkg-default-scenario-btn"
+                            class="btn btn-outline-secondary text-start flex-grow-1 bg-white"
+                            onclick="showDefaultBusinessScenarioModal()"
+                            title="点击查看源文件">
+                      <span>default-business-scenario.ttl</span>
+                      <i class="bi bi-box-arrow-up-right float-end ms-2"></i>
+                    </button>
+                    <span class="input-group-text text-success">已启用</span>
+                  </div>
+                  <div class="form-text">点击文件名可查看源文件；生成时自动作为 CELN 场景建模约束输入</div>
+                </div>
+
+                <div class="mb-3">
                   <label class="form-label small fw-semibold">源业务库 / schema</label>
                   <input id="bkg-source-schema" class="form-control form-control-sm" value="da_tms" placeholder="例如：da_tms">
                   <div class="form-text">多库图谱中只使用该 schema 的表；留空则使用全部 schema</div>
@@ -2272,7 +2897,7 @@
                   <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
                     <span class="fw-semibold small"><i class="bi bi-check2-circle me-1" style="color:#6e9280"></i>业务图谱准确校验</span>
                     <span id="bkv-summary" class="small text-muted"></span>
-                    <button class="btn btn-sm btn-outline-success ms-auto" onclick="runBkgValidate()">
+                    <button id="bkg-validate-start-btn" class="btn btn-sm btn-outline-success ms-auto" onclick="runBkgValidate()">
                       <i class="bi bi-play-fill me-1"></i>开始校验
                     </button>
                   </div>
@@ -3280,7 +3905,12 @@
               </div>
               <div id="dashboard-filter-time-panel" class="border rounded p-2 mb-2 d-none"></div>
               <div id="dashboard-filter-scope" class="small text-muted mb-2">维度筛选会按血缘关系作用到可用组件。</div>
-              <button class="btn btn-sm btn-outline-primary w-100 mb-2" onclick="dashboardAddGlobalFilter()"><i class="bi bi-plus-lg me-1"></i>添加筛选</button>
+              <div class="d-flex gap-2 mb-2">
+                <button type="button" class="btn btn-sm btn-outline-primary flex-fill" onclick="dashboardAddGlobalFilter()"><i class="bi bi-plus-lg me-1"></i>添加筛选</button>
+                <button type="button" id="dashboard-filter-query" class="btn btn-sm btn-primary px-4" onclick="dashboardApplyGlobalFilters()"><i class="bi bi-search me-1"></i>查询</button>
+                <button type="button" id="dashboard-filter-reset" class="btn btn-sm btn-outline-secondary" onclick="dashboardResetGlobalFilters()"><i class="bi bi-arrow-counterclockwise me-1"></i>重置</button>
+              </div>
+              <div id="dashboard-filter-apply-status" class="small text-muted mb-2">未设置筛选，将查询全部数据</div>
               <div id="dashboard-global-filters" class="small"></div>
             </div>
           </div>
@@ -3308,9 +3938,13 @@
         <div id="dashboard-main-panel" class="col-xl-9 col-lg-8">
           <div class="card">
             <div class="card-header py-2 d-flex align-items-center gap-2">
-              <span><i class="bi bi-grid-1x2-fill me-1 text-success"></i>Dashboard 画布</span>
+              <span class="dashboard-header-copy">
+                <span id="dashboard-header-title" class="dashboard-header-title"><i class="bi bi-grid-1x2-fill me-2 text-success"></i>Dashboard 画布</span>
+                <span id="dashboard-header-subtitle" class="dashboard-header-subtitle">集中查看核心经营指标，并通过筛选与下钻定位业务机会。</span>
+              </span>
               <span id="dashboard-mode-hint" class="small text-muted ms-auto">拖拽卡片调整位置，拉伸右下角调整大小；点击图表元素可联动其它组件。</span>
               <button id="dashboard-view-print-btn" class="btn btn-sm btn-outline-secondary d-none dashboard-print-hide" onclick="dashboardPrintPage()"><i class="bi bi-printer me-1"></i>打印</button>
+              <button id="dashboard-insight-open-btn" class="btn btn-sm d-none dashboard-print-hide" onclick="dashboardOpenMarketingInsightRail()"><i class="bi bi-stars me-1"></i>智能洞察</button>
             </div>
             <div class="card-body p-1">
               <div id="dashboard-canvas" class="dashboard-canvas grid-stack"></div>
@@ -3374,22 +4008,33 @@
   </div>
 </div>
 
-<!-- Dynamic drill dimension chooser -->
+<!-- Dynamic drill action and dimension chooser -->
 <div class="modal fade" id="dynamic-drill-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:560px">
     <div class="modal-content">
       <div class="modal-header py-2">
         <h6 class="modal-title mb-0">
-          <i class="bi bi-signpost-split me-2 text-success"></i>选择下钻维度
+          <i class="bi bi-send me-2 text-primary"></i>选择钻取方式
         </h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div id="dynamic-drill-context" class="small text-muted mb-2"></div>
-        <div id="dynamic-drill-body"></div>
+        <div id="dynamic-drill-context" class="small text-muted mb-3"></div>
+        <div class="d-grid gap-2 mb-3">
+          <button class="btn btn-outline-primary text-start" onclick="openDynamicDrillDetail()">
+            <i class="bi bi-list-ul me-1"></i><strong>明细钻取</strong>
+            <div class="small text-muted mt-1">查看当前指标单元格背后的明细记录。</div>
+          </button>
+          <button class="btn btn-outline-info text-start" onclick="openDynamicDrillInsight()">
+            <i class="bi bi-lightbulb me-1"></i><strong>业务解释</strong>
+            <div class="small text-muted mt-1">汇总当前指标、异常检查、贡献维度和下一步建议。</div>
+          </button>
+        </div>
+        <div class="small fw-semibold text-secondary mb-2"><i class="bi bi-diagram-3 me-1"></i>维度下钻路径</div>
+        <div id="dynamic-drill-body" class="d-grid gap-2"></div>
       </div>
       <div class="modal-footer py-2 small text-muted">
-        仅显示当前指标可兼容、且尚未用于本次下钻链路的维度。
+        维度路径仅显示与当前指标兼容、且尚未用于本次下钻链路的维度。
       </div>
     </div>
   </div>
@@ -3409,6 +4054,29 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div id="dashboard-widget-ai-body" class="modal-body dashboard-ai-panel border-0 m-0"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard KPI drill chart -->
+<div class="modal fade" id="dashboard-kpi-drill-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div style="min-width:0">
+          <h6 id="dashboard-kpi-drill-title" class="modal-title mb-1"><i class="bi bi-arrows-angle-expand me-2 text-primary"></i>指标下钻分析</h6>
+          <div id="dashboard-kpi-drill-context" class="small text-muted text-truncate"></div>
+        </div>
+        <div class="d-flex align-items-center gap-1 ms-auto me-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="dashboardKpiDrillRollUp()" title="上卷一级"><i class="bi bi-arrow-up-circle me-1"></i>上卷</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="dashboardKpiDrillReset()" title="重新选择下钻维度"><i class="bi bi-arrow-counterclockwise me-1"></i>重置路径</button>
+          <button type="button" class="btn btn-sm btn-outline-success" onclick="dashboardDownloadKpiDrillCSV()" title="下载当前下钻数据"><i class="bi bi-download me-1"></i>下载</button>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <div id="dashboard-kpi-drill-chart"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -3447,7 +4115,7 @@
   </div>
   <div class="offcanvas-body">
     <div id="cell-insight-body">
-      <div class="text-muted text-center py-5">请选择异常指标单元格</div>
+      <div class="text-muted text-center py-5">请选择需要分析的指标值</div>
     </div>
   </div>
 </div>
@@ -3469,7 +4137,7 @@
           </button>
           <button class="btn btn-outline-info text-start" onclick="openPivotCellInsight()">
             <i class="bi bi-lightbulb me-1"></i> 业务解释
-            <div class="small text-muted mt-1">汇总异常指标、单据命中、贡献维度和下一步建议。</div>
+            <div class="small text-muted mt-1">汇总当前指标、异常检查、贡献维度和下一步建议。</div>
           </button>
         </div>
         <div class="small fw-semibold mb-2"><i class="bi bi-diagram-3 me-1 text-success"></i>维度下钻路径</div>
@@ -3810,6 +4478,8 @@ function downloadDetailCSV(resultId) {
   const a = document.createElement('a');
   a.href = url; a.download = `detail_${new Date().toISOString().slice(0,10)}.csv`;
   a.click(); URL.revokeObjectURL(url);
+  const traceId = _nlqResultTraceIds[resultId] || '';
+  if (traceId) postFeedbackEvent('behavior', 'CSV_EXPORTED', traceId, {resultId, rowCount:records.length});
 }
 
 function csvCell(value) {
@@ -4585,9 +5255,12 @@ let _dashboardFilterTimeDraft = null;
 let _dashboardViewMode = false;
 let _dashboardStandaloneView = false;
 let _dashboardFilterExpanded = false;
+let _dashboardAppliedGlobalFilters = [];
+let _dashboardFiltersDirty = false;
 let _dashboardWidgetResults = {};
 let _dashboardAiRequestId = 0;
 let _dashboardAiTimer = null;
+let _dashboardKpiDrillContext = null;
 let _callReportDrillContext = null;
 let _celnStoreInsightContext = null;
 let _celnStageActionContext = null;
@@ -4608,7 +5281,7 @@ function adhocMemberLabel(name) {
 
 const CALL_REPORT_VIRTUAL_MEASURES = {
   'ad.sop_total_call_count': {
-    label: '总通话量',
+    label: '周通话量',
     dependencies: [],
     format: 'count',
   },
@@ -5029,30 +5702,121 @@ function adhocDynamicDrillCandidates(state, currentMember) {
   return adhocDisambiguateRecommendationScores(ranked);
 }
 
-function openDynamicDrillChooser(context) {
-  const state = context.kind === 'dashboard'
-    ? ((_dashboardState.widgets || []).find(w => w.id === context.widgetId)?.spec || {})
-    : _adhocState;
-  const candidates = adhocDynamicDrillCandidates(state, context.member);
-  if (!candidates.length) {
-    showToast('当前节点没有更多可用维度可下钻', 'info');
-    return;
+function dynamicDrillStateForContext(context={}) {
+  if (context.kind === 'dashboard') {
+    return ((_dashboardState.widgets || []).find(w => w.id === context.widgetId)?.spec || {});
   }
+  if (context.kind === 'dashboard-kpi-modal') {
+    return _dashboardKpiDrillContext?.spec || {};
+  }
+  return _adhocState;
+}
+
+function openDynamicDrillChooser(context) {
+  const state = dynamicDrillStateForContext(context);
+  const candidates = adhocDynamicDrillCandidates(state, context.member);
   _dynamicDrillPending = {...context, candidates};
-  document.getElementById('dynamic-drill-context').textContent = context.member
-    ? `${adhocMemberLabel(context.member)} = ${context.value}`
-    : `${adhocMemberLabel((state?.query?.measures || [])[0] || '指标')} · 汇总`;
-  document.getElementById('dynamic-drill-body').innerHTML = candidates.map(({dim, recommendation}, idx) => {
+  const measure = (state?.query?.measures || [])[0] || '指标';
+  document.getElementById('dynamic-drill-context').textContent =
+    `${adhocMemberLabel(measure)} · 行: ${context.member ? `${adhocMemberLabel(context.member)} = ${context.value}` : '全部'} · 列: 全部`;
+  document.getElementById('dynamic-drill-body').innerHTML = candidates.length ? candidates.map(({dim, recommendation}, idx) => {
     const rec = recommendation || adhocBusinessRecommendation(dim, context.member);
-    return `<button class="btn btn-sm btn-outline-success text-start w-100 mb-2" title="${escHtml(rec.reason)}" onclick="applyDynamicDrill(${idx})">
+    return `<button class="btn btn-sm btn-outline-success text-start w-100" title="${escHtml(rec.reason)}" onclick="applyDynamicDrill(${idx})">
       <div class="d-flex align-items-center gap-2">
-        <span class="fw-semibold flex-fill">${escHtml(dim.title || dim.name)}</span>
+        <span class="fw-semibold flex-fill"><i class="bi bi-arrow-down-right-circle me-1"></i>${escHtml(dim.title || dim.name)}</span>
         <span class="badge bg-success-subtle text-success border border-success-subtle">${escHtml(rec.score)}% 推荐</span>
       </div>
       <div class="small text-muted text-truncate">${escHtml(rec.reason)}</div>
     </button>`;
-  }).join('');
+  }).join('') : '<div class="text-muted small">当前节点没有更多可用维度，仍可查看明细或生成业务解释。</div>';
   bootstrap.Modal.getOrCreateInstance(document.getElementById('dynamic-drill-modal')).show();
+}
+
+function prepareDynamicDrillActionContext() {
+  const pending = _dynamicDrillPending;
+  if (!pending) return null;
+  const dashboardKind = pending.kind === 'dashboard' || pending.kind === 'dashboard-kpi-modal';
+  const widget = pending.kind === 'dashboard'
+    ? (_dashboardState.widgets || []).find(w => w.id === pending.widgetId)
+    : null;
+  const state = pending.kind === 'dashboard'
+    ? (widget?.spec || {})
+    : pending.kind === 'dashboard-kpi-modal'
+      ? (_dashboardKpiDrillContext?.spec || {})
+      : _adhocState;
+  const stored = pending.kind === 'dashboard'
+    ? (_dashboardWidgetResults[pending.widgetId] || {})
+    : pending.kind === 'dashboard-kpi-modal'
+      ? {rows:_dashboardKpiDrillContext?.rows || [], query:_dashboardKpiDrillContext?.query || state?.query || {}}
+      : {rows:_adhocLastResult?.data || [], query:adhocBuildQuery()};
+  const query = stored.query || state?.query || {};
+  const measureMember = (query.measures || state?.query?.measures || [])[0];
+  if (!measureMember) {
+    showToast('当前组件没有可钻取的指标', 'warning');
+    return null;
+  }
+  const rows = stored.rows || [];
+  const selectedFilterValues = new Set((pending.filterValues || []).map(value => String(value)));
+  const row = rows.find(item => {
+    if (!pending.member) return true;
+    const raw = item?.__filterValues?.[pending.member] ?? item?.[pending.member];
+    return selectedFilterValues.has(String(raw));
+  }) || rows[0] || {};
+  const measureMeta = dashboardFindMeasure(measureMember) || adhocFindMeasure(measureMember);
+  const measureCode = measureMeta?.code || measureMember;
+  const measureName = measureMeta?.title || measureMeta?.name || adhocMemberLabel(measureMember);
+  const rowPath = adhocRowPivotPathItems(row, query);
+  const pivotFilters = adhocPivotFiltersFromQuery(query);
+  const targetId = pending.kind === 'dashboard'
+    ? `dash-chart-${pending.widgetId}`
+    : pending.kind === 'dashboard-kpi-modal'
+      ? 'dashboard-kpi-drill-chart'
+      : 'adhoc-preview';
+  const pathKey = rowPath.map(item => `${item.code}:${item.filterValue ?? item.value ?? ''}`).join('|') || 'all';
+  const cellIndex = `dynamic-${dashboardKind ? (pending.widgetId || 'dashboard-kpi') : 'adhoc'}-${documentAlertMemberCode(measureCode)}-${pathKey}`;
+  const actionCell = {
+    measureCode,
+    measureName,
+    value: row?.[measureMember] ?? row?.[measureCode] ?? pending.value ?? '-',
+    rowPath,
+    columnPath: [],
+    alerts: adhocAlertsFor(row, measureMember),
+  };
+  const result = {cells:{[cellIndex]:actionCell}, filters:pivotFilters};
+  _pivotResult = result;
+  _pivotActionContext = {
+    cellIndex,
+    targetId,
+    cell:actionCell,
+    result,
+    config:{
+      measures:(query.measures || [measureMember]).map(code => {
+        const meta = dashboardFindMeasure(code) || adhocFindMeasure(code);
+        return {code:meta?.code || code, name:meta?.title || meta?.name || adhocMemberLabel(code)};
+      }),
+      rows:(query.dimensions || []).map(code => {
+        const meta = dashboardFindDimension(code) || adhocFindDimension(code);
+        return {code:meta?.code || adhocDimensionCodeForMeasures(code, query.measures || []) || code, name:meta?.title || meta?.name || adhocMemberLabel(code)};
+      }),
+      columns:[],
+      filters:pivotFilters,
+    },
+  };
+  return _pivotActionContext;
+}
+
+function openDynamicDrillDetail() {
+  const ctx = prepareDynamicDrillActionContext();
+  if (!ctx) return;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('dynamic-drill-modal')).hide();
+  openPivotDrill(ctx.cellIndex);
+}
+
+function openDynamicDrillInsight() {
+  const ctx = prepareDynamicDrillActionContext();
+  if (!ctx) return;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('dynamic-drill-modal')).hide();
+  openPivotCellInsight();
 }
 
 function applyDynamicDrill(index) {
@@ -5077,6 +5841,20 @@ function applyDynamicDrill(index) {
     dashboardPersistDraft();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('dynamic-drill-modal')).hide();
     dashboardRenderWidget(pending.widgetId);
+  } else if (pending.kind === 'dashboard-kpi-modal') {
+    const context = _dashboardKpiDrillContext;
+    if (!context?.spec) return;
+    context.spec.drill = context.spec.drill || {mode:'dynamic', path:[], stack:[]};
+    context.spec.drill.mode = 'dynamic';
+    context.spec.drill.stack = context.spec.drill.stack || [];
+    context.spec.drill.stack.push(entry);
+    context.resumeOnChooserClose = false;
+    const chooser = document.getElementById('dynamic-drill-modal');
+    chooser?.addEventListener('hidden.bs.modal', () => {
+      context.resumeOnChooserClose = true;
+      dashboardRenderKpiDrillModal();
+    }, {once:true});
+    bootstrap.Modal.getOrCreateInstance(chooser).hide();
   } else {
     _adhocState.drill = _adhocState.drill || {mode:'dynamic', path:[], stack:[]};
     _adhocState.drill.mode = 'dynamic';
@@ -7386,8 +8164,8 @@ function callReportContextText(ctx={}) {
 
 function callReportFilterSummary(filters=[]) {
   return (filters || []).filter(filter => filter?.member && (filter.values || []).length).map(filter => {
-    const label = adhocMemberLabel(filter.member);
-    const values = (filter.values || []).slice(0, 3).join('、');
+    const label = dashboardFilterMemberLabel(filter);
+    const values = (filter.values || []).slice(0, 3).map(value => filter.valueLabels?.[value] || value).join('、');
     const suffix = (filter.values || []).length > 3 ? '等' : '';
     return `${label} ${filter.operator || 'in'} ${values}${suffix}`;
   }).join('；');
@@ -7792,15 +8570,25 @@ function callReportDrillAttrs(measure, filters, context={}) {
 
 function callSopWorkbenchDrillUrl(drill={}, filters=[]) {
   const url = new URL('/dashboard/view/dash_da_tms_call_sop_workbench', location.origin);
-  const filterValue = member => (filters || []).find(item => item?.member === member)?.values?.[0] || '';
+  const filterItem = member => (filters || []).find(item => item?.member === member);
+  const filterValue = member => filterItem(member)?.values?.[0] || '';
+  const filterValues = member => filterItem(member)?.values || [];
+  const filterLabel = member => {
+    const item = filterItem(member);
+    const value = item?.values?.[0] || '';
+    return item?.valueLabels?.[value] || value;
+  };
   const params = {
     wbDate: drill.date || filterValue('ad.date_day'),
+    wbDateEnd: drill.dateEnd || filterValues('ad.date_day')[1] || '',
     wbStore: drill.store || filterValue('ad.store'),
+    wbStoreLabel: drill.storeLabel || filterLabel('ad.store'),
     wbResult: drill.result || '',
     wbGrade: drill.grade || '',
     wbSop: drill.sop || '',
     wbSopLevel: drill.level || '',
     wbExpert: drill.expert || '',
+    wbExpertLabel: drill.expertLabel || '',
     wbIssue: drill.issue || '',
     wbProblem: drill.problem || '',
     wbConnected: drill.connected || '',
@@ -7839,10 +8627,15 @@ async function openCallReportDetailFromChooser() {
     callSopOpenWorkbenchDrill(ctx.workbenchDrill, ctx.filters || []);
     return;
   }
-  await openAdhocDetail(ctx.measure || 'ad.quality_record_count', ctx.filters || [], {
+  const requestedMeasure = ctx.measure || 'ad.quality_record_count';
+  const virtualMeasure = callReportVirtualMeasure(requestedMeasure);
+  const detailMeasure = (virtualMeasure?.dependencies || []).find(member => adhocFindMeasure(member))
+    || (adhocFindMeasure(requestedMeasure) ? requestedMeasure : 'ad.quality_record_count');
+  const detailFilters = callReportMergedFilters(ctx.filters || [], ctx.detailFilters || []);
+  await openAdhocDetail(detailMeasure, detailFilters, {
     value:'报告明细钻取',
-    filters:ctx.filters || [],
-    docMeasureCode: ctx.measure || 'ad.quality_record_count',
+    filters:detailFilters,
+    docMeasureCode: detailMeasure,
     docTargetId:'call-quality-report',
   });
 }
@@ -8736,6 +9529,8 @@ function callSopExpertItemsFromAnalysis(analysis) {
     const totalCheckpointCount = Number(expert.totalCheckpointCount || 0);
     return {
       name: expert.name || '-',
+      displayName: expert.displayName || expert.name || '-',
+      sourceNameMatchedCalls: Number(expert.sourceNameMatchedCalls || 0),
       high,
       standard,
       basic,
@@ -8772,7 +9567,7 @@ function callSopDrillFilters(baseFilters=[], drill={}) {
 
 function callSopOpenDrillChooser(drill={}, baseFilters=[]) {
   const filters = callSopDrillFilters(baseFilters, drill);
-  const parts = [drill.expert, drill.sop, drill.checkpoint, drill.issue].filter(Boolean);
+  const parts = [drill.expertLabel || drill.expert, drill.sop, drill.checkpoint, drill.issue].filter(Boolean);
   const levelText = drill.grade || callSopLevelGradeLabel(drill.level) || drill.result || '全部';
   const context = {
     metricLabel: drill.checkpoint ? 'SOP小达成点样本' : drill.sop ? 'SOP达成样本' : drill.issue ? '质量问题通话' : '专家通话样本',
@@ -8909,7 +9704,7 @@ function callSopBuildExpertRuleMap(rows=[]) {
   return result;
 }
 
-function callSopExpertDetailHtml(expertName, expertRuleItems=[]) {
+function callSopExpertDetailHtml(expertName, expertRuleItems=[], expertFilterValue=expertName) {
   const rows = expertRuleItems.length ? expertRuleItems : callSopBuildDistributions([], 'ad.quality_rule');
   const sopClassTotal = rows.length || callSopRuleCatalog().length;
   return `<div class="sop-expert-detail">
@@ -8917,7 +9712,7 @@ function callSopExpertDetailHtml(expertName, expertRuleItems=[]) {
     <div class="sop-expert-sop-list">
       ${rows.map(item => `<div class="sop-expert-sop-row">
         <div class="sop-expert-sop-top"><span>${escHtml(callSopRuleMeta(item.name).key)}</span><span>${escHtml(callReportRate(item.achievedRate, 0))}</span></div>
-        ${callSopCompactStackHtml(item, {expert:expertName, sop:callSopRuleMeta(item.name).key})}
+        ${callSopCompactStackHtml(item, {expert:expertFilterValue, expertLabel:expertName, sop:callSopRuleMeta(item.name).key})}
       </div>`).join('')}
     </div>
   </div>`;
@@ -9032,13 +9827,14 @@ function callSopExpertCardsHtml(expertItems, expertRuleMap=new Map(), expandedEx
   const rows = callSopSortedExpertItems(expertItems);
   return rows.map(item => {
     const active = item.name === expandedExpert;
+    const displayName = item.displayName || item.name;
     const sampleWarning = Number(item.total || 0) < CALL_SOP_EXPERT_MIN_SAMPLE;
     return `<div class="sop-expert-card ${active ? 'active' : ''}" data-expert="${escHtml(item.name)}">
       <button type="button" class="sop-expert-toggle" data-expert-toggle aria-expanded="${active ? 'true' : 'false'}">
-        <span class="sop-expert-head"><b>${escHtml(item.name)}</b><span class="sop-expert-summary"><span>${escHtml(callReportNum(item.total))} 通</span>${sampleWarning ? '<span class="sop-expert-sample-warning">样本不足</span>' : ''}<strong>${escHtml(callReportRate(item.achievedRate, 0))}</strong></span></span>
+        <span class="sop-expert-head"><b>${escHtml(displayName)}</b><span class="sop-expert-summary"><span>${escHtml(callReportNum(item.total))} 通</span>${sampleWarning ? '<span class="sop-expert-sample-warning">样本不足</span>' : ''}<strong>${escHtml(callReportRate(item.achievedRate, 0))}</strong></span></span>
       </button>
-      ${callSopCompactStackHtml(item, {expert:item.name})}
-      ${active ? callSopExpertDetailHtml(item.name, expertRuleMap.get(item.name) || []) : ''}
+      ${callSopCompactStackHtml(item, {expert:item.name, expertLabel:displayName})}
+      ${active ? callSopExpertDetailHtml(displayName, expertRuleMap.get(item.name) || [], item.name) : ''}
     </div>`;
   }).join('') || '<div class="text-muted p-3">暂无专家分布。</div>';
 }
@@ -9058,7 +9854,7 @@ function callSopIssueCardsHtml(issueRows=[], ruleItems=[], expertItems=[], summa
   return `<div class="sop-issue-grid">
     <button type="button" class="sop-issue-card" style="--exec-accent:#c84b4b" data-sop-direct="true" ${callSopDrillAttrs({problem:'quality', connected:'true', group:'problem'})}><b>优先处理问题</b><p>问题通话 ${escHtml(callReportNum(problemCalls))} 通：低质量 ${escHtml(callReportNum(lowQuality))} 通、低覆盖 ${escHtml(callReportNum(lowCoverage))} 通、两类重合 ${escHtml(callReportNum(overlap))} 通。${issueName ? `主要分类为 ${escHtml(issueName)}（${escHtml(callReportNum(topIssue['ad.quality_record_count'] || 0))} 通）。` : ''}</p><span class="sop-issue-link">按问题类型统一处理 →</span></button>
     <button type="button" class="sop-issue-card" style="--exec-accent:#d99042" data-sop-direct="true" ${callSopDrillAttrs({sop:weakSop, level:'miss', grade:'未达成', connected:'true', group:'sop'})}><b>SOP 短板环节</b><p>${escHtml(weakRule.name ? callSopRuleDisplay(weakRule.name) : '暂无明显短板')} 检查点命中率 ${escHtml(callReportRate(weakRule.achievedRate || 0, 0))}，未达成 ${escHtml(callReportNum(weakRule.miss || 0))} 通。</p><span class="sop-issue-link">按短板环节统一处理 →</span></button>
-    <button type="button" class="sop-issue-card" style="--exec-accent:#14806f" data-sop-direct="true" ${callSopDrillAttrs({expert:weakExpert.name || '', connected:'true', group:'expert'})}><b>专家辅导对象</b><p>${escHtml(weakExpert.name || '暂无')} 检查点命中率 ${escHtml(callReportRate(weakExpert.achievedRate || 0, 0))}，已排除少于 ${CALL_SOP_EXPERT_MIN_SAMPLE} 通的小样本，建议结合 ASR 与质检证据复盘。</p><span class="sop-issue-link">查看该专家通话 →</span></button>
+    <button type="button" class="sop-issue-card" style="--exec-accent:#14806f" data-sop-direct="true" ${callSopDrillAttrs({expert:weakExpert.name || '', expertLabel:weakExpert.displayName || weakExpert.name || '', connected:'true', group:'expert'})}><b>专家辅导对象</b><p>${escHtml(weakExpert.displayName || weakExpert.name || '暂无')} 检查点命中率 ${escHtml(callReportRate(weakExpert.achievedRate || 0, 0))}，已排除少于 ${CALL_SOP_EXPERT_MIN_SAMPLE} 通的小样本，建议结合 ASR 与质检证据复盘。</p><span class="sop-issue-link">查看该专家通话 →</span></button>
   </div>`;
 }
 
@@ -9070,7 +9866,8 @@ async function renderCallSopDiagnosisWidget(targetId, spec={}, widget={}) {
   const store = (filters.find(item => item.member === 'ad.store')?.valueLabels && Object.values(filters.find(item => item.member === 'ad.store').valueLabels)[0])
     || (filters.find(item => item.member === 'ad.store')?.values || [])[0]
     || '当前门店';
-  const day = (filters.find(item => item.member === 'ad.date_day')?.values || [])[0] || '当前日期';
+  const dateValues = filters.find(item => item.member === 'ad.date_day')?.values || [];
+  const day = dateValues.length >= 2 ? `${dateValues[0]} ~ ${dateValues[1]}` : (dateValues[0] || '当前日期');
   const baseMeasures = ['ad.quality_record_count','ad.phone_call_count','ad.pass_call_count','ad.avg_call_quality_score','ad.avg_slot_coverage_rate','ad.low_quality_call_count','ad.low_coverage_call_count','ad.missing_slot_count'];
   const baseDrillFilters = callReportMergedFilters(filters);
   try {
@@ -9133,11 +9930,11 @@ async function renderCallSopDiagnosisWidget(targetId, spec={}, widget={}) {
           <div class="sop-diagnosis-sub">${escHtml(day)} · ${escHtml(store)}</div>
         </div>
         <div class="sop-kpi-grid">
-          <div class="sop-kpi call-report-drillable" style="--exec-accent:#20332f" ${callReportDrillAttrs('ad.sop_total_call_count', baseDrillFilters, {metricLabel:'总通话量', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true})}><b>总通话量</b><span>本周期纳入试驾前通话质检范围的通话</span><strong>${escHtml(callReportNum(totalCalls || validCalls))}</strong></div>
+          <div class="sop-kpi call-report-drillable" style="--exec-accent:#20332f" ${callReportDrillAttrs('ad.sop_total_call_count', baseDrillFilters, {metricLabel:'周通话量', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true})}><b>周通话量</b><span>当前门店七天内纳入质检的通话</span><strong>${escHtml(callReportNum(totalCalls || validCalls))}</strong></div>
           <div class="sop-kpi call-report-drillable" style="--exec-accent:#14806f" ${callReportDrillAttrs('ad.effective_connect_rate', baseDrillFilters, {metricLabel:'有效接通率', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true})}><b>有效接通率</b><span>接通且可用于 SOP 识别的通话占比</span><strong>${escHtml(callReportRate(connectRate))}</strong></div>
-          <div class="sop-kpi call-report-drillable" style="--exec-accent:#c84b4b" ${callReportDrillAttrs('ad.sop_checkpoint_pass_rate', baseDrillFilters, {metricLabel:'SOP 检查点总体命中率', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true})}><b>SOP 检查点总体命中率</b><span>命中检查点 / 全部检查点</span><strong>${escHtml(callReportRate(passRate))}</strong></div>
-          <div class="sop-kpi call-report-drillable" style="--exec-accent:#d99042" ${callReportDrillAttrs('ad.quality_issue_rate', baseDrillFilters, {metricLabel:'问题通话占比', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true})}><b>问题通话占比</b><span>${escHtml(callReportNum(problemCalls))} / ${escHtml(callReportNum(validCalls))} 通有效接通</span><strong>${escHtml(callReportRate(issueRate))}</strong></div>
-          <div class="sop-kpi call-report-drillable" style="--exec-accent:#20332f" ${callReportDrillAttrs('ad.avg_call_quality_score', baseDrillFilters, {metricLabel:'平均通话质量分', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true})}><b>平均通话质量分</b><span>接通电话质检平均分</span><strong>${escHtml(callReportNum(avgScore, 1))}</strong></div>
+          <div class="sop-kpi call-report-drillable" style="--exec-accent:#c84b4b" ${callReportDrillAttrs('ad.sop_checkpoint_pass_rate', baseDrillFilters, {metricLabel:'SOP 检查点总体命中率', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true, detailFilters:[callReportDimensionFilter('ad.call_flow_total', '有效接通')]})}><b>SOP 检查点总体命中率</b><span>命中检查点 / 全部检查点</span><strong>${escHtml(callReportRate(passRate))}</strong></div>
+          <div class="sop-kpi call-report-drillable" style="--exec-accent:#d99042" ${callReportDrillAttrs('ad.quality_issue_rate', baseDrillFilters, {metricLabel:'问题通话占比', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true, detailFilters:[callReportDimensionFilter('ad.quality_issue_category', qualityIssueRows.map(row => row['ad.quality_issue_category']).filter(Boolean), 'in')]})}><b>问题通话占比</b><span>${escHtml(callReportNum(problemCalls))} / ${escHtml(callReportNum(validCalls))} 通有效接通</span><strong>${escHtml(callReportRate(issueRate))}</strong></div>
+          <div class="sop-kpi call-report-drillable" style="--exec-accent:#20332f" ${callReportDrillAttrs('ad.avg_call_quality_score', baseDrillFilters, {metricLabel:'平均通话质量分', rowLabel:'全部', columnLabel:'全部', callSopKpiDrill:true, detailFilters:[callReportDimensionFilter('ad.call_flow_total', '有效接通')]})}><b>平均通话质量分</b><span>接通电话质检平均分</span><strong>${escHtml(callReportNum(avgScore, 1))}</strong></div>
         </div>
         <section class="sop-panel mb-3">
           <div class="sop-panel-head"><div><h3>优先行动</h3><p>问题通话已按低质量、低覆盖去重；点击卡片直接进入逐通复盘。</p></div></div>
@@ -9386,6 +10183,8 @@ function callWorkbenchUrlState() {
     group: params.get('wbGroup') || '',
     checkpoint: params.get('wbCheckpoint') || '',
     checkpointHit: params.get('wbCheckpointHit') || '',
+    storeLabel: params.get('wbStoreLabel') || '',
+    expertLabel: params.get('wbExpertLabel') || '',
   };
 }
 
@@ -9456,6 +10255,9 @@ function callWorkbenchOpenKpiDrill(drill='all', spec={}, state={}) {
 
 function callWorkbenchFiltersFromUrl(filters=[]) {
   const params = new URLSearchParams(location.search);
+  const storeLabel = params.get('wbStoreLabel') || '';
+  const expertLabel = params.get('wbExpertLabel') || '';
+  const dateEnd = params.get('wbDateEnd') || '';
   const replacements = {
     'ad.date_day': params.get('wbDate') || '',
     'ad.store': params.get('wbStore') || '',
@@ -9464,11 +10266,30 @@ function callWorkbenchFiltersFromUrl(filters=[]) {
   };
   let next = (filters || []).map(filter => {
     const value = replacements[filter.member];
-    return value ? {...filter, values:[value], valueLabels:{[value]: value}} : filter;
+    if (filter.member === 'ad.date_day' && value && dateEnd) {
+      return {
+        ...filter,
+        filterMode:'date',
+        dayMode:'range',
+        dayRangeType:'between',
+        operator:'between',
+        values:[value, dateEnd],
+        valueLabels:{[value]:value, [dateEnd]:dateEnd},
+      };
+    }
+    const label = filter.member === 'ad.store'
+      ? (storeLabel || value)
+      : filter.member === 'ad.sales_expert' ? (expertLabel || value) : value;
+    return value ? {...filter, values:[value], valueLabels:{[value]: label}} : filter;
   });
   Object.entries(replacements).forEach(([member, value]) => {
     if (!value || next.some(filter => filter.member === member)) return;
-    next.push(callReportDimensionFilter(member, value, member === 'ad.date_day' ? 'in' : 'equals'));
+    const filter = member === 'ad.date_day' && dateEnd
+      ? {kind:'dimension', member, filterMode:'date', dayMode:'range', dayRangeType:'between', operator:'between', values:[value, dateEnd], valueLabels:{[value]:value, [dateEnd]:dateEnd}}
+      : callReportDimensionFilter(member, value, member === 'ad.date_day' ? 'in' : 'equals');
+    if (filter && member === 'ad.store' && storeLabel) filter.valueLabels = {[value]: storeLabel};
+    if (filter && member === 'ad.sales_expert' && expertLabel) filter.valueLabels = {[value]: expertLabel};
+    next.push(filter);
   });
   return next;
 }
@@ -9661,7 +10482,7 @@ function callWorkbenchDetailHtml(record=null, selectedCode='', state={}) {
           <span>用户ID ${escHtml(record.customerAccountId || '-')}</span>
           <span>${escHtml(record.dateLabel || '-')} · ${escHtml(record.timeLabel || '')}</span>
         </div>
-        <div class="call-workbench-card-meta mt-1">${escHtml(record.expertName || '-')} · ${escHtml(record.intentName || record.intentOriginalName || '未识别意图')}</div>
+        <div class="call-workbench-card-meta mt-1">${escHtml(state.expertLabel || record.expertDisplayName || record.expertName || '-')} · ${escHtml(record.intentName || record.intentOriginalName || '未识别意图')}</div>
       </div>
       <div class="call-workbench-customer-meta">
         <span class="call-workbench-badge ${callWorkbenchTone(record.inviteResultLabel)}">${escHtml(record.inviteResultLabel || '-')}</span>
@@ -9705,7 +10526,8 @@ function callWorkbenchListGroup(record={}, state={}) {
     return {key:`sop-${sop}`, label:`SOP 短板 · ${sop}`, order:0};
   }
   const expert = record.expertName || '-';
-  return {key:`expert-${expert}`, label:`产品专家 ${expert}`, order:0};
+  const expertLabel = state.expertLabel || record.expertDisplayName || expert;
+  return {key:`expert-${expert}`, label:`产品专家 ${expertLabel}`, order:0};
 }
 
 function callWorkbenchListHtml(records=[], selectedId='', state={}) {
@@ -9726,7 +10548,7 @@ function callWorkbenchListHtml(records=[], selectedId='', state={}) {
         || Number(a.qualityScore || 0) - Number(b.qualityScore || 0)
         || Number(a.slotCoverageRate || 0) - Number(b.slotCoverageRate || 0);
     }).map(record => {
-      const owner = showOwner ? `所属专家 ${record.expertName || '-'} · ` : '';
+      const owner = showOwner ? `所属专家 ${state.expertLabel || record.expertDisplayName || record.expertName || '-'} · ` : '';
       const id = callWorkbenchRecordId(record);
       const contextStatus = callWorkbenchContextStatus(record, state);
       return `<div class="call-workbench-call-card ${id === selectedId ? 'active' : ''}" data-call-id="${escHtml(id)}" role="button" tabindex="0">
@@ -9770,9 +10592,10 @@ function callWorkbenchRender(target, data={}, spec={}, widget={}) {
   const filteredWordCount = filteredRecords.reduce((sum, record) => sum + Number(record.wordCount || 0), 0);
   const avgDuration = callReportNum(filteredRecords.length ? filteredDurationSeconds / filteredRecords.length / 60 : 0, 1);
   const avgWordCount = callReportNum(filteredRecords.length ? filteredWordCount / filteredRecords.length : 0, 0);
+  const displayStore = data.displayStore || state.storeLabel || data.store || '当前门店';
   const contextParts = [
-    `组织范围：${data.store || '当前门店'}`,
-    state.expert ? `专家：${state.expert}` : '',
+    `组织范围：${displayStore}`,
+    state.expert ? `专家：${state.expertLabel || state.expert}` : '',
     state.issue ? `问题分类：${state.issue}` : '',
     state.problem === 'quality' ? '范围：低质量或低覆盖问题通话' : '',
     state.connected === 'true' ? '通话状态：有效接通' : '',
@@ -9786,7 +10609,7 @@ function callWorkbenchRender(target, data={}, spec={}, widget={}) {
     <div class="call-workbench-body">
       <div class="call-workbench-head">
         <div class="call-workbench-title"><div class="call-workbench-title-row">${appMotionIcon('headset','coral')}<h2>${escHtml(title)}</h2></div><span>通话质检</span></div>
-        <div class="call-workbench-sub">${escHtml(data.day || '当前日期')} · ${escHtml(data.store || '当前门店')}</div>
+        <div class="call-workbench-sub">${escHtml(data.day || '当前日期')} · ${escHtml(displayStore)}</div>
       </div>
       <div class="call-workbench-filterbar">
         <div class="filter-chip" title="${escHtml(contextParts.join(' · '))}">${escHtml(contextParts.join(' · '))}</div>
@@ -9870,7 +10693,10 @@ async function renderCallSopWorkbenchWidget(targetId, spec={}, widget={}) {
   try {
     const filters = callWorkbenchFiltersFromUrl(callReportFilters(spec));
     const data = await callSopLoadWorkbench(filters);
-    callWorkbenchRender(target, data, spec, widget);
+    const storeFilter = filters.find(item => item?.member === 'ad.store');
+    const storeValue = storeFilter?.values?.[0] || '';
+    const displayStore = storeFilter?.valueLabels?.[storeValue] || storeValue || data.store;
+    callWorkbenchRender(target, {...data, displayStore}, spec, widget);
   } catch(e) {
     target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
   }
@@ -10254,7 +11080,7 @@ function celnStageActionData(stageCode) {
   const ctx = _celnStoreInsightContext || {};
   const stage = String(stageCode || '').toUpperCase();
   const row = (ctx.distribution || []).find(item => String(item.stageCode || '').toUpperCase() === stage) || {stageCode:stage};
-  const filters = callReportMergedFilters(_dashboardState?.globalFilters || []);
+  const filters = callReportMergedFilters(dashboardQueryGlobalFilters());
   return {
     stageCode: stage,
     stageRow: row,
@@ -10466,7 +11292,7 @@ async function openCelnGraphNodeDrillChooser(payload) {
   const spec = celnGraphNodeDrillSpec(data);
   const filters = Array.isArray(data.filters) && data.filters.length
     ? data.filters
-    : callReportMergedFilters(_dashboardState?.globalFilters || []);
+    : callReportMergedFilters(dashboardQueryGlobalFilters());
   bootstrap.Offcanvas.getInstance(document.getElementById('cell-insight-drawer'))?.hide();
   await openCallReportDrillChooser(spec.measure, encodeURIComponent(JSON.stringify(filters)), encodeURIComponent(JSON.stringify({
     metricLabel: `CELN业务图谱节点 · ${data.label || '-'}`,
@@ -10724,7 +11550,7 @@ function celnFormatTime(value) {
 
 async function openCelnStageCustomers(stageCode) {
   const ctx = _celnStoreInsightContext || {};
-  const store = ctx.store || '特斯拉汽车杭州演示体验中心';
+  const store = ctx.store || '理想汽车';
   const stage = String(stageCode || '').toUpperCase();
   const stageRow = (ctx.distribution || []).find(item => item.stageCode === stage) || {};
   const titleEl = document.getElementById('pivot-drill-title');
@@ -11966,27 +12792,69 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
   if (chartType === 'sankey') return renderAdhocSankey(target, rows, query, clickHandler, targetId, result.alerts);
   if (chartType === 'heatmap') return renderAdhocHeatmap(target, rows, query, clickHandler, targetId, result.alerts);
   const grouped = adhocGroupRowsForChart(rows, dim, meas);
-  const labels = grouped.map(row => row.label);
-  const values = grouped.map(row => row.value);
+  const effectiveChartType = chartType === 'donut' && grouped.length > 12 ? 'bar' : chartType;
+  const densityPlan = adhocChartDensityPlan(grouped, effectiveChartType);
+  const displayGrouped = densityPlan.items;
+  const labels = displayGrouped.map(row => row.label);
+  const chartColors = adhocChartPalette(targetId);
   let option;
   const chartTarget = prepareAdhocChartCanvas(target, result.alerts, targetId);
   if (!window.echarts || typeof window.echarts.init !== 'function') {
-    return renderAdhocSvgChart(chartTarget, chartType, grouped, dim, meas, query, clickHandler);
+    return renderAdhocSvgChart(chartTarget, effectiveChartType, displayGrouped, dim, meas, query, clickHandler, targetId);
   }
   let chart;
   try {
     chart = window.echarts.init(chartTarget);
   } catch(e) {
-    return renderAdhocSvgChart(chartTarget, chartType, grouped, dim, meas, query, clickHandler);
+    return renderAdhocSvgChart(chartTarget, effectiveChartType, displayGrouped, dim, meas, query, clickHandler, targetId);
   }
-  if (chartType === 'donut') {
+  if (effectiveChartType === 'donut') {
     option = {
+      color:chartColors,
       tooltip:adhocChartTooltipOptions({trigger:'item', formatter:p => `${escHtml(p.name)}<br>${escHtml(adhocMemberLabel(meas))}：${escHtml(p.value)}${p.data?.__alertTooltip || adhocAlertTooltipHtml(p.data?.__alerts || [])}`}),
       legend:{bottom:0},
-      series:[{type:'pie', radius:['45%','70%'], data:grouped.map(row=>({name:String(row.label), ...adhocChartDataPoint(row, dim, 'donut')}))}],
+      series:[{type:'pie', radius:['45%','70%'], data:displayGrouped.map(row=>({name:String(row.label), ...adhocChartDataPoint(row, dim, 'donut')}))}],
+    };
+  } else if (densityPlan.horizontal) {
+    option = {
+      color:chartColors,
+      title:{
+        right:10,
+        top:2,
+        text:densityPlan.truncated ? `TOP ${displayGrouped.length} / ${grouped.length}` : `共 ${grouped.length} 项`,
+        subtext:densityPlan.truncated ? '完整结果可下载 CSV' : '点击条形可继续下钻',
+        textStyle:{fontSize:11,fontWeight:700,color:'#596660'},
+        subtextStyle:{fontSize:10,color:'#8a9590'},
+      },
+      tooltip:adhocChartTooltipOptions({
+        trigger:'item',
+        formatter:p => `${escHtml(p.name)}<br>${escHtml(adhocMemberLabel(meas))}：${escHtml(p.value)}${p.data?.__alertTooltip || adhocAlertTooltipHtml(p.data?.__alerts || [])}`,
+      }),
+      grid:{left:12,right:42,top:48,bottom:22,containLabel:true},
+      xAxis:{type:'value', splitLine:{lineStyle:{color:'#e3e8ec'}}},
+      yAxis:{
+        type:'category',
+        data:labels,
+        axisTick:{show:false},
+        axisLabel:{
+          width:132,
+          overflow:'truncate',
+          formatter:value => adhocCompactAxisLabel(value, 16),
+        },
+      },
+      series:[{
+        type:'bar',
+        barMaxWidth:displayGrouped.length <= 8 ? 24 : 14,
+        data:displayGrouped.map(row=>adhocChartDataPoint(row, dim, 'bar')),
+        itemStyle:{borderRadius:[0,4,4,0]},
+      }],
     };
   } else {
+    const zoomStart = densityPlan.zoom
+      ? Math.max(0, 100 - (densityPlan.visibleCount / Math.max(displayGrouped.length, 1)) * 100)
+      : 0;
     option = {
+      color:chartColors,
       tooltip:adhocChartTooltipOptions({
         trigger:'axis',
         formatter:params => {
@@ -11995,16 +12863,28 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
           return list.map(p => `${escHtml(first.axisValueLabel || p.name)}<br>${escHtml(adhocMemberLabel(meas))}：${escHtml(p.value)}${p.data?.__alertTooltip || adhocAlertTooltipHtml(p.data?.__alerts || [])}`).join('<br>');
         },
       }),
-      grid:{left:48,right:42,top:44,bottom:48,containLabel:true},
-      xAxis:{type:'category', data:labels, axisLabel:{interval:0, rotate:labels.length>8?25:0}},
+      grid:{left:48,right:42,top:44,bottom:densityPlan.zoom ? 70 : 48,containLabel:true},
+      xAxis:{
+        type:'category',
+        data:labels,
+        axisLabel:{
+          interval:densityPlan.zoom ? 'auto' : 0,
+          rotate:densityPlan.zoom ? 0 : (labels.length>8 ? (labels.length>16 ? 45 : 25) : 0),
+          formatter:value => adhocCompactAxisLabel(value, labels.length <= 6 ? 12 : 9),
+        },
+      },
       yAxis:{type:'value'},
-      series:[{type:chartType === 'line' ? 'line' : 'bar', smooth:chartType === 'line', data:grouped.map(row=>adhocChartDataPoint(row, dim, chartType)), itemStyle:{borderRadius: chartType === 'bar' ? [4,4,0,0] : 0}}],
+      dataZoom:densityPlan.zoom ? [
+        {type:'inside', xAxisIndex:0, start:zoomStart, end:100},
+        {type:'slider', xAxisIndex:0, start:zoomStart, end:100, height:14, bottom:8, brushSelect:false},
+      ] : undefined,
+      series:[{type:effectiveChartType === 'line' ? 'line' : 'bar', smooth:effectiveChartType === 'line', data:displayGrouped.map(row=>adhocChartDataPoint(row, dim, effectiveChartType)), itemStyle:{borderRadius: effectiveChartType === 'bar' ? [4,4,0,0] : 0}}],
     };
   }
   chart.setOption(option);
   setTimeout(() => {
     if (!chartTarget.querySelector('canvas, svg')) {
-      renderAdhocSvgChart(chartTarget, chartType, grouped, dim, meas, query, clickHandler);
+      renderAdhocSvgChart(chartTarget, effectiveChartType, displayGrouped, dim, meas, query, clickHandler, targetId);
     }
   }, 80);
   chart.off('click');
@@ -12015,7 +12895,8 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
   });
   chartTarget.onclick = event => {
     if (Date.now() - echartsClickAt < 250) return;
-    const fallback = adhocChartPointFromPointer(event, chartTarget, grouped, dim, chartType);
+    if (densityPlan.horizontal) return;
+    const fallback = adhocChartPointFromPointer(event, chartTarget, displayGrouped, dim, effectiveChartType);
     if (fallback) clickHandler(fallback, query, rows);
   };
   if (targetId === 'adhoc-preview') _adhocChart = chart;
@@ -12411,18 +13292,40 @@ function adhocChartPointFromPointer(event, target, grouped, dim, chartType) {
   return {name:item.label, data:{__member:dim, __value:item.label, __filterValues:item.filterValues}};
 }
 
-function renderAdhocSvgChart(target, chartType, grouped, dim, meas, query, clickHandler) {
+function adhocChartPalette(targetId='') {
+  const dashboardTarget = String(targetId || '');
+  if (dashboardTarget.startsWith('dash-chart-')) {
+    const common = ['#2ba66a','#2c84a6','#c64d42','#e3a51f','#875a8d','#71819a','#35a6c7'];
+    const widgetPalettes = {
+      'dash-chart-w_send_trend':['#2ba66a','#2c84a6','#e3a51f','#875a8d'],
+      'dash-chart-w_scene_sales':['#2c84a6','#e3a51f','#875a8d','#c64d42','#2ba66a'],
+      'dash-chart-w_conversion_region':['#2787ac','#e3a51f','#875a8d','#c64d42'],
+      'dash-chart-w_rights_region':['#e3a51f','#2c84a6','#875a8d','#2ba66a'],
+      'dash-chart-w_sales_region':['#c64d42','#71819a','#e3a51f','#2c84a6'],
+      'dash-chart-w_dist_region':['#875a8d','#35a6c7','#e3a51f','#c64d42'],
+      'dash-chart-w_delivery_penetration_region':['#208f82','#e3a51f','#875a8d','#c64d42'],
+    };
+    return [...(widgetPalettes[dashboardTarget] || common), ...common]
+      .filter((color, index, colors) => colors.indexOf(color) === index);
+  }
+  return ['#2563eb','#0f766e','#f59e0b','#dc2626','#7c3aed','#0891b2','#65a30d'];
+}
+
+function renderAdhocSvgChart(target, chartType, grouped, dim, meas, query, clickHandler, targetId='adhoc-preview') {
   const width = Math.max(target.clientWidth || 640, 320);
   const height = Math.max(target.clientHeight || 320, 240);
   const pad = {left:52, right:20, top:24, bottom:56};
   const maxValue = Math.max(...grouped.map(x=>x.value), 1);
   const esc = s => escHtml(String(s ?? ''));
+  const colors = adhocChartPalette(targetId);
+  const isDashboardChart = String(targetId || '').startsWith('dash-chart-');
+  const primaryColor = colors[0];
+  const riskColor = isDashboardChart ? '#ed7052' : '#d99042';
   let svg = '';
   if (chartType === 'donut') {
     const total = grouped.reduce((sum, x)=>sum+x.value, 0) || 1;
     const cx = width / 2, cy = height / 2 - 10, r = Math.min(width, height) * 0.26;
     let start = -Math.PI / 2;
-    const colors = ['#2563eb','#0f766e','#f59e0b','#dc2626','#7c3aed','#0891b2','#65a30d'];
     const arcs = grouped.map((g, i) => {
       const angle = (g.value / total) * Math.PI * 2;
       const end = start + angle;
@@ -12433,11 +13336,11 @@ function renderAdhocSvgChart(target, chartType, grouped, dim, meas, query, click
       start = end;
       const alert = adhocAlertTop(g.alerts);
       const fill = alert ? (alert.color || colors[i % colors.length]) : colors[i % colors.length];
-      const stroke = alert ? ` stroke="${alert.color || '#d99042'}" stroke-width="3" ${alert.type === 'path' ? 'stroke-dasharray="5 3"' : ''}` : '';
+      const stroke = alert ? ` stroke="${alert.color || riskColor}" stroke-width="3" ${alert.type === 'path' ? 'stroke-dasharray="5 3"' : ''}` : '';
       return `<path class="adhoc-svg-point" data-idx="${i}" d="${path}" fill="${fill}"${stroke}><title>${esc(g.label)}: ${esc(g.value)}${alert ? '｜' + esc(adhocAlertTitle(g.alerts)) : ''}</title></path>`;
     }).join('');
     const legend = grouped.slice(0, 6).map((g,i)=>`<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px"><i style="width:9px;height:9px;background:${colors[i%colors.length]};display:inline-block"></i>${esc(g.label)}</span>`).join('');
-    target.innerHTML = `<svg class="adhoc-svg-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">${arcs}<circle cx="${cx}" cy="${cy}" r="${r*0.58}" fill="#fff"></circle><text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="14" fill="#495057">${esc(adhocMemberLabel(meas))}</text></svg><div class="small text-muted px-2">${legend}</div>`;
+    target.innerHTML = `<svg class="adhoc-svg-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">${arcs}<circle cx="${cx}" cy="${cy}" r="${r*0.58}" fill="${isDashboardChart ? '#fffdf8' : '#fff'}"></circle><text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="14" fill="${isDashboardChart ? '#183f35' : '#495057'}">${esc(adhocMemberLabel(meas))}</text></svg><div class="small text-muted px-2">${legend}</div>`;
   } else {
     const plotW = width - pad.left - pad.right;
     const plotH = height - pad.top - pad.bottom;
@@ -12452,14 +13355,14 @@ function renderAdhocSvgChart(target, chartType, grouped, dim, meas, query, click
     const labelsSvg = points.map(p=>`<text x="${p.x}" y="${height-24}" text-anchor="end" transform="rotate(-25 ${p.x} ${height-24})" font-size="11" fill="#64748b">${esc(p.g.label).slice(0,16)}</text>`).join('');
     if (chartType === 'line') {
       const d = points.map((p,i)=>`${i?'L':'M'} ${p.x} ${p.y}`).join(' ');
-      svg = `<path d="${d}" fill="none" stroke="#2563eb" stroke-width="2.5"/>` + points.map(p=>{
+      svg = `<path d="${d}" fill="none" stroke="${primaryColor}" stroke-width="2.5"/>` + points.map(p=>{
         const alert = adhocAlertTop(p.g.alerts);
-        return `<circle class="adhoc-svg-point" data-idx="${p.i}" cx="${p.x}" cy="${p.y}" r="${alert ? 7 : 5}" fill="${alert ? (alert.color || '#d99042') : '#2563eb'}" stroke="${alert ? '#fff' : 'none'}" stroke-width="${alert ? 2 : 0}"><title>${esc(p.g.label)}: ${esc(p.g.value)}${alert ? '｜' + esc(adhocAlertTitle(p.g.alerts)) : ''}</title></circle>`;
+        return `<circle class="adhoc-svg-point" data-idx="${p.i}" cx="${p.x}" cy="${p.y}" r="${alert ? 7 : 5}" fill="${alert ? (alert.color || riskColor) : primaryColor}" stroke="${alert ? '#fff' : 'none'}" stroke-width="${alert ? 2 : 0}"><title>${esc(p.g.label)}: ${esc(p.g.value)}${alert ? '｜' + esc(adhocAlertTitle(p.g.alerts)) : ''}</title></circle>`;
       }).join('');
     } else {
       svg = points.map(p=>{
         const alert = adhocAlertTop(p.g.alerts);
-        return `<rect class="adhoc-svg-point" data-idx="${p.i}" x="${p.x-barW/2}" y="${p.y}" width="${barW}" height="${pad.top+plotH-p.y}" rx="4" fill="${alert ? (alert.color || '#d99042') : '#2563eb'}" stroke="${alert ? (alert.color || '#d99042') : 'none'}" stroke-width="${alert ? 2 : 0}" ${alert?.type === 'path' ? 'stroke-dasharray="5 3"' : ''}><title>${esc(p.g.label)}: ${esc(p.g.value)}${alert ? '｜' + esc(adhocAlertTitle(p.g.alerts)) : ''}</title></rect>`;
+        return `<rect class="adhoc-svg-point" data-idx="${p.i}" x="${p.x-barW/2}" y="${p.y}" width="${barW}" height="${pad.top+plotH-p.y}" rx="4" fill="${alert ? (alert.color || riskColor) : primaryColor}" stroke="${alert ? (alert.color || riskColor) : 'none'}" stroke-width="${alert ? 2 : 0}" ${alert?.type === 'path' ? 'stroke-dasharray="5 3"' : ''}><title>${esc(p.g.label)}: ${esc(p.g.value)}${alert ? '｜' + esc(adhocAlertTitle(p.g.alerts)) : ''}</title></rect>`;
       }).join('');
     }
     target.innerHTML = `<svg class="adhoc-svg-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">${axes}${svg}${labelsSvg}<text x="${pad.left}" y="16" font-size="12" fill="#475569">${esc(adhocMemberLabel(meas))}</text></svg>`;
@@ -12491,6 +13394,31 @@ function adhocGroupRowsForChart(rows, dim, meas) {
   return Array.from(map.entries()).map(([label, item]) => ({label, value:item.value, filterValues:item.filterValues.length ? item.filterValues : [label], alerts:item.alerts || []}));
 }
 
+function adhocChartDensityPlan(grouped, chartType) {
+  const items = Array.isArray(grouped) ? grouped : [];
+  const hasLongLabels = items.some(item => String(item?.label ?? '').length > 12);
+  if (chartType === 'bar' && (items.length > 24 || hasLongLabels)) {
+    const rankedItems = [...items]
+      .sort((a, b) => Number(b.value || 0) - Number(a.value || 0))
+      .slice(0, items.length > 24 ? 15 : items.length)
+      .reverse();
+    return {items:rankedItems, horizontal:true, zoom:false, visibleCount:rankedItems.length, truncated:items.length > 24};
+  }
+  if (chartType === 'line' && items.length > 48) {
+    return {items, horizontal:false, zoom:true, visibleCount:30, truncated:false};
+  }
+  return {items, horizontal:false, zoom:false, visibleCount:items.length, truncated:false};
+}
+
+function adhocCompactAxisLabel(value, maxLength=12) {
+  const text = String(value ?? '');
+  if (text.length <= maxLength) return text;
+  const available = Math.max(4, maxLength - 1);
+  const head = Math.ceil(available * .58);
+  const tail = Math.max(2, available - head);
+  return `${text.slice(0, head)}…${text.slice(-tail)}`;
+}
+
 function adhocChartItemStyle(alerts=[], chartType='bar') {
   const alert = adhocAlertTop(alerts);
   if (!alert) return {};
@@ -12508,6 +13436,14 @@ function adhocChartItemStyle(alerts=[], chartType='bar') {
   };
 }
 
+function adhocFormatKpiValue(value) {
+  if (value === null || value === undefined || value === '') return '-';
+  const numeric = Number(String(value).replace(/,/g, ''));
+  if (!Number.isFinite(numeric)) return value;
+  const maximumFractionDigits = Math.abs(numeric) >= 1 ? 2 : 4;
+  return numeric.toLocaleString('zh-CN', {maximumFractionDigits});
+}
+
 function renderAdhocKpi(target, rows, query, alertSummary=null, targetId='adhoc-preview', clickHandler=adhocChartClicked) {
   const meas = query.measures[0];
   const value = rows[0]?.[meas] ?? '-';
@@ -12519,7 +13455,7 @@ function renderAdhocKpi(target, rows, query, alertSummary=null, targetId='adhoc-
     ${adhocAlertSummaryHtml(alertSummary)}
     <div class="ad-doc-alert-summary-slot w-100">${documentAlertSummaryBadgesHtml(targetId, _documentAlertResultsByTarget[targetId] || [])}</div>
     <div class="text-muted mb-2">${escHtml(adhocMemberLabel(meas))}</div>
-    <div class="adhoc-kpi">${escHtml(value)}</div>
+    <div class="adhoc-kpi">${escHtml(adhocFormatKpiValue(value))}</div>
   </div>`;
   const kpi = target.querySelector('[data-adhoc-kpi-click="1"]');
   if (kpi) {
@@ -12549,6 +13485,13 @@ function adhocKpiClicked(rows, query, clickHandler=adhocChartClicked) {
     return;
   }
   _adhocSelectedPoint = null;
+  if (clickHandler !== adhocChartClicked) {
+    clickHandler({
+      name:'汇总',
+      data:{__member:null, __value:'汇总', __filterValues:[]},
+    }, query, rows);
+    return;
+  }
   if (adhocDrillMode(_adhocState) === 'dynamic') {
     openDynamicDrillChooser({kind:'adhoc', member:null, value:'汇总', filterValues:[]});
     return;
@@ -12575,6 +13518,7 @@ function renderAdhocTable(target, rows, alertSummary=null, query=null, clickHand
       }).join('')}</tr>`).join('')}</tbody>
     </table>
   </div>`;
+  applyDashboardReferenceTableHeatmap(target, rows, cols, query, targetId);
   target.querySelectorAll('.adhoc-measure-cell').forEach(cell => {
     cell.addEventListener('click', event => {
       event.stopPropagation();
@@ -12634,6 +13578,60 @@ function renderAdhocTable(target, rows, alertSummary=null, query=null, clickHand
     });
   });
   applyDocumentAlertMarkers(targetId, _documentAlertResultsByTarget[targetId] || []);
+}
+
+function dashboardTableNumber(value) {
+  const normalized = String(value ?? '').replace(/,/g, '').replace(/%/g, '').trim();
+  if (!normalized) return null;
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : null;
+}
+
+function dashboardMixTableColor(base, strength) {
+  const canvas = [250, 251, 253];
+  const ratio = Math.max(0, Math.min(1, strength));
+  return `rgb(${base.map((channel, index) => Math.round(canvas[index] * (1 - ratio) + channel * ratio)).join(',')})`;
+}
+
+function applyDashboardReferenceTableHeatmap(target, rows, cols, query, targetId) {
+  if (!document.body.classList.contains('dashboard-standalone-view') || !String(targetId || '').startsWith('dash-chart-')) return;
+  const table = target.querySelector('table');
+  const wrap = table?.closest('.table-responsive');
+  if (!table || !wrap) return;
+  table.classList.add('dashboard-widget-table-heatmap');
+  wrap.classList.add('dashboard-widget-table-heatmap-wrap');
+  const measureCodes = new Set((query?.measures || []).map(code => documentAlertMemberCode(code)));
+  const measureColumns = cols.filter(code => measureCodes.has(documentAlertMemberCode(code)));
+  const referencePalette = [
+    [70, 84, 116],
+    [27, 117, 145],
+    [126, 82, 126],
+    [47, 111, 94],
+  ];
+  cols.forEach((column, columnIndex) => {
+    const measureIndex = measureColumns.indexOf(column);
+    const cells = Array.from(table.querySelectorAll(`tbody tr td:nth-child(${columnIndex + 1})`));
+    if (measureIndex < 0) {
+      cells.forEach(cell => cell.classList.add('dashboard-table-dimension-cell'));
+      return;
+    }
+    const values = rows.map(row => dashboardTableNumber(row[column])).filter(Number.isFinite);
+    if (!values.length) return;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = max - min;
+    const base = referencePalette[measureIndex % referencePalette.length];
+    cells.forEach((cell, rowIndex) => {
+      if (cell.classList.contains('ad-doc-alert-cell') || cell.classList.contains('ad-alert-cell')) return;
+      const value = dashboardTableNumber(rows[rowIndex]?.[column]);
+      if (!Number.isFinite(value)) return;
+      const normalized = span > 0 ? (value - min) / span : .5;
+      const strength = .06 + Math.pow(normalized, .82) * .88;
+      cell.classList.add('dashboard-table-heat-cell');
+      cell.style.backgroundColor = dashboardMixTableColor(base, strength);
+      cell.style.color = strength >= .54 ? '#ffffff' : '#2e3844';
+    });
+  });
 }
 
 function adhocRowDimensionFilters(row, query=null) {
@@ -12724,11 +13722,13 @@ async function adhocOpenSelectedDetail() {
 
 function adhocDetailFilterText(filter) {
   if (!filter?.member) return '';
-  const member = adhocMemberLabel(filter.member);
+  const member = dashboardFilterMemberLabel(filter);
   if (filter.filterMode === 'date' || filter.filterMode === 'week' || filter.filterMode === 'time') {
     return `${member} ${dashboardFilterDescription(filter)}`;
   }
-  const values = (filter.values || []).filter(v => v !== undefined && v !== null && String(v) !== '').map(String);
+  const values = (filter.values || [])
+    .filter(v => v !== undefined && v !== null && String(v) !== '')
+    .map(v => filter.valueLabels?.[String(v)] || String(v));
   const opMap = {
     equals: '=',
     in: '=',
@@ -13139,6 +14139,7 @@ function dashboardApplyViewMode() {
   if (main) {
     main.className = _dashboardViewMode ? 'col-12' : 'col-xl-9 col-lg-8';
   }
+  dashboardPlaceStandaloneFilter();
   const hint = document.getElementById('dashboard-mode-hint');
   if (hint) hint.textContent = _dashboardViewMode
     ? '查看模式：可筛选、钻取、下载和打印，不可编辑画布。'
@@ -13146,7 +14147,34 @@ function dashboardApplyViewMode() {
   document.getElementById('dashboard-view-print-btn')?.classList.toggle('d-none', !_dashboardViewMode);
   const nameInput = document.getElementById('dashboard-name');
   if (nameInput) nameInput.disabled = _dashboardViewMode;
+  dashboardUpdatePresentationHeader();
   dashboardRenderFilterPanelState();
+}
+
+function dashboardPlaceStandaloneFilter() {
+  const side = document.getElementById('dashboard-side-panel');
+  const mainCard = document.querySelector('#dashboard-main-panel > .card');
+  const mainBody = mainCard?.querySelector(':scope > .card-body');
+  const filterCard = document.getElementById('dashboard-filter-card');
+  if (!side || !mainCard || !mainBody || !filterCard) return;
+  if (_dashboardStandaloneView) {
+    if (filterCard.parentElement !== mainCard) mainCard.insertBefore(filterCard, mainBody);
+    side.classList.add('dashboard-filter-host-empty');
+  } else {
+    if (filterCard.parentElement !== side) side.prepend(filterCard);
+    side.classList.remove('dashboard-filter-host-empty');
+  }
+}
+
+function dashboardUpdatePresentationHeader() {
+  const title = document.getElementById('dashboard-header-title');
+  const subtitle = document.getElementById('dashboard-header-subtitle');
+  const dashboardName = _dashboardState.name || document.getElementById('dashboard-name')?.value || 'Dashboard 画布';
+  if (title) title.innerHTML = `<i class="bi bi-grid-1x2-fill me-2 text-success"></i>${escHtml(dashboardName)}`;
+  if (!subtitle) return;
+  subtitle.textContent = _dashboardState.id === 'dash_mall_robot_after_sales_marketing'
+    ? '跟踪发券、核销、权益开通与服务销售表现，按时间、战区、门店和营销场景定位售后营销机会。'
+    : '集中查看核心经营指标，并通过筛选、联动和上下钻定位业务机会。';
 }
 
 function dashboardConfigureCanvasMode(forceFallback=false) {
@@ -13201,6 +14229,7 @@ function dashboardRestoreDraft() {
       aiInsightEnabled: Boolean(draft.aiInsightEnabled),
       widgets: draft.widgets || [],
     };
+    dashboardSyncAppliedGlobalFilters();
     const nameInput = document.getElementById('dashboard-name');
     if (nameInput) nameInput.value = _dashboardState.name;
     renderDashboardAiToggle();
@@ -13670,9 +14699,53 @@ function dashboardAddGlobalFilter() {
     filter = {kind, member, operator, values};
   }
   _dashboardState.globalFilters.push(filter);
+  _dashboardFiltersDirty = true;
   renderDashboardFilters();
   dashboardPersistDraft();
-  dashboardRefreshAll();
+  showToast('筛选条件已添加，请点击“查询”后生效', 'info');
+}
+
+function dashboardCloneGlobalFilters(filters) {
+  return JSON.parse(JSON.stringify(Array.isArray(filters) ? filters : []));
+}
+
+function dashboardSyncAppliedGlobalFilters() {
+  _dashboardAppliedGlobalFilters = dashboardCloneGlobalFilters(_dashboardState?.globalFilters || []);
+  _dashboardFiltersDirty = false;
+}
+
+function dashboardQueryGlobalFilters() {
+  return Array.isArray(_dashboardAppliedGlobalFilters) ? _dashboardAppliedGlobalFilters : [];
+}
+
+async function dashboardApplyGlobalFilters() {
+  const button = document.getElementById('dashboard-filter-query');
+  dashboardSyncAppliedGlobalFilters();
+  renderDashboardFilters();
+  dashboardPersistDraft();
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>查询中';
+  }
+  try {
+    await dashboardRefreshAll();
+    const count = dashboardQueryGlobalFilters().length;
+    showToast(count ? `已按 ${count} 项公共筛选刷新看板` : '已查询全部数据', 'success');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = '<i class="bi bi-search me-1"></i>查询';
+    }
+  }
+}
+
+async function dashboardResetGlobalFilters() {
+  _dashboardState.globalFilters = [];
+  dashboardSyncAppliedGlobalFilters();
+  renderDashboardFilters();
+  dashboardPersistDraft();
+  await dashboardRefreshAll();
+  showToast('公共筛选已重置，当前展示全部数据', 'success');
 }
 
 function dashboardFilterKind(filter) {
@@ -13717,7 +14790,7 @@ function dashboardFilterAppliesToSpec(filter, spec) {
 }
 
 function dashboardApplicableGlobalFilters(spec) {
-  return (_dashboardState.globalFilters || []).filter(filter => dashboardFilterAppliesToSpec(filter, spec));
+  return dashboardQueryGlobalFilters().filter(filter => dashboardFilterAppliesToSpec(filter, spec));
 }
 
 function dashboardFilterDescription(filter) {
@@ -13748,12 +14821,17 @@ function dashboardFilterDescription(filter) {
     gt:'大于',
     lt:'小于',
   }[String(filter.operator || '').toLowerCase()] || filter.operator || '';
-  return `${operatorLabel} ${(filter.values || []).join('、')}`;
+  const labels = (filter.values || []).map(value => filter.valueLabels?.[value] || value);
+  return `${operatorLabel} ${labels.join('、')}`;
+}
+
+function dashboardFilterMemberLabel(filter={}) {
+  return String(filter.displayLabel || filter.label || adhocMemberLabel(filter.member) || '');
 }
 
 function dashboardAiFilterLabel(filter) {
   if (!filter?.member) return '';
-  return `${adhocMemberLabel(filter.member)} ${dashboardFilterDescription(filter)}`;
+  return `${dashboardFilterMemberLabel(filter)} ${dashboardFilterDescription(filter)}`;
 }
 
 function dashboardAiRows(rows, query) {
@@ -13778,7 +14856,7 @@ function dashboardAiPayload() {
   }).filter(item => item.rowCount || item.measures.length || item.dimensions.length);
   return {
     dashboardName: _dashboardState.name || document.getElementById('dashboard-name')?.value || 'Dashboard',
-    globalFilters: (_dashboardState.globalFilters || []).map(dashboardAiFilterLabel).filter(Boolean),
+    globalFilters: dashboardQueryGlobalFilters().map(dashboardAiFilterLabel).filter(Boolean),
     linkedFilter: _dashboardState.linkedFilter?.filter ? dashboardAiFilterLabel(_dashboardState.linkedFilter.filter) : '',
     widgets,
   };
@@ -13804,7 +14882,7 @@ function dashboardWidgetAiPayload(widgetId) {
   const summary = dashboardAiWidgetSummary(widget);
   return {
     dashboardName: widget.name || _dashboardState.name || 'Dashboard 图表',
-    globalFilters: (_dashboardState.globalFilters || []).map(dashboardAiFilterLabel).filter(Boolean),
+    globalFilters: dashboardQueryGlobalFilters().map(dashboardAiFilterLabel).filter(Boolean),
     linkedFilter: _dashboardState.linkedFilter?.filter ? dashboardAiFilterLabel(_dashboardState.linkedFilter.filter) : '',
     widgets: [summary],
   };
@@ -13976,24 +15054,38 @@ function dashboardAddRecommendedDimension(widgetId, member) {
 function renderDashboardFilters() {
   const out = document.getElementById('dashboard-global-filters');
   const summary = document.getElementById('dashboard-filter-summary');
+  const status = document.getElementById('dashboard-filter-apply-status');
   if (!out) return;
   if (summary) {
-    const labels = (_dashboardState.globalFilters || []).map(f => `${adhocMemberLabel(f.member)} ${dashboardFilterDescription(f)}`);
+    const labels = (_dashboardState.globalFilters || []).map(f => `${dashboardFilterMemberLabel(f)} ${dashboardFilterDescription(f)}`);
     summary.textContent = labels.length ? labels.join(' ｜ ') : '未设置公共筛选';
     summary.title = summary.textContent;
   }
+  if (status) {
+    if (_dashboardFiltersDirty) {
+      status.className = 'small text-warning mb-2';
+      status.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>筛选条件已修改，请点击“查询”后生效';
+    } else if (dashboardQueryGlobalFilters().length) {
+      status.className = 'small text-success mb-2';
+      status.innerHTML = `<i class="bi bi-check-circle me-1"></i>已应用 ${dashboardQueryGlobalFilters().length} 项公共筛选`;
+    } else {
+      status.className = 'small text-muted mb-2';
+      status.textContent = '未设置筛选，将查询全部数据';
+    }
+  }
   out.innerHTML = _dashboardState.globalFilters.length ? _dashboardState.globalFilters.map((f, idx) => `
     <div class="d-flex align-items-center gap-1 mb-1">
-      <span class="badge bg-light text-dark border text-truncate">${dashboardFilterKind(f)==='measure'?'指标':'维度'} · ${escHtml(adhocMemberLabel(f.member))} ${escHtml(dashboardFilterDescription(f))}</span>
+      <span class="badge bg-light text-dark border text-truncate">${dashboardFilterKind(f)==='measure'?'指标':'维度'} · ${escHtml(dashboardFilterMemberLabel(f))} ${escHtml(dashboardFilterDescription(f))}</span>
       <button class="btn btn-sm p-0" onclick="dashboardRemoveGlobalFilter(${idx})"><i class="bi bi-x"></i></button>
     </div>`).join('') : '<div class="text-muted">暂无公共筛选</div>';
 }
 
 function dashboardRemoveGlobalFilter(idx) {
   _dashboardState.globalFilters.splice(idx, 1);
+  _dashboardFiltersDirty = true;
   renderDashboardFilters();
   dashboardPersistDraft();
-  dashboardRefreshAll();
+  showToast('筛选条件已移除，请点击“查询”后生效', 'info');
 }
 
 async function dashboardAddWidget(adhocId) {
@@ -14104,7 +15196,9 @@ function renderDashboardCanvas() {
     item.className = _dashboardViewMode ? 'dashboard-view-grid-item' : 'grid-stack-item';
     const widgetSpec = widget.spec || (_adhocSaved || []).find(saved => saved.id === widget.adhocId)?.spec || {};
     const isReportWidget = widgetSpec.view?.type === 'chart' && widgetSpec.view?.chartType === 'executive_report';
+    const isKpiWidget = widgetSpec.view?.type === 'chart' && widgetSpec.view?.chartType === 'kpi';
     if (isReportWidget) item.classList.add('dashboard-report-widget');
+    if (isKpiWidget) item.classList.add('dashboard-kpi-widget');
     item.setAttribute('gs-x', widget.layout?.x ?? 0);
     item.setAttribute('gs-y', widget.layout?.y ?? 0);
     item.setAttribute('gs-w', widget.layout?.w ?? 6);
@@ -14115,7 +15209,9 @@ function renderDashboardCanvas() {
       const h = Math.max(2, widget.layout?.h ?? 4);
       const colStart = Math.min(x + 1, 12);
       item.style.gridColumn = `${colStart} / span ${Math.min(w, 13 - colStart)}`;
-      const itemHeight = Math.max(220, h * 110);
+      const itemHeight = _dashboardViewMode
+        ? (isKpiWidget ? 106 : Math.max(300, h * 62))
+        : Math.max(220, h * 110);
       if (_dashboardViewMode) {
         if (!isReportWidget) {
           item.style.height = `${itemHeight}px`;
@@ -14154,8 +15250,173 @@ function renderDashboardCanvas() {
     if (_dashboardGrid && !_dashboardViewMode) _dashboardGrid.makeWidget(item);
     dashboardRenderWidget(widget.id).then(() => {
       if (_dashboardState.aiInsightEnabled) dashboardGenerateAiInsight({debounced:true});
+      dashboardScheduleMarketingInsightRail();
     });
   });
+}
+
+let _dashboardMarketingInsightTimer = null;
+let _dashboardMarketingInsightDismissed = false;
+
+function dashboardUsesMarketingInsightRail() {
+  return _dashboardStandaloneView && _dashboardState.id === 'dash_mall_robot_after_sales_marketing';
+}
+
+function dashboardMetricValue(widgetId) {
+  const stored = _dashboardWidgetResults[widgetId] || {};
+  const measure = stored.query?.measures?.[0];
+  const row = (stored.rows || [])[0] || {};
+  let raw = measure ? row[measure] : undefined;
+  if (raw === undefined) {
+    const candidate = Object.keys(row).find(key => !key.startsWith('__') && Number.isFinite(Number(String(row[key]).replace(/,/g, ''))));
+    raw = candidate ? row[candidate] : undefined;
+  }
+  const value = Number(String(raw ?? '').replace(/,/g, ''));
+  return Number.isFinite(value) ? value : null;
+}
+
+function dashboardInsightNumber(value, digits=0) {
+  if (!Number.isFinite(value)) return '—';
+  return Number(value).toLocaleString('zh-CN', {minimumFractionDigits:digits, maximumFractionDigits:digits});
+}
+
+function dashboardScheduleMarketingInsightRail() {
+  if (!dashboardUsesMarketingInsightRail() || _dashboardMarketingInsightDismissed) return;
+  clearTimeout(_dashboardMarketingInsightTimer);
+  _dashboardMarketingInsightTimer = setTimeout(dashboardRenderMarketingInsightRail, 120);
+}
+
+function dashboardRenderMarketingInsightRail() {
+  if (!dashboardUsesMarketingInsightRail()) return;
+  const panel = document.getElementById('dashboard-ai-insight-panel');
+  if (!panel) return;
+  if (_dashboardMarketingInsightDismissed) {
+    panel.classList.add('d-none');
+    document.getElementById('dashboard-insight-open-btn')?.classList.remove('d-none');
+    return;
+  }
+  const sent = dashboardMetricValue('w_send');
+  const used = dashboardMetricValue('w_used');
+  const conversion = dashboardMetricValue('w_conversion');
+  const rights = dashboardMetricValue('w_rights');
+  const salesWan = dashboardMetricValue('w_sales');
+  const deliverySend = dashboardMetricValue('w_delivery_send');
+  const penetration = dashboardMetricValue('w_delivery_penetration');
+  const rightsAttach = dashboardMetricValue('w_rights_attach');
+  const loaded = [sent, used, conversion, rights, salesWan].filter(Number.isFinite).length;
+  const effectiveConversion = Number.isFinite(conversion)
+    ? conversion
+    : (Number.isFinite(sent) && sent > 0 && Number.isFinite(used) ? used / sent * 100 : null);
+  const filterCount = (_dashboardAppliedGlobalFilters || []).length;
+  const scopeText = filterCount ? `当前已应用 ${filterCount} 项公共筛选` : '当前为全部业务范围';
+  const conversionDanger = Number.isFinite(effectiveConversion) && effectiveConversion < 12;
+  const attachDanger = Number.isFinite(rightsAttach) && rightsAttach < 18;
+  const conversionWarning = Number.isFinite(effectiveConversion) && effectiveConversion < 20;
+  const attachWarning = Number.isFinite(rightsAttach) && rightsAttach < 30;
+  const riskLevel = conversionDanger || attachDanger
+    ? 'danger'
+    : conversionWarning || attachWarning
+      ? 'warning'
+      : 'normal';
+  const riskTitle = riskLevel === 'danger' ? '异常提示' : riskLevel === 'warning' ? '风险关注' : '状态正常';
+  const riskText = conversionDanger
+    ? `优惠券转化率仅为 ${dashboardInsightNumber(effectiveConversion, 2)}%，明显低于演示基准，建议立即定位异常战区与门店。`
+    : attachDanger
+      ? `权益附加率仅为 ${dashboardInsightNumber(rightsAttach, 2)}%，权益承接存在明显断点。`
+      : conversionWarning
+        ? `优惠券转化率为 ${dashboardInsightNumber(effectiveConversion, 2)}%，低于演示基准 20%，建议优先关注低转化战区与门店。`
+        : attachWarning
+          ? `权益附加率为 ${dashboardInsightNumber(rightsAttach, 2)}%，权益承接仍有提升空间。`
+          : '当前筛选范围内未发现明显异常；建议持续观察低贡献战区与场景的结构变化。';
+  panel.classList.remove('d-none');
+  panel.classList.add('dashboard-insight-rail');
+  document.getElementById('dashboard-insight-open-btn')?.classList.add('d-none');
+  panel.innerHTML = `
+    <div class="dashboard-insight-title">
+      <span class="dashboard-insight-title-copy"><i class="bi bi-stars"></i><span>智能洞察</span></span>
+      <span class="dashboard-insight-title-actions">
+        <button type="button" class="dashboard-insight-refresh" onclick="dashboardRefreshMarketingInsight(this)" title="重新生成智能洞察" aria-label="重新生成智能洞察"><i class="bi bi-arrow-clockwise"></i></button>
+        <button type="button" class="dashboard-insight-close" onclick="dashboardCloseMarketingInsightRail()" title="关闭智能洞察" aria-label="关闭智能洞察"><i class="bi bi-x-lg"></i></button>
+      </span>
+    </div>
+    <div class="dashboard-insight-kicker insight-overview">经营概览</div>
+    <p class="dashboard-insight-copy">${loaded
+      ? `已发券 <strong>${dashboardInsightNumber(sent)}</strong> 张，核销 <strong>${dashboardInsightNumber(used)}</strong> 张，优惠券转化率为 <strong>${dashboardInsightNumber(effectiveConversion, 2)}%</strong>；服务销售额 <strong>${dashboardInsightNumber(salesWan, 2)}</strong> 万元。`
+      : '正在汇总当前筛选范围内的售后营销指标…'}</p>
+
+    <div class="dashboard-insight-kicker insight-findings">关键发现</div>
+    <details class="dashboard-insight-finding" open>
+      <summary>优惠券转化表现</summary>
+      <p>${Number.isFinite(effectiveConversion)
+        ? `每 100 张已发优惠券约有 ${dashboardInsightNumber(effectiveConversion, 1)} 张完成核销，可按战区 → 门店继续下钻比较贡献。`
+        : '指标加载后将按战区和门店识别转化差异。'}</p>
+    </details>
+    <details class="dashboard-insight-finding">
+      <summary>交车营销承接</summary>
+      <p>交车发券率 ${dashboardInsightNumber(deliverySend, 2)}%，售后营销渗透率 ${dashboardInsightNumber(penetration, 2)}%；建议联动交车量观察触达缺口。</p>
+    </details>
+    <details class="dashboard-insight-finding">
+      <summary>权益与销售贡献</summary>
+      <p>权益开通量 ${dashboardInsightNumber(rights)}，权益附加率 ${dashboardInsightNumber(rightsAttach, 2)}%；可按营销场景拆解销售贡献。</p>
+    </details>
+
+    <div class="dashboard-insight-risk is-${riskLevel}"><strong>${riskTitle}：</strong>${riskText}</div>
+
+    <div class="dashboard-insight-kicker insight-actions">行动建议</div>
+    <ol class="dashboard-insight-list">
+      <li>按战区下钻优惠券转化率，优先复盘低于整体水平的门店。</li>
+      <li>按营销场景比较服务销售贡献，复制高转化场景的触达策略。</li>
+      <li>联动交车发券率、营销渗透率和权益附加率，定位漏斗断点。</li>
+    </ol>
+    <div class="dashboard-insight-meta">基于当前激活的售后营销知识图谱、组件查询结果与公共筛选动态生成 · ${escHtml(scopeText)}</div>`;
+  dashboardScheduleChartResize();
+}
+
+function dashboardCloseMarketingInsightRail() {
+  _dashboardMarketingInsightDismissed = true;
+  clearTimeout(_dashboardMarketingInsightTimer);
+  document.getElementById('dashboard-ai-insight-panel')?.classList.add('d-none');
+  document.getElementById('dashboard-insight-open-btn')?.classList.remove('d-none');
+  dashboardScheduleChartResize();
+}
+
+function dashboardOpenMarketingInsightRail() {
+  _dashboardMarketingInsightDismissed = false;
+  document.getElementById('dashboard-insight-open-btn')?.classList.add('d-none');
+  dashboardRenderMarketingInsightRail();
+}
+
+let _dashboardMarketingInsightRefreshing = false;
+
+async function dashboardRefreshMarketingInsight(button=null) {
+  if (_dashboardMarketingInsightRefreshing) return;
+  _dashboardMarketingInsightRefreshing = true;
+  const originalHtml = button?.innerHTML || '';
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+  }
+  try {
+    await dashboardRefreshAll();
+    showToast('智能洞察已基于最新数据重新生成', 'success');
+  } catch(e) {
+    showToast(`智能洞察刷新失败：${e.message || e}`, 'error');
+  } finally {
+    _dashboardMarketingInsightRefreshing = false;
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.innerHTML = originalHtml || '<i class="bi bi-arrow-clockwise"></i>';
+    }
+  }
+}
+
+function dashboardScheduleChartResize() {
+  setTimeout(() => {
+    if (!window.echarts || typeof window.echarts.getInstanceByDom !== 'function') return;
+    document.querySelectorAll('#dashboard-canvas .adhoc-chart-canvas').forEach(element => {
+      try { window.echarts.getInstanceByDom(element)?.resize(); } catch(e) {}
+    });
+  }, 180);
 }
 
 function dashboardRemoveWidget(widgetId) {
@@ -14267,19 +15528,193 @@ function dashboardWidgetHasNextDrill(spec) {
   return hasNext;
 }
 
+function dashboardWidgetIsKpi(widget) {
+  return widget?.spec?.view?.type === 'chart' && widget?.spec?.view?.chartType === 'kpi';
+}
+
+function dashboardStartKpiDrill(widgetId, params={}, query={}) {
+  const widget = (_dashboardState.widgets || []).find(item => item.id === widgetId);
+  if (!widget?.spec) return showToast('指标卡配置不存在', 'warning');
+  const spec = JSON.parse(JSON.stringify(widget.spec));
+  spec.view = {...(spec.view || {}), type:'chart', chartType:'bar'};
+  spec.drill = spec.drill || {mode:'dynamic', path:[], stack:[]};
+  spec.drill.stack = [];
+  _dashboardKpiDrillContext = {
+    widgetId,
+    name:widget.name || '指标下钻分析',
+    spec,
+    rows:_dashboardWidgetResults[widgetId]?.rows || [],
+    query:_dashboardWidgetResults[widgetId]?.query || query || {},
+  };
+  const data = params.data || {};
+  const member = data.__member || query?.dimensions?.[0] || null;
+  const value = data.__value ?? params.name ?? '汇总';
+  const filterValues = data.__filterValues?.length ? data.__filterValues : [];
+  if (adhocDrillMode(spec) === 'dynamic') {
+    openDynamicDrillChooser({kind:'dashboard-kpi-modal', widgetId, member, value, filterValues});
+  } else {
+    dashboardRenderKpiDrillModal();
+  }
+}
+
+function dashboardKpiDrillPathText(spec={}) {
+  const measure = spec.query?.measures?.[0] || '';
+  const parts = ['全部'];
+  (spec.drill?.stack || []).forEach(entry => {
+    if (entry.member && entry.label && entry.label !== '汇总') {
+      parts.push(`${adhocMemberLabel(entry.member)}=${entry.label}`);
+    }
+    if (entry.nextMember) parts.push(adhocMemberLabel(entry.nextMember));
+  });
+  if (adhocDrillMode(spec) !== 'dynamic' && !(spec.drill?.stack || []).length && spec.drill?.path?.[0]) {
+    parts.push(adhocMemberLabel(spec.drill.path[0]));
+  }
+  return `${adhocMemberLabel(measure)} · 下钻路径：${parts.join(' → ')}`;
+}
+
+function dashboardRenderKpiDrillModal() {
+  const context = _dashboardKpiDrillContext;
+  if (!context?.spec) return;
+  const modalEl = document.getElementById('dashboard-kpi-drill-modal');
+  const title = document.getElementById('dashboard-kpi-drill-title');
+  const path = document.getElementById('dashboard-kpi-drill-context');
+  const target = document.getElementById('dashboard-kpi-drill-chart');
+  if (title) title.innerHTML = `<i class="bi bi-arrows-angle-expand me-2 text-primary"></i>${escHtml(context.name)}`;
+  if (path) path.textContent = dashboardKpiDrillPathText(context.spec);
+  if (target) target.innerHTML = '<div class="h-100 d-flex align-items-center justify-content-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>正在加载下钻分析...</div>';
+  const run = () => dashboardQueryKpiDrillModal();
+  if (!modalEl.classList.contains('show')) {
+    modalEl.addEventListener('shown.bs.modal', run, {once:true});
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  } else {
+    run();
+  }
+}
+
+async function dashboardQueryKpiDrillModal() {
+  const context = _dashboardKpiDrillContext;
+  const targetId = 'dashboard-kpi-drill-chart';
+  const target = document.getElementById(targetId);
+  if (!context?.spec || !target) return;
+  const spec = context.spec;
+  const extraFilters = [...dashboardApplicableGlobalFilters(spec)];
+  if (_dashboardState.linkedFilter && _dashboardState.linkedFilter.sourceWidgetId !== context.widgetId && dashboardFilterAppliesToSpec(_dashboardState.linkedFilter.filter, spec)) {
+    extraFilters.push(_dashboardState.linkedFilter.filter);
+  }
+  const query = dashboardBuildWidgetQuery(spec, extraFilters);
+  try {
+    resetDocumentAlertRender(targetId, {forceRules:true});
+    documentAlertLoadingStart(targetId);
+    const response = await fetch('/api/ad/v1/load', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(query)});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || '下钻查询失败');
+    context.rows = data.data || [];
+    context.query = query;
+    const oldState = _adhocState;
+    _adhocState = spec;
+    renderAdhocResult(adhocResultForAlertRender(data, true), query, targetId, dashboardKpiModalChartClicked);
+    scheduleDocumentAlertScans(targetId, documentAlertMeasureCodesFromQuery(query), {forceRules:true, query});
+    _adhocState = oldState;
+    setTimeout(() => {
+      try { window.echarts?.getInstanceByDom(document.querySelector(`#${targetId} .adhoc-chart-canvas`))?.resize(); } catch(e) {}
+    }, 120);
+  } catch(e) {
+    target.innerHTML = `<div class="alert alert-danger m-3">${escHtml(e.message || e)}</div>`;
+  } finally {
+    documentAlertLoadingEnd(targetId);
+  }
+}
+
+function dashboardKpiModalChartClicked(params, query) {
+  const context = _dashboardKpiDrillContext;
+  if (!context?.spec) return;
+  const data = params.data || {};
+  const member = data.__member || query?.dimensions?.[0];
+  const value = data.__value ?? params.name;
+  const filterValues = data.__filterValues?.length ? data.__filterValues : [String(value)];
+  if (!member) return;
+  if (adhocDrillMode(context.spec) === 'dynamic') {
+    const modalEl = document.getElementById('dashboard-kpi-drill-modal');
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      openDynamicDrillChooser({kind:'dashboard-kpi-modal', widgetId:context.widgetId, member, value, filterValues});
+      context.resumeOnChooserClose = true;
+      const chooser = document.getElementById('dynamic-drill-modal');
+      chooser.addEventListener('hidden.bs.modal', () => {
+        if (context.resumeOnChooserClose) dashboardRenderKpiDrillModal();
+      }, {once:true});
+    }, {once:true});
+    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+    return;
+  }
+  if (dashboardWidgetHasNextDrill(context.spec)) {
+    context.spec.drill.stack = context.spec.drill.stack || [];
+    context.spec.drill.stack.push({member, operator:'equals', values:filterValues, label:String(value)});
+    dashboardRenderKpiDrillModal();
+    showToast(`已下钻：${adhocMemberLabel(member)}=${value}`, 'info');
+    return;
+  }
+  showToast('当前已经是最末级维度', 'info');
+}
+
+function dashboardKpiDrillRollUp() {
+  const context = _dashboardKpiDrillContext;
+  const stack = context?.spec?.drill?.stack || [];
+  if (!context?.spec || !stack.length) return showToast('当前已经是下钻根层级', 'info');
+  stack.pop();
+  if (adhocDrillMode(context.spec) === 'dynamic' && !stack.length) {
+    const modalEl = document.getElementById('dashboard-kpi-drill-modal');
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      openDynamicDrillChooser({kind:'dashboard-kpi-modal', widgetId:context.widgetId, member:null, value:'汇总', filterValues:[]});
+    }, {once:true});
+    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+    return;
+  }
+  dashboardRenderKpiDrillModal();
+}
+
+function dashboardKpiDrillReset() {
+  const context = _dashboardKpiDrillContext;
+  if (!context?.spec) return;
+  context.spec.drill.stack = [];
+  if (adhocDrillMode(context.spec) === 'dynamic') {
+    const modalEl = document.getElementById('dashboard-kpi-drill-modal');
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      openDynamicDrillChooser({kind:'dashboard-kpi-modal', widgetId:context.widgetId, member:null, value:'汇总', filterValues:[]});
+    }, {once:true});
+    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+    return;
+  }
+  dashboardRenderKpiDrillModal();
+}
+
+function dashboardDownloadKpiDrillCSV() {
+  const context = _dashboardKpiDrillContext;
+  if (!context?.rows?.length) return showToast('当前下钻结果暂无可下载数据', 'warning');
+  const cols = [
+    ...(context.query?.dimensions || []),
+    ...(context.query?.measures || []),
+  ].filter((column, index, columns) => column && columns.indexOf(column) === index);
+  downloadRowsCSV(context.rows, `${context.name || '指标下钻'}_${new Date().toISOString().slice(0,10)}.csv`, cols.length ? cols : null);
+}
+
 function dashboardWidgetClicked(widgetId, params, query) {
   const widget = _dashboardState.widgets.find(w => w.id === widgetId);
+  if (!widget) return;
+  if (dashboardWidgetIsKpi(widget)) {
+    dashboardStartKpiDrill(widgetId, params, query);
+    return;
+  }
   const data = params.data || {};
   const member = data.__member || query.dimensions?.[0];
   const value = data.__value ?? params.name;
   const filterValues = data.__filterValues?.length ? data.__filterValues : [String(value)];
-  if (!member) return;
   widget.spec = widget.spec || {};
   widget.spec.drill = widget.spec.drill || {mode:'path', path:[], stack:[]};
   if (adhocDrillMode(widget.spec) === 'dynamic') {
     openDynamicDrillChooser({kind:'dashboard', widgetId, member, value, filterValues});
     return;
   }
+  if (!member) return;
   if (widget?.spec?.drill?.path?.length && dashboardWidgetHasNextDrill(widget.spec)) {
     widget.spec.drill.stack = widget.spec.drill.stack || [];
     widget.spec.drill.stack.push({member, operator:'equals', values:filterValues, label:String(value)});
@@ -14328,6 +15763,7 @@ async function dashboardRefreshAll() {
   }
   await Promise.all((_dashboardState.widgets || []).map(w => dashboardRenderWidget(w.id, {forceAlertRefresh:true})));
   if (_dashboardState.aiInsightEnabled) await dashboardGenerateAiInsight();
+  dashboardRenderMarketingInsightRail();
 }
 
 function dashboardCaptureLayout() {
@@ -14367,9 +15803,11 @@ async function loadDashboardSpec(id, options={}) {
   if (!r.ok) return showToast(d.error || '打开失败', 'error');
   _dashboardState = d;
   _dashboardState.globalFilters = _dashboardState.globalFilters || [];
+  dashboardSyncAppliedGlobalFilters();
   _dashboardState.widgets = _dashboardState.widgets || [];
   _dashboardState.aiInsightEnabled = Boolean(_dashboardState.aiInsightEnabled);
   document.getElementById('dashboard-name').value = d.name || d.id;
+  dashboardUpdatePresentationHeader();
   if (_dashboardStandaloneView) document.title = `${d.name || d.id} · InsightMind`;
   if (!options.skipPersist) dashboardPersistDraft();
   renderDashboardAiToggle();
@@ -15878,11 +17316,14 @@ function cellInsightKey(ctx) {
 
 function cellInsightPayload(ctx, docResults) {
   const cell = ctx?.cell || {};
+  const entryType = ctx?.entryType
+    || (ctx?.targetId === 'pivot-result' ? 'pivot_cell' : (cell.rowPath || []).length ? 'chart_value' : 'kpi_summary');
   return {
     dashboardId: _dashboardState?.id || '',
     widgetId: ctx?.targetId || '',
     targetId: ctx?.targetId || 'pivot-result',
     cellIndex: ctx?.cellIndex,
+    entryType,
     measureCode: cell.measureCode,
     measureName: cell.measureName,
     cellValue: cell.value,
@@ -15900,11 +17341,19 @@ function cellInsightSeverityClass(level) {
   return '';
 }
 
-function cellInsightSourceLabel(source) {
+function cellInsightSourceLabel(source, entryType='') {
+  if (source === 'cell_context') {
+    return ({
+      kpi_summary: 'KPI 汇总值',
+      chart_value: '图表指标值',
+      table_cell: '表格指标值',
+      pivot_cell: '透视表指标值',
+      metric_value: '当前指标值',
+    })[entryType] || '当前指标值';
+  }
   return ({
     document_rule: '单据规则',
     metric_alert: '指标预警',
-    cell_context: '透视表单元格',
     question_intent: '用户问题',
   })[source] || source || '未知';
 }
@@ -15916,7 +17365,7 @@ function cellInsightShapeLabel(shape) {
     rise: '上升/偏高',
     spike: '突变',
     trend: '趋势异常',
-    slice: '维度切片',
+    slice: '按维度拆分分析',
     quality: '数据质量',
   })[shape] || shape || '未知';
 }
@@ -15936,28 +17385,35 @@ function renderCellInsight(data) {
   const evidenceStrength = diagnosis.evidenceStrength ?? anomaly.evidenceStrength;
   const evidenceStrengthLabel = diagnosis.evidenceStrengthLabel || anomaly.evidenceStrengthLabel || '';
   const docs = data?.documents || [];
+  const alerts = data?.alerts || [];
   const contribs = data?.contributions || [];
   const recs = data?.recommendations || [];
+  const hasDetectedAnomaly = docs.length > 0 || alerts.length > 0 || ['critical', 'warning'].includes(anomaly.level);
+  const statusLabel = hasDetectedAnomaly ? documentAlertSeverityLabel(anomaly.level || 'notice') : '未发现异常';
+  const statusClass = !hasDetectedAnomaly
+    ? 'bg-success-subtle text-success border border-success-subtle'
+    : anomaly.level === 'critical' ? 'bg-danger' : anomaly.level === 'warning' ? 'bg-warning text-dark' : 'bg-secondary';
+  const summaryIcon = hasDetectedAnomaly ? 'bi-exclamation-triangle' : 'bi-check-circle';
   if (ctxEl) ctxEl.textContent = data?.cellContext?.label || '';
   body.innerHTML = `
     <div class="cell-insight-card cell-insight-summary ${cellInsightSeverityClass(anomaly.level)} mb-3">
-      <div class="cell-insight-card-title"><i class="bi bi-exclamation-triangle me-1"></i>${escHtml(anomaly.title || '业务解释')}</div>
+      <div class="cell-insight-card-title"><i class="bi ${summaryIcon} me-1"></i>${escHtml(anomaly.title || '业务解释')}</div>
       <div style="font-size:13px;line-height:1.7">${escHtml(data?.summary || anomaly.reason || '')}</div>
     </div>
     <div class="cell-insight-card mb-3">
-      <div class="cell-insight-card-title">异常指标</div>
+      <div class="cell-insight-card-title">当前分析指标</div>
       <div class="d-flex flex-wrap gap-2 small">
         <span class="badge bg-light text-dark border">${escHtml(data?.measure?.name || data?.measure?.code || '-')}</span>
         <span class="badge bg-light text-dark border">当前值：${escHtml(data?.cellValue ?? '-')}</span>
-        <span class="badge ${anomaly.level === 'critical' ? 'bg-danger' : anomaly.level === 'warning' ? 'bg-warning text-dark' : 'bg-secondary'}">${escHtml(documentAlertSeverityLabel(anomaly.level || 'notice'))}</span>
+        <span class="badge ${statusClass}">${escHtml(statusLabel)}</span>
       </div>
     </div>
     <div class="cell-insight-card mb-3">
-      <div class="cell-insight-card-title">智能识别画像</div>
-      <div class="cell-insight-kv"><span>异常来源</span><strong>${escHtml(cellInsightSourceLabel(source))}</strong></div>
-      <div class="cell-insight-kv"><span>异常形态</span><strong>${escHtml(cellInsightShapeLabel(shape))}</strong></div>
-      <div class="cell-insight-kv"><span>证据强度</span><strong>${escHtml(evidenceStrengthLabel || '-')} ${evidenceStrength != null ? `(${escHtml(evidenceStrength)})` : ''}</strong></div>
-      <div class="cell-insight-kv"><span>识别置信度</span><strong>${escHtml(confidenceLabel || '-')} ${confidence != null ? `(${escHtml(confidence)})` : ''}</strong></div>
+      <div class="cell-insight-card-title">分析依据</div>
+      <div class="cell-insight-kv"><span>分析入口</span><strong>${escHtml(cellInsightSourceLabel(source, data?.cellContext?.entryType || ''))}</strong></div>
+      <div class="cell-insight-kv"><span>分析方式</span><strong>${escHtml(cellInsightShapeLabel(shape))}</strong></div>
+      <div class="cell-insight-kv"><span>依据充分度</span><strong>${escHtml(evidenceStrengthLabel || '-')} ${evidenceStrength != null ? `(${escHtml(evidenceStrength)})` : ''}</strong></div>
+      <div class="cell-insight-kv"><span>结论可信度</span><strong>${escHtml(confidenceLabel || '-')} ${confidence != null ? `(${escHtml(confidence)})` : ''}</strong></div>
       ${evidenceItems.length ? `<div class="mt-2">${evidenceItems.slice(0, 5).map(item => `
         <div class="cell-insight-evidence">
           <div class="cell-insight-evidence-title">${escHtml(item.label || item.type || '证据')}</div>
@@ -15965,7 +17421,7 @@ function renderCellInsight(data) {
         </div>`).join('')}</div>` : ''}
       ${hypotheses.length ? `<div class="d-grid gap-2 mt-2">${hypotheses.slice(0, 3).map(item => `
         <div class="cell-insight-hypothesis">
-          <div class="fw-semibold">${escHtml(item.title || item.type || '诊断假设')}</div>
+          <div class="fw-semibold">${escHtml(item.title || item.type || '分析建议')}</div>
           <div class="text-muted">${escHtml(item.reason || '')}</div>
         </div>`).join('')}</div>` : ''}
     </div>
@@ -15981,7 +17437,7 @@ function renderCellInsight(data) {
         </button>`).join('')}</div>` : '<div class="text-muted small">暂无可推荐的维度下钻路径。</div>'}
     </div>
     <div class="cell-insight-card mb-3">
-      <div class="cell-insight-card-title">命中异常单据</div>
+      <div class="cell-insight-card-title">${docs.length ? '命中异常单据' : '单据级异常检查'}</div>
       ${docs.length ? `
         <div class="mb-2">
           <button class="btn btn-sm btn-outline-warning" onclick="openCellInsightDocumentHits()"><i class="bi bi-receipt-cutoff me-1"></i>查看命中明细</button>
@@ -15990,7 +17446,7 @@ function renderCellInsight(data) {
           <div class="fw-semibold">${escHtml(doc.ruleName || '单据追踪')} ${doc.documentNo ? ` · ${escHtml(doc.documentNo)}` : ''}</div>
           <div class="text-muted">${escHtml(doc.fieldName || doc.field || '异常字段')} = <span class="text-danger fw-semibold">${escHtml(doc.value ?? '')}</span></div>
         </div>`).join('')}
-      ` : '<div class="text-muted small">当前单元格没有命中的单据级异常。</div>'}
+      ` : '<div class="text-muted small">基于当前已配置的单据追踪规则，未发现单据级异常。</div>'}
     </div>
     <div class="cell-insight-card">
       <div class="cell-insight-card-title">推荐下一步</div>
@@ -16056,7 +17512,7 @@ function openCellInsightDocumentHits() {
   const ctx = active?.ctx || _pivotActionContext;
   const docResults = active?.docResults || _documentAlertPivotCellResults[cellInsightKey(ctx)] || [];
   const hits = (docResults || []).filter(item => item.result?.summary?.matchedRows > 0);
-  if (!hits.length) return showToast('当前单元格没有命中异常单据', 'warning');
+  if (!hits.length) return showToast('基于当前规则，当前单元格未发现异常单据', 'info');
   const matches = hits.flatMap(item => (item.result?.matches || []).map(match => ({...match, __ruleName:item.rule?.name || '单据追踪', __result:item.result})));
   const firstResult = hits[0].result || {};
   const cols = documentAlertMatchedColumns(firstResult);
@@ -16211,9 +17667,31 @@ async function applyPivotDimensionDrill(code) {
   }
 }
 
+function pivotDetailMeasureCode(measureCode, visited=new Set()) {
+  const rawCode = String(measureCode || '').trim();
+  if (!rawCode || visited.has(rawCode)) return rawCode;
+  visited.add(rawCode);
+  const meta = dashboardFindMeasure(rawCode) || adhocFindMeasure(rawCode);
+  if (!meta?.formula || !(meta.dependencies || []).length) return meta?.code || rawCode;
+  for (const dependency of meta.dependencies) {
+    const dependencyMeta = dashboardFindMeasure(dependency) || adhocFindMeasure(dependency);
+    if (!dependencyMeta) continue;
+    const resolved = pivotDetailMeasureCode(dependencyMeta.code || dependency, visited);
+    if (resolved) return resolved;
+  }
+  return meta.code || rawCode;
+}
+
 async function openPivotDrill(cellIndex) {
   const cell = _pivotResult.cells[cellIndex];
-  _pivotDrillContext = {...cell, filters:_pivotResult.filters || [], targetId:_pivotActionContext?.targetId || 'pivot-result'};
+  _pivotDrillContext = {
+    ...cell,
+    cellIndex,
+    sourceMeasureCode:cell.measureCode,
+    measureCode:pivotDetailMeasureCode(cell.measureCode),
+    filters:_pivotResult.filters || [],
+    targetId:_pivotActionContext?.targetId || 'pivot-result',
+  };
   _pivotDrillPage = 1;
   _pivotDrillOnlyDocumentAnomalies = false;
   const titleEl = document.getElementById('pivot-drill-title');
@@ -16482,10 +17960,11 @@ async function loadBzStats(file) {
 let _measData = [];   // full list cache
 let _dimNameByCode = {};
 let _nlqConversationState = {
-  nlq: {conversationId: '', context: {}, hasTurns: false},
-  smart: {conversationId: '', context: {}, hasTurns: false}
+  nlq: {conversationId: '', context: {}, hasTurns: false, lastQuestion: '', lastTraceId: ''},
+  smart: {conversationId: '', context: {}, hasTurns: false, lastQuestion: '', lastTraceId: ''}
 };
 let _nlqRenderedResults = {};
+let _nlqResultTraceIds = {};
 
 function _newNlqConversationId() {
   return window.crypto?.randomUUID?.() || `nlq-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -16512,7 +17991,7 @@ function _renderSmartNlqContextStatus() {
 }
 
 function resetSmartInsightConversation() {
-  _nlqConversationState.smart = {conversationId: _newNlqConversationId(), context: {}, hasTurns: false};
+  _nlqConversationState.smart = {conversationId: _newNlqConversationId(), context: {}, hasTurns: false, lastQuestion: '', lastTraceId: ''};
   _renderSmartNlqContextStatus();
 }
 
@@ -16524,7 +18003,27 @@ function setNlqExample(text, target='nlq') {
   }
 }
 
+async function postFeedbackEvent(eventType, eventName, traceId='', payload={}, dedupeKey='') {
+  try {
+    const eventId = window.crypto?.randomUUID?.() || `evt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const feedbackToken = sessionStorage.getItem('insightmindFeedbackToken') || '';
+    const response = await fetch('/api/feedback/events', {
+      method: 'POST', headers: {'Content-Type':'application/json', ...(feedbackToken ? {'X-InsightMind-Feedback-Token':feedbackToken} : {})},
+      body: JSON.stringify({eventId, traceId, eventType, eventName, source:'web', dedupeKey, payload})
+    });
+    if (!response.ok) throw new Error((await response.json()).detail || '反馈保存失败');
+    return true;
+  } catch (error) {
+    console.warn('feedback event failed', error);
+    return false;
+  }
+}
+
 function runNlqSuggestion(text, target='nlq') {
+  const state = _getNlqConversation(target);
+  if (state.lastTraceId) {
+    postFeedbackEvent('behavior', 'SUGGESTION_CLICKED', state.lastTraceId, {question:text, target});
+  }
   setNlqExample(text, target);
   if (target === 'smart') {
     resetSmartInsightConversation();
@@ -16833,6 +18332,14 @@ async function runNlqWithElements(btn, ids) {
   const pageSizeEl = document.getElementById(ids.pageSizeId);
   const pageSize = Math.max(1, Math.min(parseInt(pageSizeEl?.value, 10) || 500, 10000));
   const conversation = _getNlqConversation(ids.contextTarget || 'nlq');
+  const parentTraceId = conversation.lastTraceId || '';
+  if (conversation.lastQuestion && conversation.lastQuestion !== question && parentTraceId) {
+    postFeedbackEvent('behavior', 'QUERY_REPHRASED', parentTraceId, {
+      previousQuestion: conversation.lastQuestion,
+      nextQuestion: question,
+      conversationId: conversation.conversationId
+    });
+  }
   if (pageSizeEl) pageSizeEl.value = pageSize;
   btnLoading(btn, '分析中…');
   const routeTip = ids.routeReason ? `<div class="small text-muted mb-2">触发原因：${_escHtml(ids.routeReason)}</div>` : '';
@@ -16850,13 +18357,18 @@ async function runNlqWithElements(btn, ids) {
         queryMode: 'auto',
         conversationId: conversation.conversationId,
         context: conversation.context,
-        isFollowUp: conversation.hasTurns
+        isFollowUp: conversation.hasTurns,
+        parentTraceId,
+        source: (ids.contextTarget || 'nlq') === 'smart' ? 'smart_nlq' : 'nlq'
       })
     });
     const d = await r.json();
     if (d.conversationId) conversation.conversationId = d.conversationId;
     if (d.resolvedContext) conversation.context = d.resolvedContext;
     conversation.hasTurns = Boolean(d.resolvedContext) || conversation.hasTurns;
+    conversation.lastQuestion = question;
+    conversation.lastTraceId = d.traceId || conversation.lastTraceId || '';
+    if (d.traceId) _nlqResultTraceIds[ids.resultId] = d.traceId;
     if ((ids.contextTarget || 'nlq') === 'smart') _renderSmartNlqContextStatus();
     if (!r.ok || !d.ok) {
       if ((ids.contextTarget || 'nlq') === 'smart') {
@@ -16865,10 +18377,10 @@ async function runNlqWithElements(btn, ids) {
       }
       const target = (ids.contextTarget || 'nlq') === 'smart' ? 'smart' : 'nlq';
       const sugHtml = _renderSuggestedQuestions(d.suggestedNextQuestions, target);
-      res.innerHTML = `<div class="alert alert-warning mb-0">
+      res.innerHTML = `<div class="alert alert-warning mb-2">
         <div class="mb-2">${_escHtml(d.error || d.clarification || '查询失败')}</div>
         ${sugHtml}
-      </div>`;
+      </div>${renderNlqFeedback(d, ids.resultId)}`;
       return;
     }
     if ((ids.contextTarget || 'nlq') === 'smart') updateSmartFlowFromNlqResult(d);
@@ -16939,6 +18451,7 @@ function renderUnifiedNlqResult(d, resultId='nlq-result') {
   const detailRecords = detailData.records || [];
   _lastDetailRecords = detailRecords;
   _lastDetailColumns = detailData.columns || [];
+  if (d.traceId) _nlqResultTraceIds[resultId] = d.traceId;
   const dlBtn = (mode === 'detail' || mode === 'analyze_detail') && detailRecords.length
     ? `<button class="btn btn-sm btn-outline-success ms-1" onclick="downloadDetailCSV('${resultId}')"><i class="bi bi-download me-1"></i>下载 CSV</button>` : '';
   _nlqRenderedResults[resultId] = _buildNlqInterpretPayload(d);
@@ -16977,7 +18490,48 @@ function renderUnifiedNlqResult(d, resultId='nlq-result') {
   html += renderNlqValidation(d.validation || {});
   html += renderNlqCrossValidation(d.crossValidation || {});
   html += _renderNlqInterpretContainer(resultId);
+  html += renderNlqFeedback(d, resultId);
   res.innerHTML = html;
+}
+
+function renderNlqFeedback(d={}, resultId='nlq-result') {
+  const traceId = d.traceId || _nlqResultTraceIds[resultId] || '';
+  if (!traceId) return '';
+  const panelId = `nlq-feedback-detail-${String(resultId).replace(/[^A-Za-z0-9_-]/g,'_')}`;
+  const statusId = `nlq-feedback-status-${String(resultId).replace(/[^A-Za-z0-9_-]/g,'_')}`;
+  return `<div class="card mt-2" data-feedback-trace="${_escHtml(traceId)}">
+    <div class="card-body py-2">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="small text-muted me-1">本次结果是否有帮助？</span>
+        <button class="btn btn-sm btn-outline-success" onclick="submitNlqFeedback('${_escJs(traceId)}','RESULT_HELPFUL','${_escJs(resultId)}',this)"><i class="bi bi-hand-thumbs-up me-1"></i>有帮助</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="document.getElementById('${_escJs(panelId)}').classList.toggle('d-none')"><i class="bi bi-hand-thumbs-down me-1"></i>无帮助</button>
+        <span id="${_escHtml(statusId)}" class="small text-success"></span>
+      </div>
+      <div id="${_escHtml(panelId)}" class="d-none border-top mt-2 pt-2">
+        <div class="row g-2">
+          <div class="col-md-4"><select class="form-select form-select-sm" data-feedback-reason>
+            <option value="WRONG_MEASURE">指标不对</option><option value="WRONG_DIMENSION">维度不对</option>
+            <option value="WRONG_CALIBER">口径不对</option><option value="DATA_ANOMALY">数据异常</option>
+            <option value="MISSING_SOURCE_FIELD">数据源缺少字段</option><option value="EXECUTION_FAILURE">系统执行失败</option>
+            <option value="OTHER">其他</option>
+          </select></div>
+          <div class="col-md"><input class="form-control form-control-sm" data-feedback-comment maxlength="1000" placeholder="可补充说明，不会自动修改图谱"></div>
+          <div class="col-auto"><button class="btn btn-sm btn-danger" onclick="submitNlqFeedback('${_escJs(traceId)}','RESULT_UNHELPFUL','${_escJs(resultId)}',this)">提交</button></div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function submitNlqFeedback(traceId, eventName, resultId, button) {
+  const card = button?.closest('[data-feedback-trace]');
+  const reasonCode = card?.querySelector('[data-feedback-reason]')?.value || '';
+  const comment = card?.querySelector('[data-feedback-comment]')?.value || '';
+  button && (button.disabled = true);
+  const ok = await postFeedbackEvent('explicit', eventName, traceId, {reasonCode, comment, resultId}, `explicit:${traceId}:${eventName}:${reasonCode}`);
+  const status = document.getElementById(`nlq-feedback-status-${String(resultId).replace(/[^A-Za-z0-9_-]/g,'_')}`);
+  if (status) { status.className = `small ${ok ? 'text-success' : 'text-danger'}`; status.textContent = ok ? '已记录，谢谢反馈' : '保存失败，请重试'; }
+  if (!ok && button) button.disabled = false;
 }
 
 function _renderNlqInterpretContainer(resultId) {
@@ -17217,6 +18771,8 @@ async function runNlqInterpret(resultId, btn) {
   const payload = _nlqRenderedResults[resultId];
   const out = document.getElementById(`nlq-interpret-${resultId}`);
   if (!payload || !out) return showToast('没有可解读的数据结果', 'warning');
+  const traceId = _nlqResultTraceIds[resultId] || '';
+  if (traceId) postFeedbackEvent('behavior', 'INTERPRETATION_REQUESTED', traceId, {resultId});
   btnLoading(btn, '解读中…');
   runInsightFlowStep('AC');
   out.innerHTML = `<div class="card"><div class="card-body py-3 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>行业数据分析专家正在解读当前结果…</div></div>`;
@@ -17400,6 +18956,7 @@ function renderEntityLookupResult(d, resultId='smart-nlq-result') {
   const rowCount = detail.rowCount || ((detail.records || []).length);
   const pageSize = d.pageSize || rowCount || 0;
   _nlqRenderedResults[resultId] = _buildNlqInterpretPayload(d);
+  if (d.traceId) _nlqResultTraceIds[resultId] = d.traceId;
   const interpretBtn = `<button class="btn btn-sm btn-outline-primary ms-1" onclick="runNlqInterpret('${_escJs(resultId)}', this)"><i class="bi bi-chat-square-text me-1"></i>数据解读</button>`;
   let html = `
     <div class="card mb-2">
@@ -17490,6 +19047,7 @@ function renderEntityLookupResult(d, resultId='smart-nlq-result') {
   html += renderNlqValidation(d.validation || {});
   html += renderNlqCrossValidation(d.crossValidation || {});
   html += _renderNlqInterpretContainer(resultId);
+  html += renderNlqFeedback(d, resultId);
   res.innerHTML = html;
 }
 
@@ -17844,6 +19402,44 @@ function showSqlModal(idx) {
 function copySqlModal() {
   const sql = document.getElementById('sql-modal-body').textContent;
   navigator.clipboard.writeText(sql).then(() => showToast('SQL 已复制', 'success'));
+}
+
+// ── 默认业务场景源文件 Modal ──────────────────────────────────────────── //
+
+let _defaultBusinessScenarioCache = '';
+
+async function showDefaultBusinessScenarioModal() {
+  const modal = new bootstrap.Modal(document.getElementById('default-business-scenario-modal'));
+  modal.show();
+  const body = document.getElementById('default-business-scenario-body');
+  if (_defaultBusinessScenarioCache) {
+    renderDefaultBusinessScenario(_defaultBusinessScenarioCache);
+    return;
+  }
+  body.textContent = '加载中…';
+  try {
+    const resp = await fetch('/api/business-kg/default-scenario');
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || '源文件加载失败');
+    _defaultBusinessScenarioCache = data.content || '';
+    document.getElementById('default-business-scenario-filename').textContent =
+      data.filename || 'default-business-scenario.ttl';
+    renderDefaultBusinessScenario(_defaultBusinessScenarioCache);
+  } catch(e) {
+    body.textContent = '加载失败: ' + (e.message || e);
+  }
+}
+
+function renderDefaultBusinessScenario(text) {
+  // Use textContent so the popup is an exact, safe representation of the
+  // checked-in Turtle source (URIs commonly contain # and quoted fragments).
+  document.getElementById('default-business-scenario-body').textContent = text;
+}
+
+function copyDefaultBusinessScenario() {
+  if (!_defaultBusinessScenarioCache) return;
+  navigator.clipboard.writeText(_defaultBusinessScenarioCache)
+    .then(() => showToast('业务场景源文件已复制', 'success'));
 }
 
 // ── 本体结构 Modal ──────────────────────────────────────────────────────── //
@@ -18544,11 +20140,17 @@ function copyBizTurtle() {
 }
 
 async function runBkgValidate() {
-  const btn = document.getElementById('bkg-validate-btn');
+  const validateButtons = [
+    document.getElementById('bkg-validate-btn'),
+    document.getElementById('bkg-validate-start-btn'),
+  ].filter(Boolean);
+  const originalButtonHtml = validateButtons.map(button => [button, button.innerHTML]);
   const res = document.getElementById('bkv-results');
   const sum = document.getElementById('bkv-summary');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>校验中…';
+  validateButtons.forEach(button => {
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>校验中…';
+  });
   res.innerHTML = '<div class="text-muted small p-2"><span class="spinner-border spinner-border-sm me-1"></span>正在解析业务图谱…</div>';
   sum.textContent = '';
   _bkvResults = [];
@@ -18564,13 +20166,15 @@ async function runBkgValidate() {
   // exposes a generic error, leaving the page stuck on the loading indicator.
   const sel = document.getElementById('bz-file-select');
   const file = sel ? sel.value : '';
-  const url = '/api/business-kg/validate/stream' + (file ? `?file=${encodeURIComponent(file)}` : '');
+  const url = '/api/business-kg/validate' + (file ? `?file=${encodeURIComponent(file)}` : '');
 
   let total = 0;
   let passed = 0, failed = 0;
   const finalize = () => {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>准确校验';
+    originalButtonHtml.forEach(([button, html]) => {
+      button.disabled = false;
+      button.innerHTML = html;
+    });
   };
 
   function buildMeasureCardHtml(m) {
@@ -22263,6 +23867,34 @@ function initAlertsTab() {
       <div class="modal-body" id="measure-reasoning-body" style="background:#f7f9fb"></div>
       <div class="modal-footer py-2 small text-muted">
         推演结果来自 indicator-inferred.ttl，包含可分析维度、上游依赖、下游影响和证据路径。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 本体结构 Modal ── -->
+<div class="modal fade" id="default-business-scenario-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title mb-0">
+          <i class="bi bi-file-earmark-code me-2 text-info"></i>
+          默认业务场景源文件 — <span id="default-business-scenario-filename">default-business-scenario.ttl</span>
+        </h6>
+        <div class="d-flex gap-2 align-items-center ms-auto me-3">
+          <span class="badge bg-success" style="font-size:11px">生成时自动输入</span>
+          <button class="btn btn-sm btn-outline-secondary" onclick="copyDefaultBusinessScenario()" title="复制">
+            <i class="bi bi-clipboard me-1"></i>复制
+          </button>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <pre id="default-business-scenario-body" style="
+          margin:0;padding:16px 20px;font-size:12px;line-height:1.7;
+          background:#fbfcfd;color:#526071;border:1px solid #cbd2da;
+          white-space:pre;overflow:auto;height:560px;
+        ">加载中…</pre>
       </div>
     </div>
   </div>

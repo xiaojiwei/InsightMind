@@ -1,0 +1,507 @@
+@prefix : <http://www.ontoai.info/Li-Auto/domain/celn#> .
+@prefix core: <http://www.ontoai.info/Li-Auto/domain/core#> .
+@prefix cs: <http://www.ontoai.info/Li-Auto/domain/cs#> .
+@prefix sales: <http://www.ontoai.info/Li-Auto/domain/sales#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix pko: <https://w3id.org/pko#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix cco: <https://www.commoncoreontologies.org/> .
+@base <http://www.ontoai.info/Li-Auto/domain/celn> .
+
+<http://www.ontoai.info/Li-Auto/domain/celn> rdf:type owl:Ontology ;
+    owl:imports <http://www.ontoai.info/Li-Auto/domain/core> ,
+                <http://www.ontoai.info/Li-Auto/domain/cs> ,
+                <http://www.ontoai.info/Li-Auto/domain/sales> ;
+    rdfs:label "Li Auto CELN Customer Follow-up Scenario Ontology"@en ;
+    rdfs:label "理想汽车 CELN 用户分层与跟进闭环业务场景本体"@zh ;
+    rdfs:comment "Based on the PDF 本体第四组Class4 -- 口径.pdf. This ontology models stock customer segmentation, traceable stage determination, multi-dimensional tags, follow-up closure, FC identification, daily review, conversion tracking, and attribution."@en .
+
+#################################################################
+#    Object Properties
+#################################################################
+
+:Li-HasStage rdf:type owl:ObjectProperty ;
+    rdfs:domain core:Li-Customer ;
+    rdfs:range :Li-CELNStage ;
+    rdfs:label "has CELN stage"@en ;
+    rdfs:label "具有CELN阶段"@zh ;
+    skos:scopeNote "CQ 1.1: 查询某用户当前处于 CELN 的哪个阶段。"@zh .
+
+:Li-HasDetermination rdf:type owl:ObjectProperty ;
+    rdfs:domain core:Li-Customer ;
+    rdfs:range :Li-StageDetermination ;
+    rdfs:label "has stage determination"@en ;
+    rdfs:label "具有阶段判断"@zh ;
+    skos:scopeNote "R 1.2: 每次阶段判断建模为独立对象，支持追溯和复核。"@zh .
+
+:Li-DeterminesCustomer rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-StageDetermination ;
+    rdfs:range core:Li-Customer ;
+    rdfs:label "determines customer"@en ;
+    rdfs:label "判断用户"@zh .
+
+:Li-DeterminesStage rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-StageDetermination ;
+    rdfs:range :Li-CELNStage ;
+    rdfs:label "determines stage"@en ;
+    rdfs:label "判断阶段"@zh .
+
+:Li-BasedOnEvidence rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-StageDetermination ;
+    rdfs:range :Li-Evidence ;
+    rdfs:label "based on evidence"@en ;
+    rdfs:label "基于证据"@zh ;
+    skos:scopeNote "Fact 1.1: 用户阶段判断至少基于一条 Evidence。"@zh .
+
+:Li-HasTag rdf:type owl:ObjectProperty ;
+    rdfs:domain core:Li-Customer ;
+    rdfs:range :Li-Tag ;
+    rdfs:label "has tag"@en ;
+    rdfs:label "具有标签"@zh ;
+    skos:scopeNote "R 1.3: 支持顾虑、属性、意向、行为等多维标签。"@zh .
+
+:Li-TagAppliesToStage rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-Tag ;
+    rdfs:range :Li-CELNStage ;
+    rdfs:label "tag applies to stage"@en ;
+    rdfs:label "标签适用阶段"@zh .
+
+:Li-HasAttribution rdf:type owl:ObjectProperty ;
+    rdfs:domain core:Li-Customer ;
+    rdfs:range :Li-AttributionResult ;
+    rdfs:label "has attribution"@en ;
+    rdfs:label "具有归因结果"@zh .
+
+:Li-IsRootCauseOf rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-ConcernTag ;
+    rdfs:range :Li-AttributionResult ;
+    rdfs:label "is root cause of"@en ;
+    rdfs:label "是根因"@zh ;
+    skos:scopeNote "CQ 1.3: 哪条顾虑是导致阶段停滞、回退或犹豫的主要原因。"@zh .
+
+:Li-HasSubTag rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-ConcernTag ;
+    rdfs:range :Li-ConcernTag ;
+    rdfs:label "has sub tag"@en ;
+    rdfs:label "具有子标签"@zh ;
+    skos:scopeNote "Fact 1.7: ConcernTag 是树状层级结构，按 CELN 维度组织。"@zh .
+
+:Li-AssignedTo rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf pko:wasExecutedBy ;
+    rdfs:domain :Li-FollowUpTask ;
+    rdfs:range :Li-ProductExpert ;
+    rdfs:label "assigned to"@en ;
+    rdfs:label "分配给"@zh .
+
+:Li-HasFollowUpRecord rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-FollowUpTask ;
+    rdfs:range :Li-FollowUpRecord ;
+    rdfs:label "has follow-up record"@en ;
+    rdfs:label "具有跟进记录"@zh ;
+    skos:scopeNote "Fact 1.2: 一次 FollowUpTask 包含一条或多条 FollowUpRecord。"@zh .
+
+:Li-UsesStrategy rdf:type owl:ObjectProperty ;
+    rdfs:range :Li-Strategy ;
+    rdfs:label "uses strategy"@en ;
+    rdfs:label "使用策略"@zh .
+
+:Li-UsesScript rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-FollowUpRecord ;
+    rdfs:range :Li-Script ;
+    rdfs:label "uses script"@en ;
+    rdfs:label "使用话术"@zh .
+
+:Li-UpdatesTag rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-FollowUpRecord ;
+    rdfs:range :Li-Tag ;
+    rdfs:label "updates tag"@en ;
+    rdfs:label "更新标签"@zh .
+
+:Li-TriggersStageChange rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-FollowUpRecord ;
+    rdfs:range :Li-StageDetermination ;
+    rdfs:label "triggers stage change"@en ;
+    rdfs:label "触发阶段变更"@zh .
+
+:Li-IdentifiesCustomer rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-FCIdentification ;
+    rdfs:range core:Li-Customer ;
+    rdfs:label "identifies customer"@en ;
+    rdfs:label "识别用户"@zh .
+
+:Li-IdentifiedAs rdf:type owl:ObjectProperty ;
+    rdfs:domain core:Li-Customer ;
+    rdfs:range :Li-FCCandidate ;
+    rdfs:label "identified as"@en ;
+    rdfs:label "被识别为"@zh .
+
+:Li-IdentifiedByRule rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-FCIdentification ;
+    rdfs:range :Li-FCRule ;
+    rdfs:label "identified by rule"@en ;
+    rdfs:label "由规则识别"@zh ;
+    skos:scopeNote "Fact 1.4: FCIdentification 必须关联一条 FCRule。"@zh .
+
+:Li-LeadsToConversion rdf:type owl:ObjectProperty ;
+    rdfs:range :Li-ConversionEvent ;
+    rdfs:label "leads to conversion"@en ;
+    rdfs:label "导致转化"@zh .
+
+:Li-TracesTo rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-ConversionEvent ;
+    rdfs:range :Li-FollowUpRecord ;
+    rdfs:label "traces to"@en ;
+    rdfs:label "追溯到"@zh ;
+    skos:scopeNote "Fact 1.5: ConversionEvent 可向前追溯到一条或多条 FollowUpRecord，形成归因链路。"@zh .
+
+:Li-BelongsToStore rdf:type owl:ObjectProperty ;
+    rdfs:domain core:Li-Customer ;
+    rdfs:range core:Li-Store ;
+    rdfs:label "belongs to store"@en ;
+    rdfs:label "归属门店"@zh .
+
+:Li-BelongsToRegion rdf:type owl:ObjectProperty ;
+    rdfs:domain core:Li-Store ;
+    rdfs:range :Li-Region ;
+    rdfs:label "belongs to region"@en ;
+    rdfs:label "归属区域"@zh .
+
+:Li-ReviewedBy rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-FollowUpRecord ;
+    rdfs:range :Li-RetailSupervisor ;
+    rdfs:label "reviewed by"@en ;
+    rdfs:label "由主管复核"@zh .
+
+:Li-ProducesKnowledge rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-DailyReview ;
+    rdfs:range :Li-KnowledgeEntry ;
+    rdfs:label "produces knowledge"@en ;
+    rdfs:label "产生知识沉淀"@zh .
+
+:Li-HasNextPlan rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-FollowUpRecord ;
+    rdfs:range :Li-FollowUpTask ;
+    rdfs:label "has next plan"@en ;
+    rdfs:label "具有下次计划"@zh .
+
+:Li-InvolvesCustomer rdf:type owl:ObjectProperty ;
+    rdfs:range core:Li-Customer ;
+    rdfs:label "involves customer"@en ;
+    rdfs:label "涉及用户"@zh .
+
+:Li-CoversStore rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-DailyReview ;
+    rdfs:range core:Li-Store ;
+    rdfs:label "covers store"@en ;
+    rdfs:label "覆盖门店"@zh .
+
+:Li-CoversRegion rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-DailyReview ;
+    rdfs:range :Li-Region ;
+    rdfs:label "covers region"@en ;
+    rdfs:label "覆盖区域"@zh .
+
+:Li-HasInventory rdf:type owl:ObjectProperty ;
+    rdfs:domain :Li-DailyReview ;
+    rdfs:range :Li-CustomerInventory ;
+    rdfs:label "has inventory"@en ;
+    rdfs:label "具有用户盘点"@zh .
+
+#################################################################
+#    Data Properties
+#################################################################
+
+:Li-ConfidenceScore rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-StageDetermination ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "confidence score"@en ;
+    rdfs:label "置信度"@zh .
+
+:Li-IsReviewable rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-StageDetermination ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "is reviewable"@en ;
+    rdfs:label "是否可复核"@zh .
+
+:Li-TagName rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-Tag ;
+    rdfs:range xsd:string ;
+    rdfs:label "tag name"@en ;
+    rdfs:label "标签名称"@zh .
+
+:Li-TagLevel rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-ConcernTag ;
+    rdfs:range xsd:integer ;
+    rdfs:label "tag level"@en ;
+    rdfs:label "标签层级"@zh .
+
+:Li-AttributionReason rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-AttributionResult ;
+    rdfs:range xsd:string ;
+    rdfs:label "attribution reason"@en ;
+    rdfs:label "归因原因"@zh .
+
+:Li-FollowUpResult rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-FollowUpRecord ;
+    rdfs:range xsd:string ;
+    rdfs:label "follow-up result"@en ;
+    rdfs:label "跟进结果"@zh .
+
+:Li-NextPlanTime rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-FollowUpTask ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "next plan time"@en ;
+    rdfs:label "下次计划时间"@zh .
+
+:Li-TaskStatus rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-FollowUpTask ;
+    rdfs:range xsd:string ;
+    rdfs:label "task status"@en ;
+    rdfs:label "任务状态"@zh .
+
+:Li-IdentificationTime rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-FCIdentification ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "identification time"@en ;
+    rdfs:label "识别时间"@zh .
+
+:Li-ConversionTime rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-ConversionEvent ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "conversion time"@en ;
+    rdfs:label "转化时间"@zh .
+
+:Li-ReviewConclusion rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-DailyReview ;
+    rdfs:range xsd:string ;
+    rdfs:label "review conclusion"@en ;
+    rdfs:label "复盘结论"@zh .
+
+:Li-StrategyAdjustment rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-DailyReview ;
+    rdfs:range xsd:string ;
+    rdfs:label "strategy adjustment"@en ;
+    rdfs:label "策略调整项"@zh .
+
+:Li-ConversionRate rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-AttributionResult ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "conversion rate"@en ;
+    rdfs:label "转化率"@zh .
+
+:Li-InventoryCount rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-CustomerInventory ;
+    rdfs:range xsd:integer ;
+    rdfs:label "inventory count"@en ;
+    rdfs:label "存量数量"@zh .
+
+:Li-TargetGap rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Li-CustomerInventory ;
+    rdfs:range xsd:integer ;
+    rdfs:label "target gap"@en ;
+    rdfs:label "目标缺口"@zh .
+
+#################################################################
+#    Classes
+#################################################################
+
+:Li-NewCustomer rdf:type owl:Class ;
+    rdfs:subClassOf core:Li-Customer ;
+    rdfs:label "New Customer"@en ;
+    rdfs:label "新增用户"@zh ;
+    skos:scopeNote "CQ 1.4: 统计新增用户数量与占比。"@zh .
+
+:Li-DefeatedReturnCustomer rdf:type owl:Class ;
+    rdfs:subClassOf core:Li-Customer ;
+    rdfs:label "Defeated Return Customer"@en ;
+    rdfs:label "战败回流用户"@zh .
+
+:Li-OwnerRepurchaseCustomer rdf:type owl:Class ;
+    rdfs:subClassOf core:Li-Customer ;
+    rdfs:label "Owner Repurchase Customer"@en ;
+    rdfs:label "车主复购用户"@zh .
+
+:Li-CELNStage rdf:type owl:Class ;
+    rdfs:subClassOf cco:ont00000853 ;
+    rdfs:label "CELN Stage"@en ;
+    rdfs:label "CELN阶段"@zh ;
+    skos:definition "A customer lifecycle segmentation stage covering C-Consider, E-Evaluate, L-Lead, and N-Negotiate."@en ;
+    skos:scopeNote "R 1.1: 系统必须将存量用户按 CELN 四级进行分层。"@zh .
+
+:Li-StageDetermination rdf:type owl:Class ;
+    rdfs:subClassOf prov:Activity ,
+        [ rdf:type owl:Restriction ;
+          owl:onProperty :Li-BasedOnEvidence ;
+          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass :Li-Evidence
+        ] ;
+    rdfs:label "Stage Determination"@en ;
+    rdfs:label "阶段判断"@zh ;
+    skos:scopeNote "R 1.2: 包含判断人/系统、判断时间、判断依据 Evidence、置信度，且支持复核。"@zh .
+
+:Li-Evidence rdf:type owl:Class ;
+    rdfs:subClassOf cco:ont00000958 ;
+    rdfs:label "Evidence"@en ;
+    rdfs:label "判断证据"@zh .
+
+:Li-Tag rdf:type owl:Class ;
+    rdfs:subClassOf cco:ont00000958 ;
+    rdfs:label "Tag"@en ;
+    rdfs:label "标签"@zh .
+
+:Li-ConcernTag rdf:type owl:Class ;
+    rdfs:subClassOf :Li-Tag ;
+    rdfs:label "Concern Tag"@en ;
+    rdfs:label "顾虑标签"@zh .
+
+:Li-AttributeTag rdf:type owl:Class ;
+    rdfs:subClassOf :Li-Tag ;
+    rdfs:label "Attribute Tag"@en ;
+    rdfs:label "属性标签"@zh .
+
+:Li-IntentTag rdf:type owl:Class ;
+    rdfs:subClassOf :Li-Tag ;
+    rdfs:label "Intent Tag"@en ;
+    rdfs:label "意向标签"@zh .
+
+:Li-BehaviorTag rdf:type owl:Class ;
+    rdfs:subClassOf :Li-Tag ;
+    rdfs:label "Behavior Tag"@en ;
+    rdfs:label "行为标签"@zh .
+
+:Li-AttributionResult rdf:type owl:Class ;
+    rdfs:subClassOf cco:ont00000853 ;
+    rdfs:label "Attribution Result"@en ;
+    rdfs:label "归因结果"@zh ;
+    skos:scopeNote "R 1.3: 支持阶段停滞、回退、犹豫的归因标注。"@zh .
+
+:Li-FollowUpTask rdf:type owl:Class ;
+    rdfs:subClassOf prov:Activity ,
+        [ rdf:type owl:Restriction ;
+          owl:onProperty :Li-HasFollowUpRecord ;
+          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass :Li-FollowUpRecord
+        ] ;
+    rdfs:label "Follow-up Task"@en ;
+    rdfs:label "跟进任务"@zh ;
+    skos:scopeNote "R 1.4: 跟进闭环中的任务环节，可分配给产品专家。"@zh .
+
+:Li-FollowUpRecord rdf:type owl:Class ;
+    rdfs:subClassOf sales:Li-InteractionEvent ;
+    rdfs:label "Follow-up Record"@en ;
+    rdfs:label "跟进记录"@zh ;
+    skos:scopeNote "R 1.4: 记录跟进执行、策略话术、标签更新、阶段变更、下次计划和 Review 结果。"@zh .
+
+:Li-Strategy rdf:type owl:Class ;
+    rdfs:subClassOf cco:ont00000965 ;
+    rdfs:label "Strategy"@en ;
+    rdfs:label "跟进策略"@zh .
+
+:Li-Script rdf:type owl:Class ;
+    rdfs:subClassOf cco:ont00000965 ;
+    rdfs:label "Script"@en ;
+    rdfs:label "话术"@zh .
+
+:Li-FCIdentification rdf:type owl:Class ;
+    rdfs:subClassOf prov:Activity ,
+        [ rdf:type owl:Restriction ;
+          owl:onProperty :Li-IdentifiedByRule ;
+          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass :Li-FCRule
+        ] ;
+    rdfs:label "FC Identification"@en ;
+    rdfs:label "FC识别"@zh ;
+    skos:definition "Future Customer identification activity for detecting customers likely to purchase tomorrow or in the near future."@en ;
+    skos:scopeNote "R 1.5: FC 识别必须单独建模，包含识别规则、判定依据、识别时间、FC 跟进动作及后效承接结果。"@zh .
+
+:Li-FCCandidate rdf:type owl:Class ;
+    rdfs:subClassOf core:Li-Customer ;
+    rdfs:label "FC Candidate"@en ;
+    rdfs:label "FC候选用户"@zh .
+
+:Li-FCRule rdf:type owl:Class ;
+    rdfs:subClassOf cco:ont00000965 ;
+    rdfs:label "FC Rule"@en ;
+    rdfs:label "FC识别规则"@zh .
+
+:Li-ConversionEvent rdf:type owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Conversion Event"@en ;
+    rdfs:label "转化事件"@zh ;
+    skos:scopeNote "R 1.7: 跟踪 FC/L/N 用户的后续订单转化，并关联前置跟进记录、策略、话术和标签组合。"@zh .
+
+:Li-DailyReview rdf:type owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Daily Review"@en ;
+    rdfs:label "每日复盘"@zh ;
+    skos:scopeNote "R 1.6: 每日盘点与复盘活动，关联复盘结论、策略调整项、经验沉淀项以及 CELN 存量和 FC 推进情况。"@zh .
+
+:Li-KnowledgeEntry rdf:type owl:Class ;
+    rdfs:subClassOf cco:ont00000958 ;
+    rdfs:label "Knowledge Entry"@en ;
+    rdfs:label "知识沉淀项"@zh .
+
+:Li-ProductExpert rdf:type owl:Class ;
+    rdfs:subClassOf sales:Li-SalesSpecialist ;
+    rdfs:label "Product Expert"@en ;
+    rdfs:label "产品专家"@zh .
+
+:Li-RetailSupervisor rdf:type owl:Class ;
+    rdfs:subClassOf sales:Li-SalesSpecialist ;
+    rdfs:label "Retail Supervisor"@en ;
+    rdfs:label "零售主管"@zh .
+
+:Li-StoreManager rdf:type owl:Class ;
+    rdfs:subClassOf sales:Li-SalesSpecialist ;
+    rdfs:label "Store Manager"@en ;
+    rdfs:label "店长"@zh .
+
+:Li-Region rdf:type owl:Class ;
+    rdfs:subClassOf cco:ont00000005 ;
+    rdfs:label "Region"@en ;
+    rdfs:label "区域"@zh .
+
+:Li-CustomerInventory rdf:type owl:Class ;
+    rdfs:subClassOf cco:ont00000853 ;
+    rdfs:label "Customer Inventory"@en ;
+    rdfs:label "用户存量盘点"@zh ;
+    skos:scopeNote "CQ 1.9: 支持门店/区域的 CELN 各阶段用户存量与目标缺口分析。"@zh .
+
+:Li-AgentAssistant rdf:type owl:Class ;
+    rdfs:subClassOf prov:Agent ;
+    rdfs:label "Agent Assistant"@en ;
+    rdfs:label "智能助理"@zh ;
+    skos:scopeNote "CQ 1.2: 阶段判断人可以是人工角色，也可以是 Agent 系统。"@zh .
+
+#################################################################
+#    Named Individuals
+#################################################################
+
+:Li-C-Consider rdf:type owl:NamedIndividual , :Li-CELNStage ;
+    rdfs:label "C-Consider"@en ;
+    rdfs:label "C-考虑"@zh .
+
+:Li-E-Evaluate rdf:type owl:NamedIndividual , :Li-CELNStage ;
+    rdfs:label "E-Evaluate"@en ;
+    rdfs:label "E-评估"@zh .
+
+:Li-L-Lead rdf:type owl:NamedIndividual , :Li-CELNStage ;
+    rdfs:label "L-Lead"@en ;
+    rdfs:label "L-意向"@zh .
+
+:Li-N-Negotiate rdf:type owl:NamedIndividual , :Li-CELNStage ;
+    rdfs:label "N-Negotiate"@en ;
+    rdfs:label "N-谈判"@zh .
+
+#################################################################
+#    Scenario Pattern
+#################################################################
+
+:Li-CELNFollowUpClosedLoop rdf:type owl:NamedIndividual , pko:ProcedureExecution ;
+    rdfs:label "CELN follow-up closed loop"@en ;
+    rdfs:label "CELN跟进闭环"@zh ;
+    rdfs:comment "The business process chain described by R 1.4: task, execution, record, tag update, stage change, next plan, and supervisor/store-manager review result."@en .

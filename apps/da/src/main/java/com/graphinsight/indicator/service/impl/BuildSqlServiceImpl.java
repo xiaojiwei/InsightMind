@@ -63,6 +63,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import javax.swing.text.View;
+import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -1035,16 +1036,16 @@ public class BuildSqlServiceImpl implements BuildSqlService {
             SqlOprType sqlOprType = operator.getSqlOprType();
 
             if (SqlOprType.BETEEN.equals(sqlOprType)) {
-                whereSql += logicalSql + buildFilterColumn(filter.getAlias(), filter.getColumnId(), filter.getDimType(), filter.getViewType()) + ">= '" + operator.getBegin() + "'";
-                whereSql += " and " + buildFilterColumn(filter.getAlias(), filter.getColumnId(), filter.getDimType(), filter.getViewType()) + "<= '" + operator.getEnd() + "'";
+                whereSql += logicalSql + buildFilterColumn(filter.getAlias(), filter.getColumnId(), filter.getDimType(), filter.getViewType()) + ">= " + formatSqlStringLiteral(operator.getBegin());
+                whereSql += " and " + buildFilterColumn(filter.getAlias(), filter.getColumnId(), filter.getDimType(), filter.getViewType()) + "<= " + formatSqlStringLiteral(operator.getEnd());
             } else if (SqlOprType.GREATER_THAN.equals(sqlOprType)) {
-                whereSql += logicalSql + buildFilterColumn(filter.getAlias(), filter.getColumnId(), filter.getDimType(), filter.getViewType()) + ">= '" + operator.getBegin() + "'";
+                whereSql += logicalSql + buildFilterColumn(filter.getAlias(), filter.getColumnId(), filter.getDimType(), filter.getViewType()) + ">= " + formatSqlStringLiteral(operator.getBegin());
             } else if (SqlOprType.SMALLER_THAN.equals(sqlOprType)) {
-                whereSql += logicalSql + buildFilterColumn(filter.getAlias(), filter.getColumnId(), filter.getDimType(), filter.getViewType()) + "<= '" + operator.getEnd() + "'";
+                whereSql += logicalSql + buildFilterColumn(filter.getAlias(), filter.getColumnId(), filter.getDimType(), filter.getViewType()) + "<= " + formatSqlStringLiteral(operator.getEnd());
             } else if (SqlOprType.GREATER_THAN_OR_EQUAL.equals(sqlOprType)) {
-                whereSql += logicalSql + buildFilterColumn(filter.getAlias(), filter.getColumnId(), filter.getDimType(), filter.getViewType()) + ">= '" + operator.getBegin() + "'";
+                whereSql += logicalSql + buildFilterColumn(filter.getAlias(), filter.getColumnId(), filter.getDimType(), filter.getViewType()) + ">= " + formatSqlStringLiteral(operator.getBegin());
             } else if (SqlOprType.SMALLER_THAN_OR_EQUAL.equals(sqlOprType)) {
-                whereSql += logicalSql + buildFilterColumn(filter.getAlias(), filter.getColumnId(), filter.getDimType(), filter.getViewType()) + "<= '" + operator.getEnd() + "'";
+                whereSql += logicalSql + buildFilterColumn(filter.getAlias(), filter.getColumnId(), filter.getDimType(), filter.getViewType()) + "<= " + formatSqlStringLiteral(operator.getEnd());
             } else if (SqlOprType.IN.equals(sqlOprType)) {
 
                 String values = this.getSqlValue(operator);
@@ -1094,7 +1095,7 @@ public class BuildSqlServiceImpl implements BuildSqlService {
     }
 
     public final static String formatSqlValue(String value) {
-        return ESAPI.encoder().encodeForSQL(new MySQLCodec(MySQLCodec.Mode.STANDARD), value);
+        return ESAPI.encoder().encodeForSQL(new MySQLCodec(MySQLCodec.Mode.ANSI), value);
     }
 
     private String buildDeriveDim(LeftJoinDimTable leftJoinDimTable, Filter filter, SingleFactTableSqlAgg singleFactTableSqlAgg, BuildSqlTuple tuple) {
@@ -1236,16 +1237,16 @@ public class BuildSqlServiceImpl implements BuildSqlService {
             SqlOprType sqlOprType = operator.getSqlOprType();
 
             if (SqlOprType.BETEEN.equals(sqlOprType)) {
-                whereSql += logicalSql + buildFilterColumn(filterAlias, filter.getColumn(), filter.getDimType(), filter.getViewType()) + ">= '" + operator.getBegin() + "'";
-                whereSql += " and " + buildFilterColumn(filterAlias, filter.getColumn(), filter.getDimType(), filter.getViewType()) + "<= '" + operator.getEnd() + "'";
+                whereSql += logicalSql + buildFilterColumn(filterAlias, filter.getColumn(), filter.getDimType(), filter.getViewType()) + ">= " + formatSqlStringLiteral(operator.getBegin());
+                whereSql += " and " + buildFilterColumn(filterAlias, filter.getColumn(), filter.getDimType(), filter.getViewType()) + "<= " + formatSqlStringLiteral(operator.getEnd());
             } else if (SqlOprType.GREATER_THAN.equals(sqlOprType)) {
-                whereSql += logicalSql + buildFilterColumn(filterAlias, filter.getColumn(), filter.getDimType(), filter.getViewType()) + ">= '" + operator.getBegin() + "'";
+                whereSql += logicalSql + buildFilterColumn(filterAlias, filter.getColumn(), filter.getDimType(), filter.getViewType()) + ">= " + formatSqlStringLiteral(operator.getBegin());
             } else if (SqlOprType.SMALLER_THAN.equals(sqlOprType)) {
-                whereSql += logicalSql + buildFilterColumn(filterAlias, filter.getColumn(), filter.getDimType(), filter.getViewType()) + "<= '" + operator.getEnd() + "'";
+                whereSql += logicalSql + buildFilterColumn(filterAlias, filter.getColumn(), filter.getDimType(), filter.getViewType()) + "<= " + formatSqlStringLiteral(operator.getEnd());
             } else if (SqlOprType.GREATER_THAN_OR_EQUAL.equals(sqlOprType)) {
-                whereSql += logicalSql + buildFilterColumn(filterAlias, filter.getColumn(), filter.getDimType(), filter.getViewType()) + ">= '" + operator.getBegin() + "'";
+                whereSql += logicalSql + buildFilterColumn(filterAlias, filter.getColumn(), filter.getDimType(), filter.getViewType()) + ">= " + formatSqlStringLiteral(operator.getBegin());
             } else if (SqlOprType.SMALLER_THAN_OR_EQUAL.equals(sqlOprType)) {
-                whereSql += logicalSql + buildFilterColumn(filterAlias, filter.getColumn(), filter.getDimType(), filter.getViewType()) + "<= '" + operator.getEnd() + "'";
+                whereSql += logicalSql + buildFilterColumn(filterAlias, filter.getColumn(), filter.getDimType(), filter.getViewType()) + "<= " + formatSqlStringLiteral(operator.getEnd());
             } else if (SqlOprType.IN.equals(sqlOprType)) {
 
                 String values = this.getSqlValue(operator);
@@ -1663,7 +1664,13 @@ public class BuildSqlServiceImpl implements BuildSqlService {
         List<String> valueList = operator.getDataList();
         String measValue = "0";
         for (String value : valueList) {
-            measValue = formatSqlValue(value);
+            String numericValue = value == null ? "" : value.trim();
+            try {
+                new BigDecimal(numericValue);
+            } catch (NumberFormatException ex) {
+                throw IndicatorParamNotValidException.error("指标过滤值必须是合法数值");
+            }
+            measValue = numericValue;
             break;
         }
         return measValue;
@@ -1683,12 +1690,25 @@ public class BuildSqlServiceImpl implements BuildSqlService {
 
     private String getSqlValue(Operator operator) {
         List<String> valueList = operator.getDataList();
-        String values = "";
+        StringBuilder values = new StringBuilder();
         for (String value : valueList) {
-            values += ",'" + value + "'";
+            if (values.length() > 0) {
+                values.append(",");
+            }
+            values.append(formatSqlStringLiteral(value));
         }
-        values = values.replaceFirst(",", "");
-        return values;
+        return values.toString();
+    }
+
+    private String formatSqlStringLiteral(String value) {
+        return "'" + formatSqlListValue(String.valueOf(value)) + "'";
+    }
+
+    private String formatSqlListValue(String value) {
+        // ANSI quote doubling is independent of MySQL NO_BACKSLASH_ESCAPES.
+        // This remains a compatibility bridge for the legacy SQL builder;
+        // new query paths should prefer bound PreparedStatement parameters.
+        return ESAPI.encoder().encodeForSQL(new MySQLCodec(MySQLCodec.Mode.ANSI), value);
     }
 
     private String getTableName(SingleFactTableSqlAgg singleFactTableSqlAgg) {
@@ -4829,8 +4849,8 @@ public class BuildSqlServiceImpl implements BuildSqlService {
         SqlOprType oprType = operator.getSqlOprType();
 
         if (SqlOprType.BETEEN.equals(oprType)) {
-            whereSql += logicalSql + "(" + alias + "." + colMeasName + ">= '" + operator.getBegin() + "'";
-            whereSql += " and " + alias + "." + colMeasName + "<= '" + operator.getEnd() + "')";
+            whereSql += logicalSql + "(" + alias + "." + colMeasName + ">= " + formatSqlStringLiteral(operator.getBegin());
+            whereSql += " and " + alias + "." + colMeasName + "<= " + formatSqlStringLiteral(operator.getEnd()) + ")";
         } else if (SqlOprType.GREATER_THAN.equals(oprType)) {
             String value = this.getSqlOneValue(operator);
             whereSql += logicalSql + alias + "." + colMeasName + " > " + value;

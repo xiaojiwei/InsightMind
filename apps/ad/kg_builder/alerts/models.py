@@ -1,18 +1,41 @@
-"""MySQL models for alert management. Uses the existing AD MySQL datasource from config.yaml."""
+"""MySQL models for alert management using the active local AD datasource."""
 from __future__ import annotations
 import json, os, threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Iterator
+import yaml
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import QueuePool
 
+
+def _local_datasource_config() -> dict[str, Any]:
+    """Resolve the first MySQL datasource, preferring the ignored local config."""
+    app_dir = Path(__file__).resolve().parents[2]
+    for path in (app_dir / "config.local.yaml", app_dir / "config.yaml"):
+        if not path.exists():
+            continue
+        try:
+            payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            continue
+        for datasource in payload.get("datasources") or []:
+            if isinstance(datasource, dict) and str(datasource.get("type") or "").lower() == "mysql":
+                return datasource
+    return {}
+
+
+_LOCAL_DATASOURCE = _local_datasource_config()
 DB_CONFIG = {
-    "host": os.getenv("ALERT_DB_HOST", "localhost"),
-    "port": int(os.getenv("ALERT_DB_PORT", "3306")),
-    "user": os.getenv("ALERT_DB_USER", "root"),
-    "password": os.getenv("ALERT_DB_PASSWORD", os.getenv("MYSQL_PWD", "root")),
-    "database": os.getenv("ALERT_DB_NAME", "tpcds"),
+    "host": os.getenv("ALERT_DB_HOST", str(_LOCAL_DATASOURCE.get("host") or "localhost")),
+    "port": int(os.getenv("ALERT_DB_PORT", str(_LOCAL_DATASOURCE.get("port") or "3306"))),
+    "user": os.getenv("ALERT_DB_USER", str(_LOCAL_DATASOURCE.get("username") or "root")),
+    "password": os.getenv(
+        "ALERT_DB_PASSWORD",
+        os.getenv("MYSQL_PWD", str(_LOCAL_DATASOURCE.get("password") or "root")),
+    ),
+    "database": os.getenv("ALERT_DB_NAME", str(_LOCAL_DATASOURCE.get("database") or "tpcds")),
     "charset": os.getenv("ALERT_DB_CHARSET", "utf8mb4"),
 }
 URL = f"mysql+pymysql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}?charset=utf8mb4"

@@ -238,8 +238,8 @@ def analyze_call_sop_record(record: dict[str, Any]) -> dict[str, Any]:
             "专家自我介绍",
         ),
         "RULE_000_02": (
-            connected and _has_any(expert_all, ("特斯拉汽车", "门店", "官网", "杭州")),
-            ["特斯拉汽车", "门店", "官网", "杭州"],
+            connected and _has_any(expert_all, ("理想汽车", "门店", "官网")),
+            ["理想汽车", "门店", "官网"],
             "品牌或门店来源",
         ),
         "RULE_000_03": (

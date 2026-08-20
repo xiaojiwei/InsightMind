@@ -32,7 +32,7 @@ The initializer recreates the local `tpcds` and `da_tms` demo databases, loads
 the DA metadata database, and installs the checked-in pivot alert rules. The
 call transcripts, CELN customers, stage evidence, employees, store and
 conversion events are synthetic and use the fictional demo scope
-`小鹏汽车杭州演示体验中心`.
+`理想汽车`.
 
 After both services start, open the three ready-to-use dashboards:
 

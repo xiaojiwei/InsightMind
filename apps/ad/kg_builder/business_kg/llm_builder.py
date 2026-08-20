@@ -1207,6 +1207,8 @@ class BusinessKGBuilder:
     _MAX_SUMMARY_CHARS  = 30_000
     # 参考规律上下文最大字符数
     _MAX_PATTERN_CHARS  = 4_000
+    # 默认业务场景本体最大字符数
+    _MAX_SCENARIO_CHARS = 30_000
     # Per-request summary size for incremental generation. Keeping this well
     # below the one-shot prompt size reduces gateway resets and long tail waits.
     _CHUNK_MAX_CHARS    = 10_000
@@ -1262,6 +1264,7 @@ class BusinessKGBuilder:
         summary: str,
         domain_hint: str = "",
         pattern_context: str = "",
+        scenario_context: str = "",
         progress_cb: Optional[Callable[[int, str], None]] = None,
         preserve_all_tables: bool = False,
     ) -> tuple[str, bool]:
@@ -1269,6 +1272,8 @@ class BusinessKGBuilder:
         Call LLM and return (turtle_str, success).
         pattern_context: optional text summary of measure/dimension patterns
                          extracted from a reference indicator database.
+        scenario_context: optional Turtle ontology describing the target
+                          business scenario and its modeling constraints.
         """
         # ── 1. 智能截断摘要，防止请求体过大 ───────────────────────────── #
         if preserve_all_tables:
@@ -1283,7 +1288,14 @@ class BusinessKGBuilder:
             )
             pattern_context = pattern_context[: self._MAX_PATTERN_CHARS] + "\n…（已截断）"
 
+        if len(scenario_context) > self._MAX_SCENARIO_CHARS:
+            self._log(
+                f"  [业务场景截断] {len(scenario_context):,} → {self._MAX_SCENARIO_CHARS:,} 字符"
+            )
+            scenario_context = scenario_context[: self._MAX_SCENARIO_CHARS] + "\n…（已截断）"
+
         domain_section = self._build_domain_section(domain_hint)
+        domain_section += self._build_scenario_section(scenario_context)
         pattern_section = self._build_pattern_section(pattern_context)
 
         chunks = self._split_summary(summary)
@@ -1423,6 +1435,19 @@ class BusinessKGBuilder:
             "但必须基于当前数据库的表/字段语义生成新实例，不得照抄已有指标名称：\n\n"
             + pattern_context.strip()
             + "\n\n"
+        )
+
+    @staticmethod
+    def _build_scenario_section(scenario_context: str) -> str:
+        if not scenario_context.strip():
+            return ""
+        return (
+            "\n\n## 默认业务场景本体\n\n"
+            "以下 Turtle 本体定义了本次业务图谱应覆盖的业务概念、关系和约束。"
+            "请优先用当前数据库中真实存在的表和字段落实这些概念；不得虚构不存在的表或列。\n\n"
+            "```turtle\n"
+            + scenario_context.strip()
+            + "\n```"
         )
 
     def _split_summary(self, summary: str) -> list[_SummaryChunk]:

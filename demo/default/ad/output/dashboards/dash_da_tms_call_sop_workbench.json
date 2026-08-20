@@ -8,26 +8,29 @@
       "member": "ad.date_day",
       "viewType": 1,
       "filterMode": "date",
-      "dayMode": "single",
+      "dayMode": "range",
       "dayRangeType": "between",
-      "operator": "in",
+      "operator": "between",
       "values": [
+        "2026-06-26",
         "2026-07-02"
       ],
       "valueLabels": {
+        "2026-06-26": "2026-06-26",
         "2026-07-02": "2026-07-02"
       }
     },
     {
       "kind": "dimension",
       "member": "ad.store",
+      "label": "门店",
       "filterMode": "enum",
       "operator": "equals",
       "values": [
-        "特斯拉汽车杭州演示体验中心"
+        "理想汽车杭州演示体验中心"
       ],
       "valueLabels": {
-        "特斯拉汽车杭州演示体验中心": "特斯拉汽车杭州演示体验中心"
+        "理想汽车杭州演示体验中心": "理想汽车杭州演示体验中心"
       }
     }
   ],
@@ -55,8 +58,9 @@
             {
               "kind": "dimension",
               "member": "ad.date_day",
-              "operator": "in",
+              "operator": "between",
               "values": [
+                "2026-06-26",
                 "2026-07-02"
               ]
             },
@@ -65,7 +69,7 @@
               "member": "ad.store",
               "operator": "equals",
               "values": [
-                "特斯拉汽车杭州演示体验中心"
+                "理想汽车杭州演示体验中心"
               ]
             }
           ],

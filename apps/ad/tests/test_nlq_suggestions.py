@@ -1,4 +1,4 @@
-from web_app import NLQ_DEMO_INSIGHT_QUESTIONS, _select_nlq_suggestion_candidates
+from web_app import _build_nlq_attribution_questions, _select_nlq_suggestion_candidates
 
 
 def test_suggestion_candidates_ignore_metrics_from_missing_demo_tables():
@@ -31,7 +31,16 @@ def test_suggestion_candidates_fall_back_when_table_check_is_unavailable():
     assert [item["code"] for item in selected] == ["MEAS_a", "MEAS_b"]
 
 
-def test_demo_insight_question_contains_proven_historical_attribution_prompt():
-    question = NLQ_DEMO_INSIGHT_QUESTIONS[0]
-    assert question == "分析6月8日至7月2日平均电话质量分下降原因"
-    assert len(question) <= 24
+def test_attribution_questions_are_built_from_active_graph_members():
+    questions = _build_nlq_attribution_questions(
+        {"code": "MEAS_conversion", "name": "优惠券转化率"},
+        {"code": "MEAS_used", "name": "核销量"},
+        [{"code": "DIM_region", "name": "战区"}],
+        [{"code": "DIM_month", "name": "统计月份"}],
+    )
+
+    assert questions == [
+        "分析优惠券转化率变化原因",
+        "分析不同战区的核销量差异原因",
+    ]
+    assert all("电话质量" not in question for question in questions)

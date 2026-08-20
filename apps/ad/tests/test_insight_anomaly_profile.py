@@ -320,6 +320,28 @@ def test_metric_alert_cell_is_not_classified_as_document_trace():
     assert result["anomaly"]["title"] == "发现指标预警"
 
 
+def test_cell_without_document_hits_explicitly_says_no_anomaly_found():
+    service = CellInsightService({
+        "measures": [{"code": "MEAS_coupon_send", "dimensionCodes": ["DIM_store"]}],
+        "dimensions": [{"code": "DIM_store", "name": "门店"}],
+    })
+
+    result = service.explain({
+        "measureCode": "MEAS_coupon_send",
+        "measureName": "发券量",
+        "cellValue": 9103,
+        "entryType": "kpi_summary",
+        "documentAlertResults": [],
+    })
+
+    assert result["anomaly"]["title"] == "未发现单据级异常"
+    assert "当前单元格未发现异常单据" in result["anomaly"]["reason"]
+    assert "未发现单据级异常" in result["summary"]
+    assert "单据级命中" not in result["summary"]
+    assert result["cellContext"]["entryType"] == "kpi_summary"
+    assert result["diagnosis"]["hypotheses"][0]["title"] == "建议继续下钻核查"
+
+
 def test_context_anomaly_type_guides_insight_profile():
     analyzer = _analyzer({
         "anomalyType": "trend_anomaly",

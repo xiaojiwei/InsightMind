@@ -94,6 +94,23 @@ def test_missing_metric_is_structured_reject_not_clarification() -> None:
     assert response["clarification"] == "没有在业务图谱中匹配到指标"
 
 
+def test_query_trace_id_is_forwarded_to_data_agent() -> None:
+    service = _service()
+    captured = {}
+
+    def fake_execute(payload):
+        captured.update(payload)
+        return {"code": "0", "data": {"cellList": []}}
+
+    service._execute_da = fake_execute
+    response = service.query(
+        "查询网络销售金额", trace_id="trace-forward-1", execute=True
+    )
+
+    assert captured["traceId"] == "trace-forward-1"
+    assert response["daPayload"]["traceId"] == "trace-forward-1"
+
+
 def test_llm_measure_match_requires_confirmation_not_execution() -> None:
     service = _service()
     top = service._measures["MEAS_web_sales_amount"]

@@ -20,6 +20,9 @@ DA_BASE_URL = os.getenv("INSIGHTMIND_DA_BASE_URL", "http://localhost:8091").rstr
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("INSIGHTMIND_MCP_TIMEOUT", "60"))
 MAX_PAGE_SIZE = int(os.getenv("INSIGHTMIND_MCP_MAX_PAGE_SIZE", "1000"))
 ALLOW_RAW_SPARQL = os.getenv("INSIGHTMIND_MCP_ALLOW_RAW_SPARQL", "false").lower() in {"1", "true", "yes"}
+ALLOW_LEGACY_VALUE_LOOKUP = os.getenv(
+    "INSIGHTMIND_MCP_ALLOW_LEGACY_VALUE_LOOKUP", "false"
+).lower() in {"1", "true", "yes"}
 MCP_HOST = os.getenv("INSIGHTMIND_MCP_HOST", "127.0.0.1")
 MCP_PORT = int(os.getenv("INSIGHTMIND_MCP_PORT", "8092"))
 
@@ -46,6 +49,10 @@ def _headers(prefix: str) -> dict[str, str]:
     username = os.getenv(f"INSIGHTMIND_{prefix}_USERNAME", "").strip()
     if username:
         headers["X-InsightMind-User"] = username
+    if prefix == "AD":
+        semantic_token = os.getenv("INSIGHTMIND_SEMANTIC_API_TOKEN", "").strip()
+        if semantic_token:
+            headers["X-InsightMind-Semantic-Token"] = semantic_token
     return headers
 
 
@@ -147,6 +154,10 @@ def _compact_items(items: list[dict[str, Any]], limit: int) -> list[dict[str, An
                 "tables": item.get("tables") or item.get("factTables") or [],
                 "dimensionCodes": item.get("dimensionCodes") or [],
                 "sourceCodes": item.get("sourceCodes") or [],
+                "score": item.get("score"),
+                "matchType": item.get("matchType"),
+                "confidence": item.get("confidence"),
+                "evidence": item.get("evidence") or [],
             }
         )
     return compact
@@ -213,6 +224,32 @@ def search_catalog(keyword: str, limit: int = 20) -> dict[str, Any]:
         limit = max(1, min(int(limit or 20), 100))
     except (TypeError, ValueError):
         limit = 20
+    semantic = _request(
+        "ad",
+        "GET",
+        "/api/semantic-retrieval/search",
+        params={"keyword": keyword, "types": "measure,dimension", "limit": limit},
+    )
+    semantic_items = semantic.get("items") if isinstance(semantic.get("items"), list) else []
+    if semantic.get("ok") and semantic_items:
+        measures = [
+            item for item in semantic_items
+            if isinstance(item, dict) and item.get("semanticType") == "measure"
+        ]
+        dimensions = [
+            item for item in semantic_items
+            if isinstance(item, dict) and item.get("semanticType") == "dimension"
+        ]
+        return {
+            "ok": True,
+            "source": "semantic_retrieval",
+            "keyword": keyword,
+            "measures": _compact_items(measures, limit),
+            "dimensions": _compact_items(dimensions, limit),
+            "vectorUsed": bool(semantic.get("vectorUsed")),
+            "diagnostics": semantic.get("diagnostics") or {},
+        }
+
     meta = get_semantic_meta()
     catalog_measures, catalog_dimensions = _semantic_catalog(meta)
     measures = [item for item in catalog_measures if _contains_keyword(item, keyword)]
@@ -228,6 +265,7 @@ def search_catalog(keyword: str, limit: int = 20) -> dict[str, Any]:
 
     return {
         "ok": True,
+        "source": "legacy_substring",
         "keyword": keyword,
         "measures": _compact_items(measures, limit),
         "dimensions": _compact_items(dimensions, limit),
@@ -387,7 +425,34 @@ def related_codes(measure_codes: list[str] | None = None, dimension_codes: list[
 @mcp.tool()
 def find_dimensions_by_value(value: str) -> dict[str, Any]:
     """Find possible DA dimensions for a human-entered dimension value."""
-    return _request("da", "GET", f"/ai/getDimensionsByValue/{quote(value, safe='')}")
+    semantic = _request(
+        "ad",
+        "GET",
+        "/api/semantic-retrieval/search",
+        params={"keyword": value, "types": "value", "limit": 20, "includeVector": False},
+    )
+    items = semantic.get("items") if isinstance(semantic.get("items"), list) else []
+    if semantic.get("ok"):
+        return {
+            "ok": True,
+            "source": "semantic_value_index",
+            "value": value,
+            "dimensions": items,
+            "governedNoMatch": not bool(items),
+        }
+    if not ALLOW_LEGACY_VALUE_LOOKUP:
+        return {
+            "ok": False,
+            "source": "semantic_value_index",
+            "value": value,
+            "dimensions": [],
+            "degraded": True,
+            "error": "governed semantic value lookup is unavailable",
+        }
+    fallback = _request("da", "GET", f"/ai/getDimensionsByValue/{quote(value, safe='')}")
+    if isinstance(fallback, dict):
+        fallback.setdefault("source", "da_value_lookup")
+    return fallback
 
 
 @mcp.tool()

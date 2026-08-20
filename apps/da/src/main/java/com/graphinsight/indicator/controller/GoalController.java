@@ -107,6 +107,16 @@ public class GoalController {
         return Response.ok(data);
     }
 
+    @ApiOperation("按ID查询目标")
+    @GetMapping("/detail/{goalId}")
+    public Response detail(@PathVariable Long goalId) {
+        GoalDTO data = goalService.detail(goalId);
+        if (data == null) {
+            return Response.error("目标不存在");
+        }
+        return Response.ok(data);
+    }
+
     @OperateLog
     @ApiOperation("更新目标")
     @PostMapping("/update")

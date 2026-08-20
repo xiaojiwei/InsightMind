@@ -31,6 +31,8 @@ public interface GoalService {
 
     List<GoalDTO> list(Integer spaceId);
 
+    GoalDTO detail(Long goalId);
+
     List<BaseInfo> getDimForSubGoal(Integer goalId);
 
     String getGoalName(Goal goal);

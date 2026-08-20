@@ -33,7 +33,7 @@ The current workflow is usually:
 For the default call-quality demo used in local development, the repository
 includes checked-in assets under `../../demo/default/ad/output`. AD restores
 them into `output/` automatically when they are missing. The database bootstrap
-creates 54 fully synthetic calls for `特斯拉汽车杭州演示体验中心`; no production
+creates 54 fully synthetic calls for `理想汽车`; no production
 customer, employee, transcript or store data is included.
 
 ## Install
@@ -139,6 +139,26 @@ http://localhost:8080/
 The web UI can build the data-source KG, generate/load a business KG, and run
 Ad-Hoc queries. Generated artifacts are written under `output/`.
 
+Usage feedback is enabled by default. Open `http://localhost:8080/feedback` to
+query execution, explicit, behavior, and database-metadata feedback. Records are
+stored in MySQL; feedback never updates a KG automatically. Successful semantic
+queries create a versioned `SemanticQueryPlan`/`ExplainPlan` and a `PENDING`
+learning sample. Reviewers can enable, disable, or mark samples stale and can
+promote a trace to an evaluation case from the feedback page. Explicit helpful
+feedback enables the matching sample, while unhelpful/correction feedback
+disables it. Plans, correction steps, memory reviews, and evaluation cases are
+linked to the existing `trace_id` and retain the business-KG version used by the
+query.
+
+The MySQL store creates `semantic_query_plan`, `semantic_correction_step`,
+`semantic_memory`, `semantic_memory_review`, `semantic_eval_case`,
+`semantic_eval_run`, and `semantic_eval_result` in addition to the observation
+tables. By default the store
+uses the first MySQL datasource from `config.local.yaml`/`config.yaml`. Set
+`FEEDBACK_ENABLED=false` to disable collection, or use `FEEDBACK_DB_HOST`,
+`FEEDBACK_DB_PORT`, `FEEDBACK_DB_USER`, `FEEDBACK_DB_PASSWORD`, and
+`FEEDBACK_DB_NAME` to select a dedicated MySQL database.
+
 ## Default Demo Assets
 
 From the repository root:
@@ -213,6 +233,60 @@ output/business_kg/indicator-data.ttl
 When running DA locally, point its `indicator.graph.data-path` to this file.
 Start GraphBuilder first when you want to regenerate the business KG, then
 restart DA or reload DA metadata as needed.
+
+## Semantic Retrieval And Mapping
+
+AD exposes a shared semantic layer for catalog names, governed aliases,
+low-cardinality dimension values, fuzzy recall, and optional vector recall.
+NLQ, Insight analysis, and the MCP catalog tool use the same process-level,
+filesystem-version-aware index.
+
+```text
+GET  /api/semantic-retrieval/status                         # anonymous, counts only
+GET  /api/semantic-retrieval/search?keyword=销售额&types=measure,dimension
+POST /api/semantic-retrieval/map
+```
+
+`catalog`, `search`, and `map` are fail-closed. Configure a random
+`INSIGHTMIND_SEMANTIC_API_TOKEN` and send it in
+`X-InsightMind-Semantic-Token`; configure the same environment variable on the
+MCP gateway. All `/api/feedback/*` endpoints similarly require
+`INSIGHTMIND_FEEDBACK_API_TOKEN` in `X-InsightMind-Feedback-Token`.
+The feedback management page asks an administrator to enter this token and
+keeps it in browser `sessionStorage`; the secret is never embedded in the
+served HTML. For multi-user production deployments, place these endpoints
+behind the existing authenticated gateway/RBAC layer rather than distributing
+the management token to ordinary users.
+
+Maintain reviewed file aliases in `semantic_dictionary.yaml`. The existing
+`synonyms.yaml` is imported as a lower-priority legacy source-schema synonym
+list. Feedback-derived entries follow a PENDING → ENABLED review workflow via
+`/api/feedback/dictionary`; online retrieval never promotes a user correction
+automatically. Dimension values are indexed only when they come from explicit
+dictionary entries or safe KG samples, pass cardinality/PII checks, and the
+dimension is explicitly governed as `PUBLIC_ENUM`. `INTERNAL_ENUM`, `PII`, and
+unknown dimensions are deny-by-default. A BKG build stores a hash-checked
+source-KG sidecar; missing or mismatched bindings disable source value samples
+instead of selecting the newest unrelated graph.
+For dimensions attached to more than one fact table, reviewed executable values
+must declare their `tables`; a scoped `valuePolicies.requiredTables` guard
+prevents a demo/domain dictionary from attaching to another BKG that happens to
+reuse a generic dimension code.
+
+Run the deterministic quality gate after changing the KG or dictionary:
+
+```bash
+PYTHONPATH=. python scripts/evaluate_semantic_retrieval.py
+# Add --with-vector to evaluate the configured vector provider as well.
+# With DA running, require one real NLQ -> DA value-filter execution:
+PYTHONPATH=. python scripts/evaluate_semantic_retrieval.py \
+  --da-url http://127.0.0.1:8091/bi/v1/datasource/query \
+  --require-execution
+```
+
+The report separates positive and negative value cases. Missing positive,
+negative, or (under `--with-vector`) vector-required coverage makes the quality
+gate fail instead of producing a misleading green result.
 
 ## OpenClaw Or LLM Agent Runbook
 

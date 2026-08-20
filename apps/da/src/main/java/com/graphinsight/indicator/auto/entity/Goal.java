@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.activerecord.Model;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -36,6 +37,28 @@ public class Goal extends Model<Goal> {
     private BigDecimal targetNum;
 
     private BigDecimal realNum;
+
+    private LocalDate periodStart;
+
+    private LocalDate periodEnd;
+
+    private String aggregationType;
+
+    private String favorableDirection;
+
+    private BigDecimal lowerBound;
+
+    private BigDecimal upperBound;
+
+    private String calendarCode;
+
+    private String filtersJson;
+
+    private String timezone;
+
+    private Boolean forecastEnabled;
+
+    private Integer seasonalPeriod;
 
     private Boolean validate;
 
