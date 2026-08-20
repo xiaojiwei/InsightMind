@@ -112,12 +112,9 @@ def _client(monkeypatch):
     feedback_store = MemoryFeedbackStore()
     monkeypatch.setattr(feedback_service, "store", feedback_store)
     monkeypatch.setattr(feedback_router_module, "store", feedback_store)
-    monkeypatch.setenv("INSIGHTMIND_FEEDBACK_API_TOKEN", "feedback-test-token")
     app = FastAPI()
     app.include_router(router)
-    return TestClient(
-        app, headers={"X-InsightMind-Feedback-Token": "feedback-test-token"}
-    ), feedback_store
+    return TestClient(app), feedback_store
 
 
 def test_feedback_api_records_and_lists_client_event(monkeypatch) -> None:
@@ -201,7 +198,7 @@ def test_feedback_dictionary_requires_review_before_enable(monkeypatch) -> None:
     assert feedback_store.dictionary[0]["status"] == "ENABLED"
 
 
-def test_feedback_api_is_fail_closed_without_configured_token(monkeypatch) -> None:
+def test_feedback_api_allows_local_management_without_a_token(monkeypatch) -> None:
     feedback_store = MemoryFeedbackStore()
     monkeypatch.setattr(feedback_service, "store", feedback_store)
     monkeypatch.setattr(feedback_router_module, "store", feedback_store)
@@ -211,34 +208,9 @@ def test_feedback_api_is_fail_closed_without_configured_token(monkeypatch) -> No
     app.include_router(router)
     client = TestClient(app)
 
-    unavailable = client.get("/api/feedback/summary")
+    response = client.get("/api/feedback/summary")
 
-    assert unavailable.status_code == 503
-    assert unavailable.json()["detail"] == "反馈管理 API 未配置访问凭证"
-
-
-def test_feedback_dictionary_review_token_is_enforced(monkeypatch) -> None:
-    _client_with_token, feedback_store = _client(monkeypatch)
-    feedback_store.dictionary.append({
-        "entryId": "dict-1",
-        "semanticType": "measure",
-        "term": "成交额",
-        "canonicalCode": "MEAS_gmv",
-        "dimensionCode": "",
-        "canonicalValue": "",
-        "businessKgHash": "g" * 64,
-        "status": "PENDING",
-    })
-    app = FastAPI()
-    app.include_router(router)
-    client = TestClient(app)
-
-    denied = client.post("/api/feedback/dictionary/dict-1/review", json={
-        "action": "ENABLED",
-    })
-
-    assert denied.status_code == 403
-    assert feedback_store.dictionary[0]["status"] == "PENDING"
+    assert response.status_code == 200
 
 
 def test_feedback_api_reports_mysql_unavailable_without_leaking_details(monkeypatch) -> None:
@@ -266,6 +238,20 @@ def test_home_sidebar_contains_feedback_menu() -> None:
 
     assert '<a class="nav-link" href="/feedback" title="反馈记录">' in template
     assert '<span>反馈记录</span>' in template
+
+
+def test_feedback_page_loads_without_a_management_token() -> None:
+    template = (
+        Path(__file__).parents[1]
+        / "kg_builder"
+        / "web"
+        / "templates"
+        / "feedback.html"
+    ).read_text(encoding="utf-8")
+
+    assert "feedback-token" not in template
+    assert "反馈管理 Token" not in template
+    assert "function reloadAll(){Promise.all([loadSummary(),loadMemories(),loadEvents()]);}" in template
 
 
 def test_backend_feedback_payload_excludes_request_content(monkeypatch) -> None:

@@ -36,9 +36,12 @@ from fastapi.responses import (
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
+from kg_builder.utils.runtime_env import load_runtime_env
+
 # ── App setup ───────────────────────────────────────────────────────────── #
 
 BASE_DIR  = Path(__file__).parent
+load_runtime_env(BASE_DIR / ".env")
 TEMPLATES = Jinja2Templates(directory=str(BASE_DIR / "kg_builder" / "web" / "templates"))
 # ── Alert management ──────────────────────────────────────────────────────── #
 from kg_builder.alerts import alerts_router, init_db, get_db

@@ -250,13 +250,10 @@ POST /api/semantic-retrieval/map
 `catalog`, `search`, and `map` are fail-closed. Configure a random
 `INSIGHTMIND_SEMANTIC_API_TOKEN` and send it in
 `X-InsightMind-Semantic-Token`; configure the same environment variable on the
-MCP gateway. All `/api/feedback/*` endpoints similarly require
-`INSIGHTMIND_FEEDBACK_API_TOKEN` in `X-InsightMind-Feedback-Token`.
-The feedback management page asks an administrator to enter this token and
-keeps it in browser `sessionStorage`; the secret is never embedded in the
-served HTML. For multi-user production deployments, place these endpoints
-behind the existing authenticated gateway/RBAC layer rather than distributing
-the management token to ordinary users.
+MCP gateway. The local feedback management page and `/api/feedback/*`
+endpoints do not require a separate Token. For multi-user production
+deployments, place these endpoints behind the existing authenticated
+gateway/RBAC layer.
 
 Maintain reviewed file aliases in `semantic_dictionary.yaml`. The existing
 `synonyms.yaml` is imported as a lower-priority legacy source-schema synonym

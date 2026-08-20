@@ -52,9 +52,7 @@
     <span class="text-secondary">/</span>
     <strong>反馈记录</strong>
     <span class="text-secondary small">观测与样本审核 · MySQL 存储 · 不自动修改业务图谱</span>
-    <input class="form-control form-control-sm ms-auto" id="feedback-token" type="password" autocomplete="off" placeholder="反馈管理 Token" style="width:220px" />
-    <button class="btn btn-sm btn-outline-primary" onclick="saveFeedbackToken()">认证</button>
-    <button class="btn btn-sm btn-outline-secondary" onclick="reloadAll()"><i class="bi bi-arrow-clockwise me-1"></i>刷新</button>
+    <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="reloadAll()"><i class="bi bi-arrow-clockwise me-1"></i>刷新</button>
   </header>
 
   <main class="shell">
@@ -143,17 +141,9 @@
     const fmtTime = value => value ? new Date(value).toLocaleString('zh-CN',{hour12:false}) : '—';
     const short = (value,n=12) => value ? String(value).slice(0,n) : '—';
     const typeName = {execution:'执行',explicit:'显式',behavior:'行为',data:'数据'};
-    const feedbackTokenKey = 'insightmindFeedbackToken';
     function feedbackFetch(url, options={}) {
-      const token = sessionStorage.getItem(feedbackTokenKey) || '';
-      return fetch(url, {...options, headers:{...(options.headers||{}), ...(token ? {'X-InsightMind-Feedback-Token':token} : {})}});
+      return fetch(url, options);
     }
-    function saveFeedbackToken() {
-      const token = document.getElementById('feedback-token').value.trim();
-      if (token) sessionStorage.setItem(feedbackTokenKey, token); else sessionStorage.removeItem(feedbackTokenKey);
-      reloadAll();
-    }
-    document.getElementById('feedback-token').value = sessionStorage.getItem(feedbackTokenKey) || '';
 
     async function loadSummary() {
       const response = await feedbackFetch('/api/feedback/summary');

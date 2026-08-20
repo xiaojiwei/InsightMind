@@ -5,10 +5,9 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-import secrets
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from .service import record_client_event
@@ -30,30 +29,13 @@ _APP_DIR = Path(__file__).resolve().parents[2]
 _BUSINESS_KG_PATH = _APP_DIR / "output" / "business_kg" / "indicator-data.ttl"
 
 
-def _require_feedback_token(
-    feedback_token: str = Header("", alias="X-InsightMind-Feedback-Token"),
-    legacy_review_token: str = Header("", alias="X-InsightMind-Review-Token"),
-) -> str:
-    expected = (
-        os.getenv("INSIGHTMIND_FEEDBACK_API_TOKEN", "").strip()
-        or os.getenv("SEMANTIC_DICTIONARY_REVIEW_TOKEN", "").strip()
-    )
-    if not expected:
-        raise HTTPException(status_code=503, detail="反馈管理 API 未配置访问凭证")
-    presented = feedback_token or legacy_review_token
-    if not presented or not secrets.compare_digest(presented, expected):
-        raise HTTPException(status_code=403, detail="反馈管理凭证无效")
-    return os.getenv("INSIGHTMIND_FEEDBACK_ACTOR", "feedback-token").strip() or "feedback-token"
-
-
 def _feedback_actor() -> str:
-    return os.getenv("INSIGHTMIND_FEEDBACK_ACTOR", "feedback-token").strip() or "feedback-token"
+    return os.getenv("INSIGHTMIND_FEEDBACK_ACTOR", "feedback-page").strip() or "feedback-page"
 
 
 router = APIRouter(
     prefix="/api/feedback",
     tags=["feedback"],
-    dependencies=[Depends(_require_feedback_token)],
 )
 
 
