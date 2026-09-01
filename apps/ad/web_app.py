@@ -4609,11 +4609,59 @@ async def analysis_log():
 _insight_tasks: dict[str, dict[str, Any]] = {}
 _insight_tasks_lock = threading.Lock()
 _INSIGHT_TASK_TTL_SECONDS = 3600
+_insight_agent_runner = None
+_insight_agent_runner_lock = threading.Lock()
+
+
+def _get_insight_agent_runner():
+    """Create the small agent runtime lazily after AD configuration is loaded."""
+    global _insight_agent_runner
+    with _insight_agent_runner_lock:
+        if _insight_agent_runner is None:
+            from kg_builder.agent_runtime import (
+                InsightAgentRunner,
+                InsightRuntimeDependencies,
+            )
+            from kg_builder.utils.llm_config import llm_config_from_env
+
+            _insight_agent_runner = InsightAgentRunner(InsightRuntimeDependencies(
+                data_agent_url=_DATA_AGENT_URL,
+                ttl_path=str(BKG_DIR / "indicator-data.ttl"),
+                llm_config_factory=lambda: llm_config_from_env(BASE_DIR),
+                semantic_mapping_service_factory=_semantic_mapping_service,
+            ))
+        return _insight_agent_runner
 
 
 def _insight_task(task_id: str) -> Optional[dict[str, Any]]:
     with _insight_tasks_lock:
         return _insight_tasks.get(task_id)
+
+
+def _sync_insight_conversation_context(task: dict[str, Any], legacy_event: dict[str, Any]) -> None:
+    """Keep the legacy Smart NLQ conversation state while it uses the new runner."""
+    if legacy_event.get("step") != "kg_match":
+        return
+    conversation_id = str(task.get("conversation_id") or "")
+    if not conversation_id:
+        return
+    match = legacy_event.get("result") or {}
+    measure_code = str(match.get("meas_code") or "").strip()
+    table_name = str(match.get("table_name") or "").strip()
+    all_measures = [measure_code] if measure_code else []
+    for secondary in match.get("secondary") or []:
+        code = str(secondary.get("meas_code") or "").strip()
+        if code and code not in all_measures:
+            all_measures.append(code)
+    with _nlq_context_lock:
+        resolved = dict(_nlq_context_store.get(conversation_id) or {})
+        if measure_code:
+            resolved["activeMeasureCode"] = measure_code
+            resolved["measureCodes"] = all_measures
+        if table_name:
+            resolved["factTables"] = [table_name]
+        resolved["lastQueryMode"] = "insight"
+        _nlq_context_store[conversation_id] = resolved
 
 
 def _cleanup_insight_tasks() -> None:
@@ -4747,11 +4795,24 @@ async def insight_start(request: Request):
 
     _cleanup_insight_tasks()
     task_id = uuid.uuid4().hex
+    from kg_builder.agent_runtime import AgentRequest
+
+    agent_run = _get_insight_agent_runner().start(AgentRequest(
+        question=question,
+        context=request_context,
+        analysis_mode=analysis_mode,
+        conversation_id=conversation_id,
+        user_id=str(body.get("userId") or request.headers.get("x-user-id") or ""),
+        tenant_id=str(body.get("tenantId") or request.headers.get("x-tenant-id") or ""),
+        permission_scope_hash=str(body.get("permissionScopeHash") or ""),
+        semantic_token=str(body.get("semanticToken") or ""),
+        graph_version=str(body.get("graphVersion") or ""),
+    ))
     task = {
         "id": task_id,
-        "queue": queue.Queue(),
+        "agent_run_id": agent_run.context.run_id,
+        "trace_id": agent_run.context.trace_id,
         "status": "running",
-        "cancel_event": threading.Event(),
         "ack_event": threading.Event(),
         "ack_info": {"success": True, "error": ""},
         "created_at": time.time(),
@@ -4760,14 +4821,11 @@ async def insight_start(request: Request):
     }
     with _insight_tasks_lock:
         _insight_tasks[task_id] = task
-    threading.Thread(
-        target=_insight_worker,
-        args=(question, task_id, conversation_id, request_context, analysis_mode),
-        daemon=True,
-    ).start()
     return {
         "status": "started",
         "taskId": task_id,
+        "runId": agent_run.context.run_id,
+        "traceId": agent_run.context.trace_id,
         "conversationId": conversation_id,
         "analysisMode": analysis_mode or "metric_fluctuation",
     }
@@ -4775,31 +4833,47 @@ async def insight_start(request: Request):
 
 @app.get("/api/insight/{task_id}/log")
 async def insight_log(task_id: str):
-    """SSE stream for insight analysis progress and results."""
+    """Legacy SSE stream backed by the Agent Runtime event store."""
     task = _insight_task(task_id)
     if not task:
         return JSONResponse({"error": "Insight 任务不存在或已过期"}, status_code=404)
+    run = _get_insight_agent_runner().store.get(str(task.get("agent_run_id") or ""))
+    if run is None:
+        return JSONResponse({"error": "Insight Agent 任务不存在或已过期"}, status_code=404)
 
     async def gen():
+        from kg_builder.agent_runtime import RunStatus, legacy_insight_sse_payload
+
+        last_sequence = 0
         while True:
-            try:
-                msg = task["queue"].get_nowait()
+            events = run.events_after(last_sequence)
+            for event in events:
+                last_sequence = event.sequence
+                legacy = event.payload.get("legacy")
+                if isinstance(legacy, dict):
+                    _sync_insight_conversation_context(task, legacy)
+                msg = legacy_insight_sse_payload(event)
+                if msg is None:
+                    continue
                 yield f"data: {msg}\n\n"
                 if msg in ("__DONE__", "__CANCELLED__"):
-                    break
-            except queue.Empty:
-                if task.get("status") in ("done", "cancelled"):
-                    terminal = "__CANCELLED__" if task.get("status") == "cancelled" else "__DONE__"
-                    yield f"data: {terminal}\n\n"
-                    break
-                yield ": ping\n\n"
-                await asyncio.sleep(0.4)
+                    task["status"] = "cancelled" if msg == "__CANCELLED__" else "done"
+                    task["updated_at"] = time.time()
+                    return
+            if run.status in {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED}:
+                task["status"] = "cancelled" if run.status is RunStatus.CANCELLED else "done"
+                task["updated_at"] = time.time()
+                terminal = "__CANCELLED__" if run.status is RunStatus.CANCELLED else "__DONE__"
+                yield f"data: {terminal}\n\n"
+                return
+            yield ": ping\n\n"
+            await asyncio.sleep(0.25)
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 @app.post("/api/insight/{task_id}/ack")
 async def insight_ack(task_id: str, request: Request):
-    """前端渲染完成后调用，通知后端继续执行下一个 Part。"""
+    """Record a legacy client rendering acknowledgement as runtime telemetry."""
     task = _insight_task(task_id)
     if not task:
         return JSONResponse({"error": "Insight 任务不存在或已过期"}, status_code=404)
@@ -4807,6 +4881,15 @@ async def insight_ack(task_id: str, request: Request):
     task["ack_info"]["success"] = body.get("success", True)
     task["ack_info"]["error"] = body.get("error", "")
     task["ack_event"].set()
+    run = _get_insight_agent_runner().store.get(str(task.get("agent_run_id") or ""))
+    if run is not None:
+        from kg_builder.agent_runtime import StreamEventType
+        run.publish(StreamEventType.TRACE, {
+            "clientAck": {
+                "success": bool(task["ack_info"]["success"]),
+                "error": str(task["ack_info"]["error"] or ""),
+            },
+        })
     return {"status": "ok"}
 
 
@@ -4817,11 +4900,91 @@ async def insight_cancel(task_id: str):
         return JSONResponse({"error": "Insight 任务不存在或已过期"}, status_code=404)
     if task.get("status") in ("done", "cancelled"):
         return {"status": task["status"], "taskId": task_id}
-    task["cancel_event"].set()
+    run = _get_insight_agent_runner().cancel(str(task.get("agent_run_id") or ""))
+    if run is None:
+        return JSONResponse({"error": "Insight Agent 任务不存在或已过期"}, status_code=404)
     task["ack_event"].set()
     task["status"] = "cancelling"
     task["updated_at"] = time.time()
     return {"status": "cancelling", "taskId": task_id}
+
+
+@app.post("/api/agent/runs")
+async def agent_run_start(request: Request):
+    """Start a governed Insight Agent run using the V1 event protocol."""
+    body = await request.json()
+    question = str(body.get("question") or "").strip()
+    if not question:
+        return JSONResponse({"error": "question 不能为空"}, status_code=400)
+    from kg_builder.agent_runtime import AgentRequest
+
+    context = dict(body.get("context") or {}) if isinstance(body.get("context"), dict) else {}
+    run = _get_insight_agent_runner().start(AgentRequest(
+        question=question,
+        context=context,
+        analysis_mode=str(body.get("analysisMode") or context.get("analysisMode") or ""),
+        conversation_id=str(body.get("conversationId") or "") or str(uuid.uuid4()),
+        user_id=str(body.get("userId") or request.headers.get("x-user-id") or ""),
+        tenant_id=str(body.get("tenantId") or request.headers.get("x-tenant-id") or ""),
+        permission_scope_hash=str(body.get("permissionScopeHash") or ""),
+        semantic_token=str(body.get("semanticToken") or ""),
+        graph_version=str(body.get("graphVersion") or ""),
+    ))
+    return {
+        "status": "started",
+        "runId": run.context.run_id,
+        "traceId": run.context.trace_id,
+        "conversationId": run.context.conversation_id,
+        "eventsUrl": f"/api/agent/runs/{run.context.run_id}/events",
+    }
+
+
+@app.post("/api/agent/route")
+async def agent_route(request: Request):
+    """Return the shared deterministic Smart Insight route without executing it."""
+    body = await request.json()
+    question = str(body.get("question") or "").strip()
+    if not question:
+        return JSONResponse({"error": "question 不能为空"}, status_code=400)
+    from kg_builder.agent_runtime import SmartIntentRouter
+
+    context = dict(body.get("context") or {}) if isinstance(body.get("context"), dict) else {}
+    decision = SmartIntentRouter().decide(question, context)
+    return {"ok": True, "decision": decision.to_dict()}
+
+
+@app.get("/api/agent/runs/{run_id}/events")
+async def agent_run_events(run_id: str, request: Request):
+    """SSE stream for the versioned Agent Runtime event contract."""
+    run = _get_insight_agent_runner().store.get(run_id)
+    if run is None:
+        return JSONResponse({"error": "Agent 任务不存在或已过期"}, status_code=404)
+    try:
+        last_sequence = max(0, int(request.headers.get("last-event-id") or 0))
+    except ValueError:
+        last_sequence = 0
+
+    async def gen():
+        from kg_builder.agent_runtime import RunStatus
+
+        sequence = last_sequence
+        while True:
+            for event in run.events_after(sequence):
+                sequence = event.sequence
+                yield f"id: {event.sequence}\nevent: {event.event_type.value}\ndata: {json.dumps(event.to_dict(), ensure_ascii=False, cls=_DecimalEncoder)}\n\n"
+            if run.status in {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED}:
+                return
+            yield ": ping\n\n"
+            await asyncio.sleep(0.25)
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@app.post("/api/agent/runs/{run_id}/cancel")
+async def agent_run_cancel(run_id: str):
+    run = _get_insight_agent_runner().cancel(run_id)
+    if run is None:
+        return JSONResponse({"error": "Agent 任务不存在或已过期"}, status_code=404)
+    return {"status": "cancelling", "runId": run_id}
 
 
 @app.post("/api/insight/explain-cell")

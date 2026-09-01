@@ -18235,6 +18235,28 @@ function _smartInsightDecision(question) {
   return {mode: 'query', flowNode: 'D', reason: '默认先执行图谱问数'};
 }
 
+async function _smartInsightDecisionFromServer(question, context) {
+  try {
+    const response = await fetch('/api/agent/route', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question, context: context || {}})
+    });
+    const data = await response.json();
+    const decision = data && data.decision;
+    if (!response.ok || !decision || !decision.mode) throw new Error(data?.error || '路由服务不可用');
+    return {
+      mode: decision.mode,
+      flowNode: decision.flowNode || 'D',
+      reason: decision.reason || '',
+      forceClearContext: Boolean(decision.forceClearContext),
+    };
+  } catch (_) {
+    // Keep the existing browser classifier as a short-lived availability fallback.
+    return _smartInsightDecision(question);
+  }
+}
+
 async function runSmartInsight(btn) {
   const qEl = document.getElementById('smart-nlq-question');
   const res = document.getElementById('smart-nlq-result');
@@ -18244,7 +18266,7 @@ async function runSmartInsight(btn) {
     return;
   }
   const state = _getNlqConversation('smart');
-  const decision = _smartInsightDecision(question);
+  const decision = await _smartInsightDecisionFromServer(question, state.context);
   if (decision.forceClearContext) {
     state.context = {};
     state.hasTurns = false;

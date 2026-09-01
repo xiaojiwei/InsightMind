@@ -21,6 +21,15 @@ from typing import Any, Callable, Optional
 from rdflib import Graph, Namespace, RDF
 from rdflib.namespace import RDFS
 
+from kg_builder.analysis_runtime import (
+    AnalysisExecutionBlocked,
+    AnalysisExecutor,
+    CompiledAnalysis,
+    PayloadPolicyError,
+    PlanStatus,
+    compile_legacy_plan,
+)
+from kg_builder.feedback.graph_version import graph_identity
 from kg_builder.ontology.owl_schema import DB
 from kg_builder.utils.http_client import urlopen
 
@@ -84,6 +93,7 @@ class NaturalLanguageQueryService:
         source_ttl_path: str | Path | None = None,
         log_cb: Optional[Callable[[str], None]] = None,
         semantic_mapping_service: Any | None = None,
+        authorization: str = "",
     ) -> None:
         self.ttl_path = Path(ttl_path)
         self.data_agent_url = data_agent_url
@@ -104,6 +114,87 @@ class NaturalLanguageQueryService:
         self._source_rows_by_table_col_value: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
         self._dynamic_column_labels: dict[str, str] = {}
         self._semantic_mapping_service = semantic_mapping_service
+        self._authorization = str(authorization or "").strip()
+
+    def compile(
+        self,
+        question: str,
+        *,
+        page_size: int = 100,
+        page_num: int = 1,
+        max_dimensions: int = 3,
+        query_mode: str = "auto",
+        context: Optional[dict[str, Any]] = None,
+        is_follow_up: bool = False,
+        route_intent: Optional[dict[str, Any]] = None,
+    ) -> CompiledAnalysis:
+        """Compile a natural-language question into AnalysisSpec V1.
+
+        This method stops before deterministic execution.  ``query`` remains a
+        compatibility facade over ``compile -> clarify/reject -> execute``.
+        """
+        question = (question or "").strip()
+        if not question:
+            raise ValueError("question 不能为空")
+
+        conversation_context = self._normalize_conversation_context(context)
+        self._load_if_needed()
+        if not self._measures:
+            plan = self._failed_plan(
+                question,
+                "业务图谱中没有可查询指标",
+                {"measureCandidates": []},
+            )
+            plan["diagnosticCode"] = "BUSINESS_KG_HAS_NO_MEASURES"
+            return compile_legacy_plan(
+                question=question,
+                query_mode=query_mode,
+                plan=plan,
+                versions=self._analysis_versions(),
+            )
+
+        resolved_route = dict(route_intent or {})
+        if route_intent is None:
+            resolved_route = self._resolve_question_intent(question, query_mode)
+            resolved_route = self._apply_conversation_context(
+                resolved_route,
+                conversation_context,
+                is_follow_up=is_follow_up,
+            )
+        mode = str(
+            resolved_route.get("mode")
+            or self._resolve_query_mode(question, query_mode)
+        )
+        if mode in {"entity_lookup", "relationship_analysis", "landing_advice"}:
+            plan = self._failed_plan(
+                question,
+                f"{mode} 暂不属于结构化指标 AnalysisSpec 执行范围",
+                {"routeMode": mode},
+            )
+            plan["diagnosticCode"] = "ANALYSIS_KIND_NOT_SUPPORTED"
+        else:
+            plan = self._plan(
+                question,
+                page_size=page_size,
+                page_num=page_num,
+                max_dimensions=max_dimensions,
+                query_mode=mode,
+                route_intent=resolved_route,
+            )
+        return compile_legacy_plan(
+            question=question,
+            query_mode=mode,
+            plan=plan,
+            versions=self._analysis_versions(),
+        )
+
+    def _analysis_versions(self) -> dict[str, str]:
+        identity = graph_identity(self.ttl_path)
+        return {
+            "businessKgHash": identity.get("sha256", ""),
+            "businessKgFile": identity.get("filename", ""),
+            "ontologyVersion": identity.get("ontologyVersion", ""),
+        }
 
     def query(
         self,
@@ -157,7 +248,7 @@ class NaturalLanguageQueryService:
             )
 
         mode = route_intent.get("mode") or self._resolve_query_mode(question, query_mode)
-        plan = self._plan(
+        compiled = self.compile(
             question,
             page_size=page_size,
             page_num=page_num,
@@ -165,6 +256,8 @@ class NaturalLanguageQueryService:
             query_mode=mode,
             route_intent=route_intent,
         )
+        plan = compiled.legacy_plan
+        plan_contract = compiled.result.to_dict()
         graph_context = (
             self._build_graph_context(plan)
             if plan.get("ok") else {}
@@ -179,9 +272,18 @@ class NaturalLanguageQueryService:
             "graphContext": graph_context,
             "diagnostics": plan["diagnostics"],
             "semanticMapping": plan.get("semanticMapping") or {},
+            "planStatus": plan_contract["status"],
+            "analysisSpec": plan_contract["analysisSpec"],
+            "analysisSpecHash": plan_contract["specHash"],
+            "clarificationSpec": plan_contract["clarification"],
             "elapsedMs": int((time.time() - started) * 1000),
         }
-        self._attach_resolved_context(response, conversation_context, is_follow_up)
+        self._attach_resolved_context(
+            response,
+            conversation_context,
+            is_follow_up,
+            commit_selection=compiled.status is PlanStatus.READY,
+        )
         if not plan["ok"] or not execute:
             response["action"] = plan.get("action") or ("answer" if plan.get("ok") else "clarify")
             if plan.get("diagnosticCode"):
@@ -210,10 +312,31 @@ class NaturalLanguageQueryService:
             )
             return response
 
-        if trace_id and isinstance(plan.get("daPayload"), dict):
-            plan["daPayload"]["traceId"] = trace_id
-            response["daPayload"] = plan["daPayload"]
-        da_result = self._execute_da(plan["daPayload"])
+        try:
+            execution = AnalysisExecutor(self._execute_da).execute(
+                compiled,
+                trace_id=trace_id,
+            )
+        except (AnalysisExecutionBlocked, PayloadPolicyError) as exc:
+            response.update({
+                "ok": False,
+                "action": "reject",
+                "planStatus": PlanStatus.REJECTED.value,
+                "diagnosticCode": "ANALYSIS_EXECUTION_POLICY_REJECTED",
+                "recoverable": False,
+                "needsClarification": False,
+                "error": str(exc),
+            })
+            self._attach_resolved_context(
+                response,
+                conversation_context,
+                is_follow_up,
+                commit_selection=False,
+            )
+            return response
+        plan["daPayload"] = execution.payload
+        response["daPayload"] = execution.payload
+        da_result = execution.result
         response["result"] = da_result
         response["ok"] = da_result.get("ok", False)
         if not response["ok"]:
@@ -269,6 +392,16 @@ class NaturalLanguageQueryService:
         )
         if fact_tables:
             intent.setdefault("preferredFactTables", fact_tables)
+        confirmed_measure = str(context.get("confirmedMeasureCode") or "").strip()
+        if confirmed_measure and confirmed_measure in self._measures:
+            # A clarification choice is still resolved through the KG catalog;
+            # it is a semantic hint, never a physical SQL/DA payload override.
+            intent["measureCode"] = confirmed_measure
+            intent["clarificationConfirmed"] = True
+        confirmed_dimension = str(context.get("confirmedDimensionCode") or "").strip()
+        if confirmed_dimension and confirmed_dimension in self._dimensions:
+            intent["dimensionCodes"] = [confirmed_dimension]
+            intent["clarificationConfirmed"] = True
         active_measure = str(context.get("activeMeasureCode") or "").strip()
         if active_measure:
             intent.setdefault("inheritedMeasureCode", active_measure)
@@ -288,28 +421,34 @@ class NaturalLanguageQueryService:
         response: dict[str, Any],
         previous: dict[str, Any],
         is_follow_up: bool,
+        *,
+        commit_selection: bool = True,
     ) -> dict[str, Any]:
         resolved = dict(previous)
         matched = response.get("matched") or {}
         intent = response.get("intent") or {}
-        measure_code = str(matched.get("measureCode") or "").strip()
-        if measure_code:
-            measure_codes = [
-                code for code in resolved.get("measureCodes", [])
-                if code and code != measure_code
-            ]
-            resolved["measureCodes"] = [measure_code, *measure_codes][:8]
-            resolved["activeMeasureCode"] = measure_code
-        if matched.get("factTables"):
-            resolved["factTables"] = list(matched["factTables"])
-        if matched.get("executionTableCandidates") is not None:
-            resolved["executionTableCandidates"] = list(
-                matched.get("executionTableCandidates") or []
-            )
-        if matched.get("dimensionCodes") is not None:
-            resolved["dimensionCodes"] = list(matched.get("dimensionCodes") or [])
-        if intent.get("filters"):
-            resolved["filters"] = list(intent["filters"])
+        if commit_selection:
+            resolved.pop("confirmedMeasureCode", None)
+            resolved.pop("confirmedDimensionCode", None)
+            resolved.pop("confirmedClarificationToken", None)
+            measure_code = str(matched.get("measureCode") or "").strip()
+            if measure_code:
+                measure_codes = [
+                    code for code in resolved.get("measureCodes", [])
+                    if code and code != measure_code
+                ]
+                resolved["measureCodes"] = [measure_code, *measure_codes][:8]
+                resolved["activeMeasureCode"] = measure_code
+            if matched.get("factTables"):
+                resolved["factTables"] = list(matched["factTables"])
+            if matched.get("executionTableCandidates") is not None:
+                resolved["executionTableCandidates"] = list(
+                    matched.get("executionTableCandidates") or []
+                )
+            if matched.get("dimensionCodes") is not None:
+                resolved["dimensionCodes"] = list(matched.get("dimensionCodes") or [])
+            if intent.get("filters"):
+                resolved["filters"] = list(intent["filters"])
         resolved["lastQuestion"] = response.get("question") or ""
         resolved["lastQueryMode"] = response.get("queryMode") or ""
         # 实体检索上下文：供后续"同类订单"/"同类XX"追问使用
@@ -562,6 +701,11 @@ class NaturalLanguageQueryService:
         q = re.sub(r"\s+", " ", question or "").strip()
         value_text = r"[^,，;；。！？\n\r]+"
         patterns = [
+            # UI-generated attribute examples may contain long table/column
+            # labels, parentheses and SQL-like descriptions. Anchor on the
+            # final separator so text such as ``order amount>0`` stays part of
+            # the governed field label rather than becoming a document lookup.
+            rf"^(?P<field>[^,，;；。！？\n\r]{{1,240}})\s*(?:为|是|=|:|：)\s*[\"'“”]?(?P<value>[^,，;；。！？\n\r:：=]{{1,80}})[\"'“”]?\s*$",
             rf"(?P<field>[\u4e00-\u9fa5A-Za-z_][\u4e00-\u9fa5A-Za-z0-9_\-]{{0,60}})\s*(?:为|是|=|:|：)\s*[\"'“”]?(?P<value>{value_text})[\"'“”]?",
             rf"^(?:查|查询|查看|检索|搜索)?\s*(?P<field>[\u4e00-\u9fa5A-Za-z_][\u4e00-\u9fa5A-Za-z0-9_\-]{{0,60}})\s+[\"'“”]?(?P<value>{value_text})[\"'“”]?(?:\s*(?:的)?(?:信息|详情|明细|所有信息|全部信息|情况|分析|画像|同类.*)?)?$",
         ]
@@ -3050,17 +3194,48 @@ class NaturalLanguageQueryService:
             dimension_codes={dimension.code for dimension in compatible_dims},
             preferred_tables=set(measure.tables),
             assume_inherited_primary=bool(
-                route_intent.get("contextInherited")
-                and inherited_measure_code == measure.code
-                and not any(
-                    str(getattr(candidate, "code", "")) == measure.code
-                    and str(getattr(candidate, "confidence", "")) == "high"
-                    for candidate in semantic_candidates
+                route_intent.get("clarificationConfirmed")
+                or (
+                    route_intent.get("contextInherited")
+                    and inherited_measure_code == measure.code
+                    and not any(
+                        str(getattr(candidate, "code", "")) == measure.code
+                        and str(getattr(candidate, "confidence", "")) == "high"
+                        for candidate in semantic_candidates
+                    )
                 )
             ),
         )
+        mapping_diagnostics = semantic_mapping.get("diagnostics") or {}
+        if (
+            route_intent.get("clarificationConfirmed")
+            and mapping_diagnostics.get("unresolvedValueIntent")
+        ):
+            unexplained = [
+                self._norm(value)
+                for value in (mapping_diagnostics.get("unexplainedTokens") or [])
+                if self._norm(value)
+            ]
+            measure_text = self._norm(" ".join([
+                measure.code,
+                measure.cn_name,
+                measure.en_name,
+                measure.definition,
+                measure.description,
+                measure.search_text,
+            ]))
+            # Once the user has selected a governed metric candidate, generic
+            # words belonging to that metric (for example “订单量”) are no
+            # longer unresolved value intent. Any extra token such as “按省份”
+            # remains blocking, so we never silently drop dimensions/filters.
+            if unexplained and all(token in measure_text for token in unexplained):
+                mapping_diagnostics["unresolvedValueIntent"] = False
+                mapping_diagnostics["confirmedMeasureOverlapSuppressed"] = unexplained
+                if semantic_mapping.get("decision") == "clarify":
+                    semantic_mapping["decision"] = "accept"
+                    semantic_mapping["needsClarification"] = False
         fallback_reason = str(
-            (semantic_mapping.get("diagnostics") or {}).get("fallbackReason") or ""
+            mapping_diagnostics.get("fallbackReason") or ""
         )
         if self._semantic_mapping_service is not None and fallback_reason:
             plan = self._clarify_plan(
@@ -3842,10 +4017,13 @@ class NaturalLanguageQueryService:
 
     def _execute_da(self, payload: dict[str, Any]) -> dict[str, Any]:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        if self._authorization:
+            headers["Authorization"] = self._authorization
         req = urllib.request.Request(
             self.data_agent_url,
             data=body,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST",
         )
         try:
