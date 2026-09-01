@@ -78,52 +78,6 @@ class HashingNgramEmbeddingProvider:
         return _normalize_rows(matrix)
 
 
-_MODEL_CACHE: dict[str, object] = {}
-_MODEL_LOCK = threading.RLock()
-
-
-class SentenceTransformerEmbeddingProvider:
-    """Lazy multilingual SentenceTransformer provider shared process-wide."""
-
-    def __init__(self, model_name: str = "paraphrase-multilingual-MiniLM-L12-v2") -> None:
-        self.model_name = model_name
-
-    @property
-    def provider_id(self) -> str:
-        return f"sentence-transformer:{self.model_name}"
-
-    def _model(self):
-        with _MODEL_LOCK:
-            if self.model_name in _MODEL_CACHE:
-                return _MODEL_CACHE[self.model_name]
-            try:
-                os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-                from sentence_transformers import SentenceTransformer
-            except Exception as exc:
-                raise EmbeddingUnavailableError(
-                    "sentence-transformers 未安装，已降级为字典召回"
-                ) from exc
-            try:
-                model = SentenceTransformer(self.model_name)
-            except Exception as exc:
-                raise EmbeddingUnavailableError(f"embedding 模型加载失败: {exc}") from exc
-            _MODEL_CACHE[self.model_name] = model
-            return model
-
-    def encode(self, texts: Sequence[str]) -> np.ndarray:
-        try:
-            values = self._model().encode(
-                list(texts),
-                normalize_embeddings=True,
-                show_progress_bar=False,
-            )
-        except EmbeddingUnavailableError:
-            raise
-        except Exception as exc:
-            raise EmbeddingUnavailableError(f"embedding 计算失败: {exc}") from exc
-        return _normalize_rows(np.asarray(values, dtype=np.float32))
-
-
 @dataclass(frozen=True)
 class VectorHit:
     code: str

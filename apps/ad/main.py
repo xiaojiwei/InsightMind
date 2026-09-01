@@ -79,12 +79,10 @@ def cmd_build(args) -> None:
 
     settings = config.get("settings", {})
     enable_sampling    = settings.get("enable_sampling", True)
-    enable_implicit    = settings.get("enable_implicit_relations", True)
+    enable_implicit    = settings.get("enable_implicit_relations", False)
     enable_reasoning   = settings.get("enable_owl_reasoning", False)
     similarity_thresh  = settings.get("similarity_threshold", 0.85)
     synonyms_path      = settings.get("synonyms_path", "synonyms.yaml")
-    st_model           = settings.get("sentence_transformer_model",
-                                      "paraphrase-multilingual-MiniLM-L12-v2")
 
     builder = RDFBuilder(include_owl_schema=True)
     explicit_extractor = ExplicitRelationExtractor()
@@ -137,15 +135,16 @@ def cmd_build(args) -> None:
         relations = explicit_extractor.extract(entity_graph)
         console.print(f"  → {len(relations)} explicit relations.")
 
+        console.print("  Discovering implicit relations with deterministic rules…")
         if enable_implicit:
-            console.print("  Discovering implicit relations (Sentence-Transformers)…")
-            implicit_extractor = ImplicitRelationExtractor(
-                model_name=st_model,
-                similarity_threshold=similarity_thresh,
-            )
-            implicit_rels = implicit_extractor.extract(entity_graph)
-            console.print(f"  → {len(implicit_rels)} implicit relations.")
-            relations.extend(implicit_rels)
+            console.print("  Adding AI semantic relations via configured LLM…")
+        implicit_extractor = ImplicitRelationExtractor(
+            similarity_threshold=similarity_thresh,
+            enable_llm_semantics=enable_implicit,
+        )
+        implicit_rels = implicit_extractor.extract(entity_graph)
+        console.print(f"  → {len(implicit_rels)} implicit relations.")
+        relations.extend(implicit_rels)
 
         console.print("  Building RDF graph…")
         builder.build(entity_graph, relations)

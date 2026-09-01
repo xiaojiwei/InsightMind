@@ -29,6 +29,5 @@ settings:
   enable_sampling: true
   enable_implicit_relations: false
   enable_owl_reasoning: false        # set true to run owlrl (slow on large graphs)
-  similarity_threshold: 0.85         # cosine threshold for similarTo relation
+  similarity_threshold: 0.85         # minimum LLM confidence for similarTo relation
   synonyms_path: synonyms.yaml
-  sentence_transformer_model: paraphrase-multilingual-MiniLM-L12-v2

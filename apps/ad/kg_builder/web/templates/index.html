@@ -2185,8 +2185,8 @@
                 <label class="form-check-label" for="opt-sampling">启用数据采样（统计列信息 + 导入行数据）</label>
               </div>
               <div class="form-check mb-2">
-                <input class="form-check-input" type="checkbox" id="opt-implicit" checked />
-                <label class="form-check-label" for="opt-implicit">发现隐式关系（语义相似度）</label>
+                <input class="form-check-input" type="checkbox" id="opt-implicit" />
+                <label class="form-check-label" for="opt-implicit">AI 语义关系（可选，需配置大模型）</label>
               </div>
               <div class="form-check mb-3">
                 <input class="form-check-input" type="checkbox" id="opt-reasoning" />
@@ -4340,8 +4340,7 @@ async function startBuild() {
     enable_implicit:      document.getElementById('opt-implicit').checked,
     enable_reasoning:     document.getElementById('opt-reasoning').checked,
     similarity_threshold: parseFloat(document.getElementById('opt-threshold').value),
-    synonyms_path:        'synonyms.yaml',
-    st_model:             'paraphrase-multilingual-MiniLM-L12-v2'
+    synonyms_path:        'synonyms.yaml'
   };
   bootstrap.Tab.getOrCreateInstance(document.querySelector('[href="#tab-build"]')).show();
   clearLog(); setProgress(0);

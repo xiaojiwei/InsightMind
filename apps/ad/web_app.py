@@ -322,7 +322,7 @@ class _QueueLogHandler(logging.Handler):
 _queue_handler = _QueueLogHandler()
 _queue_handler.setFormatter(logging.Formatter("%(message)s"))
 for _mod in ("kg_builder.utils.translator", "kg_builder.entities.extractor",
-             "kg_builder.parsers.data_sampler"):
+             "kg_builder.parsers.data_sampler", "kg_builder.relations.implicit"):
     logging.getLogger(_mod).addHandler(_queue_handler)
     logging.getLogger(_mod).setLevel(logging.INFO)
 
@@ -349,11 +349,10 @@ class DSConfig(BaseModel):
 class BuildRequest(BaseModel):
     datasource:             DSConfig
     enable_sampling:        bool  = True
-    enable_implicit:        bool  = True
+    enable_implicit:        bool  = False
     enable_reasoning:       bool  = False
-    similarity_threshold:   float = 0.85
+    similarity_threshold:   float = Field(default=0.85, ge=0.0, le=1.0, allow_inf_nan=False)
     synonyms_path:          str   = "synonyms.yaml"
-    st_model:               str   = "paraphrase-multilingual-MiniLM-L12-v2"
 
 class PresetQueryRequest(BaseModel):
     query_type: str   # find_related | similar_columns | table_schema | fk_graph | potential_joins | search_comment | find_individuals
@@ -600,19 +599,18 @@ def _build_worker(req: BuildRequest) -> None:
         relations.extend(relations_base)
         step(10, f"{len(relations)} 条显式关系")
 
-        # ── Step 11: 语义隐式关系 ──────────────────────────────────────── #
+        # ── Step 11: 隐式关系（确定性规则 + 可选 LLM）────────────────── #
+        _log("发现隐式关系（命名与统计规则）…")
         if req.enable_implicit:
-            _log("发现隐式关系（语义相似度）…")
-            _set_state("running", "语义分析…", 70)
-            implicit_extractor = ImplicitRelationExtractor(
-                model_name=req.st_model,
-                similarity_threshold=req.similarity_threshold,
-            )
-            implicit_rels = implicit_extractor.extract(entity_graph)
-            relations.extend(implicit_rels)
-            step(11, f"{len(implicit_rels)} 条隐式关系")
-        else:
-            skip(11)
+            _log("通过已配置大模型补充 AI 语义关系…")
+        _set_state("running", "关系分析…", 70)
+        implicit_extractor = ImplicitRelationExtractor(
+            similarity_threshold=req.similarity_threshold,
+            enable_llm_semantics=req.enable_implicit,
+        )
+        implicit_rels = implicit_extractor.extract(entity_graph)
+        relations.extend(implicit_rels)
+        step(11, f"{len(implicit_rels)} 条隐式关系")
 
         # ── Step 12: 构建 RDF/OWL 图谱 ────────────────────────────────── #
         _log("构建 RDF/OWL 图谱…")
@@ -7659,8 +7657,8 @@ def _semantic_measure_supports_dimension(
     allowed_codes: set[str] | None = None,
 ) -> bool:
     dim_codes = _semantic_dim_codes(dim)
-    if allowed_codes and dim_codes & allowed_codes:
-        return True
+    if allowed_codes is not None:
+        return bool(dim_codes & allowed_codes)
     measure_codes = {str(code) for code in (measure.get("dimensionCodes") or []) if code}
     if dim_codes & measure_codes:
         return True
@@ -7711,11 +7709,11 @@ def _da_compatible_dimension_relations(measure_code: str) -> dict[str, dict[str,
     try:
         with _urlopen(url, timeout=4) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
-    except (_uerr.URLError, TimeoutError, json.JSONDecodeError, OSError):
-        return {}
+    except (_uerr.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        raise RuntimeError("DA 业务图谱推理服务不可用") from exc
     rows = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(rows, list):
-        return {}
+        raise RuntimeError("DA 业务图谱推理服务返回了无效数据")
     relations: dict[str, dict[str, Any]] = {}
     for row in rows:
         if not isinstance(row, dict):
@@ -7767,8 +7765,8 @@ def _ad_drill_dimension_candidates(body: dict[str, Any]) -> dict[str, Any]:
             base_dims.append(dim)
 
     da_relations = _da_compatible_dimension_relations(str(measure.get("code") or ""))
-    allowed_codes = set(da_relations.keys()) or None
-    result_source = "da_graph" if da_relations else "business_kg"
+    allowed_codes = set(da_relations.keys())
+    result_source = "da_graph"
 
     supported_base, bad_base = _semantic_measure_supports_dimensions(measure, base_dims, allowed_codes)
     if not supported_base:

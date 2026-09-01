@@ -247,11 +247,15 @@ Ad-Hoc、Dashboard 和默认 demo。按需追加：
 ```bash
 cd apps/ad
 source venv/bin/activate
-pip install -r requirements-analysis.txt   # 统计分析、完整 6-Part Insight、聚类/PCA、embedding 关系发现
+pip install -r requirements-analysis.txt   # 统计分析、完整 6-Part Insight、聚类/PCA
 pip install -r requirements-db-extra.txt   # SQL Server / Oracle / MySQL 兼容协议
 pip install -r requirements-dev.txt        # pytest 等开发测试工具
 pip install -r requirements-full.txt       # 全量依赖
 ```
+
+默认安装不包含 `sentence-transformers`、`transformers` 或 `torch`，也不会下载本地
+embedding 模型。AI 语义关系发现为可选功能，仅在用户主动开启时调用
+已配置的 OpenAI-compatible 大模型；未配置时会安全跳过。
 
 ### 跨平台启动（Linux / Windows）
 

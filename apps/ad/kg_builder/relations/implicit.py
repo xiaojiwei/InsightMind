@@ -1,15 +1,21 @@
-"""Implicit relationship discovery via Sentence-Transformers semantic similarity."""
+"""Implicit relationship discovery with optional configured-LLM semantics."""
 from __future__ import annotations
 
+import json
 import logging
+import math
 import re
 from collections import defaultdict
-from typing import Dict, List, Set, Tuple
-
-import numpy as np
+from typing import Callable, Dict, List, Protocol, Set, Tuple
 
 from kg_builder.entities.models import ColumnEntity, EntityGraph
 from kg_builder.relations.explicit import Relation
+from kg_builder.utils.llm_config import (
+    chat_completions_url,
+    llm_config_from_env,
+    llm_request_headers,
+    validate_llm_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,38 +30,191 @@ _ID_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
-# Max column count before semantic embedding is skipped (O(n²) memory)
-_SEMANTIC_MAX_COLUMNS = 500
+# Keep opt-in LLM discovery bounded. Deterministic rules still run above this limit.
+_LLM_MAX_COLUMNS = 200
+
+
+class SemanticRelationDiscoverer(Protocol):
+    def discover(
+        self,
+        columns: List[ColumnEntity],
+        *,
+        similarity_threshold: float,
+    ) -> List[Relation]: ...
+
+
+class LLMImplicitRelationDiscoverer:
+    """Find semantic column equivalence through the configured chat model."""
+
+    def __init__(
+        self,
+        *,
+        completion: Callable[[str], str] | None = None,
+        config_loader: Callable[[], dict[str, str]] = llm_config_from_env,
+    ) -> None:
+        self._completion = completion
+        self._config_loader = config_loader
+
+    @staticmethod
+    def _prompt(columns: List[ColumnEntity]) -> str:
+        catalog = [
+            {
+                "id": column.id,
+                "tableId": column.table_id,
+                "name": column.name,
+                "normalizedName": column.normalized_name,
+                "comment": column.comment or "",
+                "dataType": column.data_type,
+            }
+            for column in columns
+        ]
+        return (
+            "你是数据建模专家。请识别下列不同数据表中业务含义相同或高度相似的字段。\n"
+            "只返回 JSON，不要返回 Markdown。格式："
+            '{"relations":[{"source":"字段ID","target":"字段ID",'
+            '"confidence":0.0,"reason":"简短理由"}]}。\n'
+            "要求：只使用输入中的字段 ID；忽略同表字段；没有可靠关系时返回空数组；"
+            "confidence 必须在 0 到 1 之间。\n"
+            f"字段目录：{json.dumps(catalog, ensure_ascii=False, separators=(',', ':'))}"
+        )
+
+    @staticmethod
+    def _configured_completion(prompt: str, cfg: dict[str, str]) -> str:
+        import httpx
+
+        response = httpx.post(
+            chat_completions_url(cfg["base_url"]),
+            headers=llm_request_headers(cfg),
+            json={
+                "model": cfg["model"],
+                "temperature": 0.1,
+                "max_tokens": 4096,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "你只输出严格 JSON，并遵守用户给出的字段范围。",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+            },
+            timeout=120,
+        )
+        response.raise_for_status()
+        data = response.json()
+        message = (data.get("choices") or [{}])[0].get("message") or {}
+        content = (message.get("content") or "").strip()
+        if not content:
+            raise RuntimeError("configured LLM returned empty content")
+        return content
+
+    @staticmethod
+    def _json_object(raw: str) -> dict:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start < 0 or end < start:
+            raise ValueError("configured LLM did not return a JSON object")
+        payload = json.loads(raw[start:end + 1])
+        if not isinstance(payload, dict):
+            raise ValueError("configured LLM response must be a JSON object")
+        return payload
+
+    def discover(
+        self,
+        columns: List[ColumnEntity],
+        *,
+        similarity_threshold: float,
+    ) -> List[Relation]:
+        if len(columns) < 2:
+            return []
+        if len(columns) > _LLM_MAX_COLUMNS:
+            logger.warning(
+                "跳过大模型语义关系发现：%d 个字段超过单次分析上限 %d；规则关系仍会继续。",
+                len(columns),
+                _LLM_MAX_COLUMNS,
+            )
+            return []
+
+        try:
+            prompt = self._prompt(columns)
+            if self._completion is not None:
+                raw = self._completion(prompt)
+            else:
+                cfg = self._config_loader()
+                validate_llm_config(cfg, purpose="LLM semantic relation discovery")
+                raw = self._configured_completion(prompt, cfg)
+            payload = self._json_object(raw)
+        except Exception as exc:
+            logger.warning("大模型语义关系发现不可用，已跳过且继续规则建图：%s", exc)
+            return []
+
+        by_id = {column.id: column for column in columns}
+        relations: List[Relation] = []
+        candidates = payload.get("relations")
+        if not isinstance(candidates, list):
+            return []
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            source = by_id.get(str(candidate.get("source") or ""))
+            target = by_id.get(str(candidate.get("target") or ""))
+            if source is None or target is None or source.id == target.id:
+                continue
+            if source.table_id == target.table_id:
+                continue
+            try:
+                confidence = float(candidate.get("confidence"))
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+                continue
+            if confidence < similarity_threshold:
+                continue
+            reason = str(candidate.get("reason") or "").strip()
+            properties = {"source": "llm", "reason": reason}
+            relations.extend([
+                Relation(
+                    subject_id=source.id,
+                    predicate=REL_SIMILAR_TO,
+                    object_id=target.id,
+                    confidence=confidence,
+                    properties=properties,
+                ),
+                Relation(
+                    subject_id=target.id,
+                    predicate=REL_SIMILAR_TO,
+                    object_id=source.id,
+                    confidence=confidence,
+                    properties=properties,
+                ),
+            ])
+        return relations
 
 
 class ImplicitRelationExtractor:
     """
     Discover implicit relationships between columns using:
-      1. Sentence-Transformers semantic similarity on column names/comments
+      1. Optional configured-LLM semantic analysis on column names/comments
       2. Naming pattern matching (*_id, *_no, *_code) — directional (non-PK → PK)
       3. Data-type + statistical profile similarity, gated on detected_patterns
     """
 
     def __init__(
         self,
-        model_name: str = "paraphrase-multilingual-MiniLM-L12-v2",
         similarity_threshold: float = 0.85,
         co_occurs_threshold: float = 0.70,
+        enable_llm_semantics: bool = True,
+        semantic_discoverer: SemanticRelationDiscoverer | None = None,
     ) -> None:
-        self.model_name = model_name
-        self.similarity_threshold = similarity_threshold
+        try:
+            normalized_threshold = float(similarity_threshold)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("similarity_threshold must be between 0 and 1") from exc
+        if not math.isfinite(normalized_threshold) or not 0.0 <= normalized_threshold <= 1.0:
+            raise ValueError("similarity_threshold must be between 0 and 1")
+        self.similarity_threshold = normalized_threshold
         self.co_occurs_threshold = co_occurs_threshold
-        self._model = None   # lazy load
-
-    def _load_model(self):
-        if self._model is None:
-            import os
-            # HuggingFace tokenizers uses Rust-based parallelism that conflicts
-            # with Python's multiprocessing on macOS, causing BrokenPipeError.
-            os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-            from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(self.model_name)
-        return self._model
+        self.enable_llm_semantics = enable_llm_semantics
+        self.semantic_discoverer = semantic_discoverer or LLMImplicitRelationDiscoverer()
 
     # ------------------------------------------------------------------ #
 
@@ -66,8 +225,12 @@ class ImplicitRelationExtractor:
 
         relations: List[Relation] = []
 
-        # 1. Semantic similarity via embeddings
-        relations.extend(self._semantic_similarity(columns))
+        # 1. Semantic similarity via the configured LLM (safe optional path)
+        if self.enable_llm_semantics:
+            relations.extend(self.semantic_discoverer.discover(
+                columns,
+                similarity_threshold=self.similarity_threshold,
+            ))
 
         # 2. Naming pattern matching (directional)
         pattern_rels = self._pattern_matching(columns)
@@ -78,57 +241,6 @@ class ImplicitRelationExtractor:
 
         # Deduplicate — keep highest confidence for each (subj, pred, obj) triple
         return self._deduplicate(relations)
-
-    # ------------------------------------------------------------------ #
-    # Strategy 1: Sentence-Transformer embedding similarity
-    # ------------------------------------------------------------------ #
-
-    def _semantic_similarity(self, columns: List[ColumnEntity]) -> List[Relation]:
-        if len(columns) > _SEMANTIC_MAX_COLUMNS:
-            logger.warning(
-                "Skipping semantic similarity: %d columns exceeds limit %d.",
-                len(columns), _SEMANTIC_MAX_COLUMNS,
-            )
-            return []
-
-        model = self._load_model()
-
-        # Build text representation: "column_name: comment" or just name
-        texts = []
-        for col in columns:
-            text = col.normalized_name.replace("_", " ")
-            if col.comment:
-                text += f": {col.comment}"
-            texts.append(text)
-
-        # Compute embeddings (batch)
-        embeddings = model.encode(texts, normalize_embeddings=True)
-
-        # Cosine similarity matrix (normalised → dot product)
-        sim_matrix = np.dot(embeddings, embeddings.T)
-
-        relations: List[Relation] = []
-        n = len(columns)
-        for i in range(n):
-            for j in range(i + 1, n):
-                score = float(sim_matrix[i, j])
-                if score >= self.similarity_threshold:
-                    # Skip if same table (CONTAINS already covers that)
-                    if columns[i].table_id != columns[j].table_id:
-                        relations.append(Relation(
-                            subject_id=columns[i].id,
-                            predicate=REL_SIMILAR_TO,
-                            object_id=columns[j].id,
-                            confidence=round(score, 4),
-                        ))
-                        # similarTo is symmetric — add reverse direction
-                        relations.append(Relation(
-                            subject_id=columns[j].id,
-                            predicate=REL_SIMILAR_TO,
-                            object_id=columns[i].id,
-                            confidence=round(score, 4),
-                        ))
-        return relations
 
     # ------------------------------------------------------------------ #
     # Strategy 2: Naming pattern matching — directional potentialFK

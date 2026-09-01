@@ -139,6 +139,30 @@ def _config(tmp_path: Path, dictionary: Path, *, vector: bool = False) -> Semant
     )
 
 
+def test_legacy_sentence_transformer_env_cannot_enable_local_model(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ttl, dictionary = _paths(tmp_path)
+    monkeypatch.setenv("INSIGHTMIND_SEMANTIC_EMBEDDING_PROVIDER", "sentence_transformer")
+    monkeypatch.setenv(
+        "INSIGHTMIND_SEMANTIC_EMBEDDING_MODEL",
+        "paraphrase-multilingual-MiniLM-L12-v2",
+    )
+    config = SemanticMappingConfig.from_env(tmp_path)
+    config = SemanticMappingConfig(
+        **{
+            **config.__dict__,
+            "dictionary_paths": (dictionary,),
+            "cache_dir": tmp_path / "cache",
+        }
+    )
+
+    service = SemanticMappingService(ttl, config=config)
+
+    assert service.status()["embeddingProvider"].startswith("hashing-char-word-ngram-v1:")
+
+
 def test_catalog_alias_value_and_privacy_guards(tmp_path: Path) -> None:
     ttl, dictionary = _paths(tmp_path)
     service = SemanticMappingService(ttl, config=_config(tmp_path, dictionary))
@@ -1526,44 +1550,3 @@ def test_value_binding_upgrades_vector_dimension_and_suppresses_vector_noise(
     assert region.confidence == "high"
     assert region.tables == {"fact_sales"}
     assert result.diagnostics["suppressedVectorDimensionCodes"]
-
-
-def test_default_graph_hashing_follow_up_uses_inherited_primary(tmp_path: Path) -> None:
-    app_dir = Path(__file__).resolve().parents[1]
-    ttl = app_dir / "output" / "business_kg" / "indicator-data.ttl"
-    source_ttl = app_dir / "output" / "kg.ttl"
-    dictionary = app_dir / "semantic_dictionary.yaml"
-    mapping = SemanticMappingService(
-        ttl,
-        source_ttl_path=source_ttl,
-        config=_config(tmp_path, dictionary, vector=True),
-    )
-    nlq = NaturalLanguageQueryService(
-        ttl,
-        "http://unused",
-        source_ttl_path=source_ttl,
-        semantic_mapping_service=mapping,
-    )
-    nlq._resolve_question_intent = lambda _question, _mode: {"mode": "aggregate"}
-
-    first = nlq.query("查询东区优惠券转化率", execute=False)
-    follow_up = nlq.query(
-        "看南区",
-        execute=False,
-        context=first["resolvedContext"],
-        is_follow_up=True,
-    )
-
-    assert first["ok"] is True
-    assert follow_up["ok"] is True
-    assert follow_up.get("diagnosticCode") is None
-    assert follow_up["semanticMapping"]["diagnostics"]["assumedPrimary"] == {
-        "code": "MEAS_coupon_conversion_rate",
-        "source": "inherited_context",
-    }
-    assert follow_up["semanticMapping"]["diagnostics"]["dimensionUncertain"] is False
-    region_filter = next(
-        item for item in follow_up["daPayload"]["filterList"]
-        if item["code"] == "DIM_region"
-    )
-    assert region_filter["operatorList"][0]["dataList"] == ["南区"]

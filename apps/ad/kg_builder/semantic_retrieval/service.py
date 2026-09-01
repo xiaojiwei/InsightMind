@@ -18,7 +18,6 @@ from .embedding import (
     EmbeddingProvider,
     HashingNgramEmbeddingProvider,
     SemanticVectorIndex,
-    SentenceTransformerEmbeddingProvider,
 )
 from .feedback_adapter import load_enabled_dictionary_entries
 from .mapper import SemanticMapper
@@ -38,8 +37,6 @@ def _env_bool(name: str, default: bool) -> bool:
 class SemanticMappingConfig:
     dictionary_paths: tuple[Path, ...]
     vector_enabled: bool = True
-    embedding_provider: str = "hashing"
-    embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
     hashing_dimensions: int = 1024
     fuzzy_threshold: float = 0.72
     vector_threshold: float = 0.45
@@ -58,20 +55,13 @@ class SemanticMappingConfig:
             if configured_dictionary
             else (app_path / "semantic_dictionary.yaml", app_path / "synonyms.yaml")
         )
-        provider = os.getenv("INSIGHTMIND_SEMANTIC_EMBEDDING_PROVIDER", "hashing").strip().lower()
-        default_vector_threshold = "0.15" if provider == "hashing" else "0.45"
         return cls(
             dictionary_paths=tuple(paths),
             vector_enabled=_env_bool("INSIGHTMIND_SEMANTIC_VECTOR_ENABLED", True),
-            embedding_provider=provider,
-            embedding_model=os.getenv(
-                "INSIGHTMIND_SEMANTIC_EMBEDDING_MODEL",
-                "paraphrase-multilingual-MiniLM-L12-v2",
-            ).strip(),
             hashing_dimensions=max(128, int(os.getenv("INSIGHTMIND_SEMANTIC_HASH_DIMENSIONS", "1024"))),
             fuzzy_threshold=float(os.getenv("INSIGHTMIND_SEMANTIC_FUZZY_THRESHOLD", "0.72")),
             vector_threshold=float(os.getenv(
-                "INSIGHTMIND_SEMANTIC_VECTOR_THRESHOLD", default_vector_threshold
+                "INSIGHTMIND_SEMANTIC_VECTOR_THRESHOLD", "0.15"
             )),
             max_values_per_dimension=max(
                 1, int(os.getenv("INSIGHTMIND_SEMANTIC_MAX_VALUES_PER_DIMENSION", "200"))
@@ -98,8 +88,6 @@ class SemanticMappingConfig:
         return stable_hash({
             "dictionaryPaths": [str(path.resolve()) for path in self.dictionary_paths],
             "vectorEnabled": self.vector_enabled,
-            "embeddingProvider": self.embedding_provider,
-            "embeddingModel": self.embedding_model,
             "hashingDimensions": self.hashing_dimensions,
             "fuzzyThreshold": self.fuzzy_threshold,
             "vectorThreshold": self.vector_threshold,
@@ -163,8 +151,6 @@ class SemanticMappingService:
     def _embedding_provider(self) -> EmbeddingProvider:
         if self._provided_embedding_provider is not None:
             return self._provided_embedding_provider
-        if self.config.embedding_provider in {"sentence_transformer", "sentence-transformer", "st"}:
-            return SentenceTransformerEmbeddingProvider(self.config.embedding_model)
         return HashingNgramEmbeddingProvider(self.config.hashing_dimensions)
 
     def refresh(self, *, force: bool = False) -> CatalogSnapshot:
