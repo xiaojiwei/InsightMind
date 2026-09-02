@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -66,10 +65,8 @@ public class Portal extends BaseEntityV2 implements Serializable {
      */
     private String code;
 
-    @ApiModelProperty(value = "群发送消息")
     private String msg;
 
-    @ApiModelProperty(value = "客服助手开启")
     private int open = 0;
 
 

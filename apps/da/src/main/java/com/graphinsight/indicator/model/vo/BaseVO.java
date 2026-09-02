@@ -1,6 +1,5 @@
 package com.graphinsight.indicator.model.vo;
 
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import java.util.Date;

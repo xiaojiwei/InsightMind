@@ -1,0 +1,41 @@
+{
+  "id": "hr_panorama_region_mix",
+  "name": "区域人员分布",
+  "summary": "按区域比较在册人员规模。",
+  "query": {
+    "measures": [
+      "ad.workforce_headcount"
+    ],
+    "dimensions": [
+      "ad.region"
+    ],
+    "filters": [],
+    "order": {
+      "ad.workforce_headcount": "desc"
+    },
+    "limit": 20
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "bar",
+    "encoding": {
+      "x": "ad.region",
+      "y": "ad.workforce_headcount"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": false,
+    "anomalyFocusMode": false
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.region",
+      "ad.country",
+      "ad.city",
+      "ad.department"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

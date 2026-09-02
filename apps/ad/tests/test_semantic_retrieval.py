@@ -1143,6 +1143,9 @@ def test_unexplained_span_ignores_analysis_time_and_mapped_entities(tmp_path: Pa
         "按大区查看成交额",
         "查询东区和华南成交额",
         "查询成交额同比环比趋势",
+        "查看成交额整体情况",
+        "解释成交额有哪些可分析维度",
+        "解释成交额的口径",
         "please analyze business gmv trend",
     ):
         result = service.map(question, include_vector=False)

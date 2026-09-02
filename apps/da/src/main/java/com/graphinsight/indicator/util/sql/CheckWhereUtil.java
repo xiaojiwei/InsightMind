@@ -5,7 +5,6 @@ import com.graphinsight.indicator.model.dto.BuildSqlParam;
 import com.graphinsight.indicator.model.dto.ColumnItemExp;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.engine.jdbc.internal.FormatStyle;
-import org.junit.Assert;
 import org.springframework.util.StringUtils;
 
 import java.util.List;

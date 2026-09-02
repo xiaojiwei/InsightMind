@@ -12,7 +12,6 @@ import com.graphinsight.indicator.model.vo.CategoryCreateVO;
 import com.graphinsight.indicator.model.vo.CategoryQueryVO;
 import com.graphinsight.indicator.model.vo.CategorySeqUpdateVO;
 import com.graphinsight.indicator.model.vo.CategoryTree;
-import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.CollectionUtils;
@@ -120,7 +119,6 @@ public class CategoryController {
         return Response.ok(i);
     }
 
-    @ApiOperation("获取分类信息")
     @PostMapping("/tree")
     public Response<List<CategoryTree>> listCategory(@RequestBody CategoryQueryVO categoryQueryVO){
         List<CategoryTree> result = categoryManager.getTree(categoryQueryVO);

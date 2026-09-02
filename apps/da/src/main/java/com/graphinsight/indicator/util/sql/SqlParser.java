@@ -1,10 +1,10 @@
 package com.graphinsight.indicator.util.sql;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.druid.sql.SQLUtils;
 import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlSchemaStatVisitor;
 import com.alibaba.druid.util.JdbcConstants;
-import org.mortbay.util.ajax.JSON;
 
 import java.util.List;
 import java.util.regex.Matcher;
@@ -205,10 +205,10 @@ public class SqlParser {
 
             // 表名
             System.out.println("表名");
-            System.out.println(JSON.toString(mySqlSchemaStatVisitor.getTables()));
+            System.out.println(JSON.toJSONString(mySqlSchemaStatVisitor.getTables()));
             // 列名
             System.out.println("列名");
-            System.out.println(JSON.toString(mySqlSchemaStatVisitor.getColumns()));
+            System.out.println(JSON.toJSONString(mySqlSchemaStatVisitor.getColumns()));
         }
 
     }

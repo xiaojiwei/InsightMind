@@ -2122,11 +2122,11 @@
                 <div class="row g-2 mb-2">
                   <div class="col-md-6">
                     <label class="form-label fw-semibold" id="db-label">数据库名</label>
-                    <input type="text" class="form-control form-control-sm" id="db-name" value="da_tms" placeholder="输入数据库名" />
+                    <input type="text" class="form-control form-control-sm" id="db-name" value="HRRDB" placeholder="输入数据库名" />
                   </div>
                   <div class="col-md-6" id="schema-group">
                     <label class="form-label fw-semibold">Schema（可选）</label>
-                    <input type="text" class="form-control form-control-sm" id="db-schema" value="da_tms" placeholder="留空则使用默认" />
+                    <input type="text" class="form-control form-control-sm" id="db-schema" value="HRRDB" placeholder="留空则使用默认" />
                   </div>
                 </div>
                 <div class="row g-2 mb-2">
@@ -2685,7 +2685,7 @@
                   </button>
                 </label>
                 <textarea id="bkg-domain-hint" class="form-control form-control-sm" rows="3"
-                  placeholder="生成时填入业务领域上下文；调整时填入修订意图，如「把销售金额单位改为元」「为活跃用户数补充维度」…">这是一个销售系统，需要分析销售指标，请结合数据源kg图谱，构建业务图谱。</textarea>
+                  placeholder="生成时填入业务领域上下文；调整时填入修订意图，如「补充人员流动指标」「增加部门维度」…">这是一个 HR 人力资源系统。请围绕人员规模、人力成本、组织健康、薪酬带合规和内部流动，基于 HRRDB 真实表与字段构建业务图谱。</textarea>
                 <div class="form-text" id="bkg-mode-hint">填入业务领域上下文，提示 LLM 生成更准确的本体</div>
               </div>
 
@@ -2709,7 +2709,7 @@
 
                 <div class="mb-3">
                   <label class="form-label small fw-semibold">源业务库 / schema</label>
-                  <input id="bkg-source-schema" class="form-control form-control-sm" value="da_tms" placeholder="例如：da_tms">
+                  <input id="bkg-source-schema" class="form-control form-control-sm" value="HRRDB" placeholder="例如：HRRDB">
                   <div class="form-text">多库图谱中只使用该 schema 的表；留空则使用全部 schema</div>
                 </div>
 
@@ -4147,7 +4147,7 @@
   </div>
 </div>
 
-<!-- Call quality report drill chooser -->
+<!-- Shared dashboard metric drill chooser -->
 <div class="modal fade" id="call-report-drill-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -4160,7 +4160,7 @@
         <div class="d-grid gap-2 mb-3">
           <button class="btn btn-outline-primary text-start" onclick="openCallReportDetailFromChooser()">
             <i class="bi bi-list-ul me-1"></i> 明细钻取
-            <div class="small text-muted mt-1">查看当前指标单元格背后的通话质检记录。</div>
+            <div class="small text-muted mt-1">查看当前指标单元格背后的明细记录和业务证据。</div>
           </button>
           <button class="btn btn-outline-info text-start" onclick="openCallReportBusinessExplain()">
             <i class="bi bi-lightbulb me-1"></i> 业务解释
@@ -5711,13 +5711,42 @@ function dynamicDrillStateForContext(context={}) {
   return _adhocState;
 }
 
+function dynamicDrillEntries(pending={}, nextMember='') {
+  const selected = Array.isArray(pending.drillFilters) && pending.drillFilters.length
+    ? pending.drillFilters
+    : (pending.member ? [{
+        member:pending.member,
+        operator:'equals',
+        values:pending.filterValues || [String(pending.value)],
+        label:String(pending.value),
+      }] : []);
+  const seen = new Set();
+  const entries = selected.filter(item => {
+    if (!item?.member || seen.has(item.member)) return false;
+    seen.add(item.member);
+    return true;
+  }).map(item => ({
+    member:item.member,
+    operator:item.operator || 'equals',
+    values:item.values || [],
+    label:item.label || item.value || (item.values || [])[0] || '',
+  }));
+  if (!entries.length) {
+    entries.push({member:null, operator:'equals', values:[], label:'汇总'});
+  }
+  if (nextMember) entries[entries.length - 1].nextMember = nextMember;
+  return entries;
+}
+
 function openDynamicDrillChooser(context) {
   const state = dynamicDrillStateForContext(context);
   const candidates = adhocDynamicDrillCandidates(state, context.member);
   _dynamicDrillPending = {...context, candidates};
   const measure = (state?.query?.measures || [])[0] || '指标';
+  const selectedLabels = (context.drillFilters || [])
+    .map(item => `${adhocMemberLabel(item.member)} = ${item.label || item.value || (item.values || [])[0] || '-'}`);
   document.getElementById('dynamic-drill-context').textContent =
-    `${adhocMemberLabel(measure)} · 行: ${context.member ? `${adhocMemberLabel(context.member)} = ${context.value}` : '全部'} · 列: 全部`;
+    `${adhocMemberLabel(measure)} · ${selectedLabels.length ? selectedLabels.join(' · ') : (context.member ? `${adhocMemberLabel(context.member)} = ${context.value}` : '全部')}`;
   document.getElementById('dynamic-drill-body').innerHTML = candidates.length ? candidates.map(({dim, recommendation}, idx) => {
     const rec = recommendation || adhocBusinessRecommendation(dim, context.member);
     return `<button class="btn btn-sm btn-outline-success text-start w-100" title="${escHtml(rec.reason)}" onclick="applyDynamicDrill(${idx})">
@@ -5755,11 +5784,14 @@ function prepareDynamicDrillActionContext() {
     return null;
   }
   const rows = stored.rows || [];
-  const selectedFilterValues = new Set((pending.filterValues || []).map(value => String(value)));
+  const selectedFilters = Array.isArray(pending.drillFilters) && pending.drillFilters.length
+    ? pending.drillFilters
+    : (pending.member ? [{member:pending.member, values:pending.filterValues || [pending.value]}] : []);
   const row = rows.find(item => {
-    if (!pending.member) return true;
-    const raw = item?.__filterValues?.[pending.member] ?? item?.[pending.member];
-    return selectedFilterValues.has(String(raw));
+    return selectedFilters.every(filter => {
+      const raw = item?.__filterValues?.[filter.member] ?? item?.[filter.member];
+      return (filter.values || []).map(String).includes(String(raw));
+    });
   }) || rows[0] || {};
   const measureMeta = dashboardFindMeasure(measureMember) || adhocFindMeasure(measureMember);
   const measureCode = measureMeta?.code || measureMember;
@@ -5822,13 +5854,7 @@ function applyDynamicDrill(index) {
   const pending = _dynamicDrillPending;
   if (!pending || !pending.candidates || !pending.candidates[index]) return;
   const nextMember = pending.candidates[index].dim.name;
-  const entry = {
-    member: pending.member,
-    operator: 'equals',
-    values: pending.member ? (pending.filterValues || [String(pending.value)]) : [],
-    label: pending.member ? String(pending.value) : '汇总',
-    nextMember,
-  };
+  const entries = dynamicDrillEntries(pending, nextMember);
   if (pending.kind === 'dashboard') {
     const widget = (_dashboardState.widgets || []).find(w => w.id === pending.widgetId);
     if (!widget) return;
@@ -5836,7 +5862,7 @@ function applyDynamicDrill(index) {
     widget.spec.drill = widget.spec.drill || {mode:'dynamic', path:[], stack:[]};
     widget.spec.drill.mode = 'dynamic';
     widget.spec.drill.stack = widget.spec.drill.stack || [];
-    widget.spec.drill.stack.push(entry);
+    widget.spec.drill.stack.push(...entries);
     dashboardPersistDraft();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('dynamic-drill-modal')).hide();
     dashboardRenderWidget(pending.widgetId);
@@ -5846,7 +5872,7 @@ function applyDynamicDrill(index) {
     context.spec.drill = context.spec.drill || {mode:'dynamic', path:[], stack:[]};
     context.spec.drill.mode = 'dynamic';
     context.spec.drill.stack = context.spec.drill.stack || [];
-    context.spec.drill.stack.push(entry);
+    context.spec.drill.stack.push(...entries);
     context.resumeOnChooserClose = false;
     const chooser = document.getElementById('dynamic-drill-modal');
     chooser?.addEventListener('hidden.bs.modal', () => {
@@ -5858,7 +5884,7 @@ function applyDynamicDrill(index) {
     _adhocState.drill = _adhocState.drill || {mode:'dynamic', path:[], stack:[]};
     _adhocState.drill.mode = 'dynamic';
     _adhocState.drill.stack = _adhocState.drill.stack || [];
-    _adhocState.drill.stack.push(entry);
+    _adhocState.drill.stack.push(...entries);
     bootstrap.Modal.getOrCreateInstance(document.getElementById('dynamic-drill-modal')).hide();
     renderAdhocConfig();
     runAdhocQuery();
@@ -8054,7 +8080,19 @@ function execReportBarRows(rows, labelKey, valueKey, options={}) {
     const value = execReportValue(row, valueKey);
     const pct = Math.max(4, Math.min(100, Math.abs(value) / max * 100));
     const alt = options.altEveryOther && idx % 2 === 1 ? ' alt' : '';
-    return `<div class="exec-report-bar-row">
+    const label = row[labelKey] ?? '-';
+    const drillFilters = options.drillable
+      ? callReportMergedFilters(options.filters || [], [callReportDimensionFilter(labelKey, label)])
+      : [];
+    const drillAttrs = options.drillable ? callReportDrillAttrs(valueKey, drillFilters, {
+      metricLabel:adhocMemberLabel(valueKey),
+      rowLabel:String(label),
+      columnLabel:'全部',
+      currentMember:labelKey,
+      contextMembers:[labelKey],
+      ...(options.context || {}),
+    }) : '';
+    return `<div class="exec-report-bar-row${options.drillable ? ' call-report-drillable' : ''}" ${drillAttrs}>
       <div class="exec-report-bar-label" title="${escHtml(row[labelKey] ?? '')}">${escHtml(row[labelKey] ?? '-')}</div>
       <div class="exec-report-track"><div class="exec-report-fill${alt}" style="width:${pct.toFixed(1)}%"></div></div>
       <div class="exec-report-bar-value">${escHtml(options.wan ? execReportWan(value) : execReportNumber(value))}</div>
@@ -8062,7 +8100,7 @@ function execReportBarRows(rows, labelKey, valueKey, options={}) {
   }).join('');
 }
 
-function execReportHeatmapHtml(rows, monthKey, itemKey, valueKey, productOrder=[]) {
+function execReportHeatmapHtml(rows, monthKey, itemKey, valueKey, productOrder=[], options={}) {
   const months = Array.from(new Set(rows.map(row => row[monthKey]).filter(Boolean))).sort().slice(-8);
   const productTotals = new Map();
   rows.forEach(row => {
@@ -8089,7 +8127,19 @@ function execReportHeatmapHtml(rows, monthKey, itemKey, valueKey, productOrder=[
       const bg = isLow
         ? `rgba(217,109,103,${Math.max(.13, Math.min(.34, .12 + (1 - ratio) * .28)).toFixed(2)})`
         : `rgba(20,128,111,${Math.max(.08, Math.min(.42, .08 + ratio * .36)).toFixed(2)})`;
-      return `<td style="background:${bg}" title="${escHtml(periodLabel)} ${escHtml(month)}，${escHtml(groupLabel)} ${escHtml(product)}，${escHtml(adhocMemberLabel(valueKey))} ${escHtml(execReportNumber(value))}">${escHtml(execReportNumber(value))}</td>`;
+      const drillFilters = options.drillable ? callReportMergedFilters(options.filters || [], [
+        callReportDimensionFilter(monthKey, month),
+        callReportDimensionFilter(itemKey, product),
+      ]) : [];
+      const drillAttrs = options.drillable ? callReportDrillAttrs(valueKey, drillFilters, {
+        metricLabel:adhocMemberLabel(valueKey),
+        rowLabel:String(month),
+        columnLabel:String(product),
+        currentMember:itemKey,
+        contextMembers:[monthKey, itemKey],
+        ...(options.context || {}),
+      }) : '';
+      return `<td class="${options.drillable ? 'call-report-drillable' : ''}" ${drillAttrs} style="background:${bg}" title="${escHtml(periodLabel)} ${escHtml(month)}，${escHtml(groupLabel)} ${escHtml(product)}，${escHtml(adhocMemberLabel(valueKey))} ${escHtml(execReportNumber(value))}">${escHtml(execReportNumber(value))}</td>`;
     }).join('');
     return `<tr><td>${escHtml(month)}</td>${cells}</tr>`;
   }).join('');
@@ -8564,7 +8614,7 @@ async function openCallReportDrillChooser(measure, filtersPayload='[]', contextP
 function callReportDrillAttrs(measure, filters, context={}) {
   const filterPayload = encodeURIComponent(JSON.stringify(filters || []));
   const contextPayload = encodeURIComponent(JSON.stringify(context || {}));
-  return `role="button" tabindex="0" title="选择下钻方式" onclick="openCallReportDrillChooser('${_escJs(measure || 'ad.quality_record_count')}', '${filterPayload}', '${contextPayload}')"`;
+  return `role="button" tabindex="0" title="选择下钻方式" onclick="openCallReportDrillChooser('${_escJs(measure || 'ad.quality_record_count')}', '${_escJs(filterPayload)}', '${_escJs(contextPayload)}')"`;
 }
 
 function callSopWorkbenchDrillUrl(drill={}, filters=[]) {
@@ -8648,15 +8698,16 @@ function openCallReportBusinessExplain() {
   const contextEl = document.getElementById('cell-insight-context');
   if (contextEl) contextEl.textContent = callReportContextText(ctx);
   const metricLabel = ctx.metricLabel || callReportMemberLabel(ctx.measure || 'ad.quality_record_count');
+  const explainCopy = callReportBusinessExplainCopy({...ctx, metricLabel});
   const filterText = [callReportFilterSummary(ctx.filters || []), ctx.conditionLabel || ''].filter(Boolean).join('；') || '无额外筛选';
   const formula = callReportMetricFormulaMeta(ctx);
   const candidates = ctx.candidates || callReportDrillCandidates(ctx);
   if (body) {
     body.innerHTML = `
       <div class="cell-insight-card cell-insight-summary mb-3">
-        <div class="cell-insight-card-title"><i class="bi bi-lightbulb me-1"></i>电话质检业务解释</div>
+        <div class="cell-insight-card-title"><i class="bi bi-lightbulb me-1"></i>${escHtml(explainCopy.title)}</div>
         <div style="font-size:13px;line-height:1.7">
-          当前单元格用于观察${escHtml(metricLabel)}，已继承看板日期、门店以及当前点击点位的筛选条件。建议优先做维度下钻，先定位问题集中在哪类销售专家、客户意图或问题分类，再决定是否查看通话明细。
+          ${escHtml(explainCopy.description)}
         </div>
       </div>
       <div class="cell-insight-card mb-3">
@@ -8684,6 +8735,14 @@ function openCallReportBusinessExplain() {
       </div>`;
   }
   bootstrap.Offcanvas.getOrCreateInstance(drawerEl).show();
+}
+
+function callReportBusinessExplainCopy(ctx={}) {
+  const metricLabel = ctx.metricLabel || ctx.measure || '当前指标';
+  return {
+    title:'业务指标解释',
+    description:`当前单元格用于观察${metricLabel}，已继承看板公共筛选和当前点击点位。建议优先按推荐维度定位差异，再查看明细记录和业务证据。`,
+  };
 }
 
 function callReportMeasureCompatibleWithDimension(measureMember, dimensionMember) {
@@ -11900,11 +11959,219 @@ async function renderCallQualityReportWidget(targetId, spec={}, widget={}) {
   }
 }
 
+function hrTalentPulseDrillContext(measure, context={}) {
+  return {
+    metricLabel:adhocMemberLabel(measure),
+    rowLabel:'全部',
+    columnLabel:'全部',
+    ...context,
+  };
+}
+
+function hrTalentPulseMetricCardHtml(className, label, displayValue, note, measure, filters=[], context={}) {
+  return `<div class="pulse-kpi ${escHtml(className)} call-report-drillable" ${callReportDrillAttrs(measure, filters, hrTalentPulseDrillContext(measure, context))}>
+    <span>${escHtml(label)}</span><strong>${escHtml(displayValue)}</strong><em>${escHtml(note)}</em>
+  </div>`;
+}
+
+function hrTalentPulseSummaryItemHtml(tone, displayValue, label, measure, filters=[], context={}) {
+  return `<div class="pulse-summary-item call-report-drillable" ${callReportDrillAttrs(measure, filters, hrTalentPulseDrillContext(measure, context))}>
+    <i class="pulse-summary-dot ${escHtml(tone)}"></i><div><b>${escHtml(displayValue)}</b><span>${escHtml(label)}</span></div>
+  </div>`;
+}
+
+function hrTalentPulseSummaryMetricHtml(kind, displayValue, filters=[], context={}) {
+  const definitions = {
+    staffedDepartments:{tone:'coral', label:'有人员部门', measure:'ad.staffed_department_count'},
+    unassignedEmployees:{tone:'amber', label:'未归属部门', measure:'ad.workforce_headcount'},
+    mobilityEvents:{tone:'blue', label:'历史流动事件', measure:'ad.mobility_event_count'},
+  };
+  const definition = definitions[kind];
+  if (!definition) return '';
+  return hrTalentPulseSummaryItemHtml(
+    definition.tone,
+    displayValue,
+    definition.label,
+    definition.measure,
+    filters,
+    {...context},
+  );
+}
+
+function hrTalentPulseMetricCellHtml(measure, displayValue, filters=[], context={}) {
+  return `<td class="call-report-drillable hr-pulse-metric-cell" ${callReportDrillAttrs(measure, filters, hrTalentPulseDrillContext(measure, context))}>${escHtml(displayValue)}</td>`;
+}
+
+function hrTalentPulsePercent(value, digits=1) {
+  const n = Number(value || 0);
+  const percent = Math.abs(n) <= 1 ? n * 100 : n;
+  return `${percent.toLocaleString('zh-CN', {minimumFractionDigits:digits, maximumFractionDigits:digits})}%`;
+}
+
+function hrTalentPulseBarHtml(rows=[], labelKey='', valueKey='', limit=8, filters=[]) {
+  const ranked = [...rows]
+    .filter(row => execReportHasGroupValue(row, labelKey))
+    .sort((a, b) => execReportValue(b, valueKey) - execReportValue(a, valueKey))
+    .slice(0, limit);
+  return ranked.length
+    ? execReportBarRows(ranked, labelKey, valueKey, {altEveryOther:true, drillable:true, filters})
+    : '<div class="text-muted p-3">当前筛选范围暂无可展示数据。</div>';
+}
+
+function hrTalentPulseDepartmentTable(rows=[], filters=[]) {
+  const ranked = [...rows].sort((a, b) => execReportValue(b, 'ad.workforce_headcount') - execReportValue(a, 'ad.workforce_headcount'));
+  if (!ranked.length) return '<div class="text-muted p-3">暂无部门明细。</div>';
+  return `<div class="call-report-compare-wrap"><table class="call-report-compare-table"><thead><tr><th>部门</th><th>人数</th><th>经理覆盖</th><th>月度薪酬</th><th>平均薪酬</th></tr></thead><tbody>${ranked.map(row => {
+    const department = row['ad.department'] || '未归属部门';
+    const total = execReportValue(row, 'ad.workforce_headcount');
+    const managed = execReportValue(row, 'ad.managed_employee_headcount');
+    const coverage = total ? managed / total : 0;
+    const rowFilters = callReportMergedFilters(filters, [callReportDimensionFilter('ad.department', row['ad.department'])]);
+    const cellContext = columnLabel => ({rowLabel:department, columnLabel, currentMember:'ad.department', contextMembers:['ad.department']});
+    return `<tr><td>${escHtml(department)}</td>
+      ${hrTalentPulseMetricCellHtml('ad.workforce_headcount', execReportNumber(total), rowFilters, cellContext('人数'))}
+      ${hrTalentPulseMetricCellHtml('ad.manager_coverage_rate', hrTalentPulsePercent(coverage), rowFilters, cellContext('经理覆盖'))}
+      ${hrTalentPulseMetricCellHtml('ad.monthly_base_payroll', execReportNumber(execReportValue(row, 'ad.monthly_base_payroll')), rowFilters, cellContext('月度薪酬'))}
+      ${hrTalentPulseMetricCellHtml('ad.average_base_salary', execReportNumber(execReportValue(row, 'ad.average_base_salary')), rowFilters, cellContext('平均薪酬'))}
+    </tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+
+function hrTalentPulseIsUnassignedDepartment(row={}) {
+  if (!execReportHasGroupValue(row, 'ad.department')) return true;
+  const label = String(row['ad.department'] || '').trim().toLowerCase();
+  return ['未分配部门', '未归属部门', 'unassigned', 'unknown'].includes(label);
+}
+
+async function renderHrTalentPulseWidget(targetId, spec={}, widget={}) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  target.innerHTML = '<div class="pulse-board d-flex align-items-center justify-content-center"><span class="spinner-border spinner-border-sm me-2"></span>正在生成 HR 人才活力脉搏...</div>';
+  const allFilters = callReportFilters(spec);
+  const employeeMembers = new Set(['ad.hier_hr_snapshot_date_day','ad.hier_hr_snapshot_date_month','ad.hier_hr_snapshot_date_year','ad.department','ad.job','ad.employee','ad.manager','ad.region','ad.country','ad.city','ad.tenure_band','ad.org_level_band','ad.compa_ratio_band','ad.salary_band_status','ad.manager_status','ad.mobility_history_status']);
+  const departmentMembers = new Set(['ad.hier_hr_snapshot_date_day','ad.hier_hr_snapshot_date_month','ad.hier_hr_snapshot_date_year','ad.department','ad.region','ad.country','ad.city','ad.department_staffing_status','ad.department_size_band','ad.department_manager_status']);
+  const mobilityMembers = new Set(['ad.region','ad.country','ad.city','ad.mobility_type','ad.from_job','ad.to_job','ad.from_department','ad.to_department','ad.hier_hr_event_date_day','ad.hier_hr_event_date_month','ad.hier_hr_event_date_year']);
+  const employeeFilters = allFilters.filter(filter => employeeMembers.has(filter.member));
+  const departmentFilters = allFilters.filter(filter => departmentMembers.has(filter.member));
+  const mobilityFilters = allFilters.filter(filter => mobilityMembers.has(filter.member));
+  const reportTitle = spec.view?.encoding?.reportTitle || '组织效能驾驶舱｜人才活力脉搏';
+  const reportSubtitle = spec.view?.encoding?.reportSubtitle || '组织规模、管理覆盖、薪酬合规与人才流动的经营闭环';
+  try {
+    const [summaryRows, departmentSummaryRows, departmentRows, orgLevelRows, tenureRows, compaRows, mobilityRows, talentMatrixRows, regionRows] = await Promise.all([
+      execReportLoad({
+        measures:['ad.workforce_headcount','ad.monthly_base_payroll','ad.average_base_salary','ad.average_tenure_years','ad.manager_coverage_rate','ad.average_span_of_control','ad.salary_band_compliance_rate','ad.internal_mobility_coverage_rate'],
+        dimensions:['ad.hier_hr_snapshot_date_day'], filters:employeeFilters, limit:10
+      }),
+      execReportLoad({measures:['ad.staffed_department_count'], dimensions:[], filters:departmentFilters, limit:10}),
+      execReportLoad({
+        measures:['ad.workforce_headcount','ad.managed_employee_headcount','ad.monthly_base_payroll','ad.average_base_salary'],
+        dimensions:['ad.department'], filters:employeeFilters, order:{'ad.workforce_headcount':'desc'}, limit:50
+      }),
+      execReportLoad({measures:['ad.workforce_headcount'], dimensions:['ad.org_level_band'], filters:employeeFilters, order:{'ad.workforce_headcount':'desc'}, limit:20}),
+      execReportLoad({measures:['ad.workforce_headcount'], dimensions:['ad.tenure_band'], filters:employeeFilters, order:{'ad.workforce_headcount':'desc'}, limit:20}),
+      execReportLoad({measures:['ad.workforce_headcount'], dimensions:['ad.compa_ratio_band'], filters:employeeFilters, order:{'ad.workforce_headcount':'desc'}, limit:20}),
+      execReportLoad({
+        measures:['ad.mobility_event_count','ad.employees_with_mobility_event','ad.promotion_proxy_event_count'],
+        dimensions:['ad.mobility_type'], filters:mobilityFilters, order:{'ad.mobility_event_count':'desc'}, limit:20
+      }),
+      execReportLoad({measures:['ad.workforce_headcount'], dimensions:['ad.tenure_band','ad.org_level_band'], filters:employeeFilters, order:{'ad.workforce_headcount':'desc'}, limit:200}),
+      execReportLoad({measures:['ad.workforce_headcount'], dimensions:['ad.region'], filters:employeeFilters, order:{'ad.workforce_headcount':'desc'}, limit:20}),
+    ]);
+    const summary = summaryRows[0] || {};
+    const snapshotDate = summary['ad.hier_hr_snapshot_date_day'] || '当前快照';
+    const workforce = execReportValue(summary, 'ad.workforce_headcount');
+    const payroll = execReportValue(summary, 'ad.monthly_base_payroll');
+    const avgSalary = execReportValue(summary, 'ad.average_base_salary');
+    const avgTenure = execReportValue(summary, 'ad.average_tenure_years');
+    const managerCoverage = execReportValue(summary, 'ad.manager_coverage_rate');
+    const span = execReportValue(summary, 'ad.average_span_of_control');
+    const salaryCompliance = execReportValue(summary, 'ad.salary_band_compliance_rate');
+    const mobilityCoverage = execReportValue(summary, 'ad.internal_mobility_coverage_rate');
+    const unassigned = departmentRows.find(row => hrTalentPulseIsUnassignedDepartment(row));
+    const unassignedCount = execReportValue(unassigned, 'ad.workforce_headcount');
+    const unassignedDepartment = unassigned?.['ad.department'];
+    const unassignedFilters = unassignedDepartment
+      ? callReportMergedFilters(employeeFilters, [callReportDimensionFilter('ad.department', unassignedDepartment)])
+      : employeeFilters;
+    const staffedDepartmentCount = execReportValue(departmentSummaryRows[0] || {}, 'ad.staffed_department_count');
+    const totalMobility = mobilityRows.reduce((sum, row) => sum + execReportValue(row, 'ad.mobility_event_count'), 0);
+    const promotionEvents = mobilityRows.reduce((sum, row) => sum + execReportValue(row, 'ad.promotion_proxy_event_count'), 0);
+    const managerState = managerCoverage >= .95 ? ['健康','good'] : managerCoverage >= .85 ? ['关注','warn'] : ['风险','danger'];
+    const salaryState = salaryCompliance >= .95 ? ['合规','good'] : salaryCompliance >= .85 ? ['关注','warn'] : ['风险','danger'];
+    const mobilityState = mobilityCoverage >= .15 ? ['活跃','good'] : mobilityCoverage >= .08 ? ['平稳','warn'] : ['偏低','warn'];
+    const heatmap = execReportHeatmapHtml(
+      talentMatrixRows,
+      'ad.tenure_band',
+      'ad.org_level_band',
+      'ad.workforce_headcount',
+      [],
+      {drillable:true, filters:employeeFilters},
+    );
+    const mobilityTable = mobilityRows.length ? `<div class="call-report-compare-wrap"><table class="call-report-compare-table"><thead><tr><th>流动类型</th><th>事件数</th><th>员工数</th><th>晋升代理事件</th></tr></thead><tbody>${mobilityRows.map(row => {
+      const mobilityType = row['ad.mobility_type'] || '-';
+      const rowFilters = callReportMergedFilters(mobilityFilters, [callReportDimensionFilter('ad.mobility_type', row['ad.mobility_type'])]);
+      const cellContext = columnLabel => ({rowLabel:mobilityType, columnLabel, currentMember:'ad.mobility_type', contextMembers:['ad.mobility_type']});
+      return `<tr><td>${escHtml(mobilityType)}</td>
+        ${hrTalentPulseMetricCellHtml('ad.mobility_event_count', execReportNumber(execReportValue(row,'ad.mobility_event_count')), rowFilters, cellContext('事件数'))}
+        ${hrTalentPulseMetricCellHtml('ad.employees_with_mobility_event', execReportNumber(execReportValue(row,'ad.employees_with_mobility_event')), rowFilters, cellContext('员工数'))}
+        ${hrTalentPulseMetricCellHtml('ad.promotion_proxy_event_count', execReportNumber(execReportValue(row,'ad.promotion_proxy_event_count')), rowFilters, cellContext('晋升代理事件'))}
+      </tr>`;
+    }).join('')}</tbody></table></div>` : '<div class="text-muted p-3">暂无流动事件。</div>';
+    target.innerHTML = `<div class="pulse-board">
+      <div class="pulse-hero"><div><div class="pulse-eyebrow">HRRDB · ORGANIZATION HEALTH</div><h2>${escHtml(reportTitle)}</h2><p>${escHtml(reportSubtitle)}</p></div><div class="pulse-context"><b>${escHtml(snapshotDate)}</b><span>员工画像快照 · 业务图谱实时查询</span></div></div>
+      <div class="pulse-summary-strip">
+        <div class="pulse-summary-label call-report-drillable" ${callReportDrillAttrs('ad.workforce_headcount', employeeFilters, hrTalentPulseDrillContext('ad.workforce_headcount', {metricLabel:'在册人数'}))}><span>组织健康概览</span><b>${escHtml(execReportNumber(workforce))} 名员工</b></div>
+        ${hrTalentPulseSummaryMetricHtml('staffedDepartments', execReportNumber(staffedDepartmentCount), departmentFilters)}
+        ${hrTalentPulseSummaryMetricHtml('unassignedEmployees', execReportNumber(unassignedCount), unassignedFilters, {metricLabel:'未归属部门人数', currentMember:'ad.department', contextMembers:['ad.department']})}
+        ${hrTalentPulseSummaryMetricHtml('mobilityEvents', execReportNumber(totalMobility), mobilityFilters)}
+        <div class="pulse-summary-note">员工口径与部门口径差异单独标识，不混合汇总</div>
+      </div>
+      <div class="pulse-kpis">
+        ${hrTalentPulseMetricCardHtml('accent-blue', '在册人数', execReportNumber(workforce), '员工画像当前快照', 'ad.workforce_headcount', employeeFilters)}
+        ${hrTalentPulseMetricCardHtml('accent-green', '直属经理覆盖率', hrTalentPulsePercent(managerCoverage), '有直属经理 / 在册人数', 'ad.manager_coverage_rate', employeeFilters)}
+        ${hrTalentPulseMetricCardHtml('accent-amber', '平均管理幅度', execReportNumber(span,1), '直属下属 / 管理者', 'ad.average_span_of_control', employeeFilters)}
+        ${hrTalentPulseMetricCardHtml('accent-purple', '平均司龄', `${execReportNumber(avgTenure,1)} 年`, '当前员工平均任职年限', 'ad.average_tenure_years', employeeFilters)}
+        ${hrTalentPulseMetricCardHtml('accent-green', '薪酬带合规率', hrTalentPulsePercent(salaryCompliance), '薪酬位于岗位批准范围', 'ad.salary_band_compliance_rate', employeeFilters)}
+        ${hrTalentPulseMetricCardHtml('accent-red', '内部流动覆盖率', hrTalentPulsePercent(mobilityCoverage), '存在历史任职记录人员占比', 'ad.internal_mobility_coverage_rate', employeeFilters)}
+      </div>
+      <div class="pulse-grid">
+        <section class="pulse-card"><div class="pulse-card-head"><div><span class="pulse-index">01 · PRIORITY</span><h3>组织经营优先事项</h3><p>把结构异常直接翻译为 HR 行动</p></div><span class="pulse-status ${managerState[1]}">管理覆盖${managerState[0]}</span></div><div class="pulse-actions">
+          <div class="pulse-action"><span class="pulse-action-num">1</span><div><b>补齐未归属组织关系</b><p>当前有 ${escHtml(execReportNumber(unassignedCount))} 名员工未归属部门，优先核对组织主数据和成本归集。</p></div><i>→</i></div>
+          <div class="pulse-action"><span class="pulse-action-num">2</span><div><b>保持经理覆盖并检查管理幅度</b><p>直属经理覆盖率 ${escHtml(hrTalentPulsePercent(managerCoverage))}，平均管理幅度 ${escHtml(execReportNumber(span,1))} 人；重点复核极宽或极窄团队。</p></div><i>→</i></div>
+          <div class="pulse-action"><span class="pulse-action-num">3</span><div><b>建立人才流动运营节奏</b><p>流动覆盖率 ${escHtml(hrTalentPulsePercent(mobilityCoverage))}，历史事件 ${escHtml(execReportNumber(totalMobility))} 次，其中晋升代理事件 ${escHtml(execReportNumber(promotionEvents))} 次。</p></div><i>→</i></div>
+        </div></section>
+        <section class="pulse-card"><div class="pulse-card-head"><div><span class="pulse-index">02 · PAY</span><h3>薪酬定位结构</h3><p>按 compa-ratio 区间观察人员分布</p></div><span class="pulse-status ${salaryState[1]}">薪酬${salaryState[0]}</span></div><div class="p-3">${hrTalentPulseBarHtml(compaRows,'ad.compa_ratio_band','ad.workforce_headcount',8,employeeFilters)}<div class="exec-report-hint">月度基本薪酬 ${escHtml(execReportNumber(payroll))}，平均基本薪酬 ${escHtml(execReportNumber(avgSalary))}。</div></div></section>
+      </div>
+      <div class="pulse-grid pulse-grid-bottom">
+        <section class="pulse-card"><div class="pulse-card-head"><div><span class="pulse-index">03 · STRUCTURE</span><h3>部门人员规模</h3><p>识别组织容量与集中度</p></div><span class="pulse-status good">${escHtml(execReportNumber(staffedDepartmentCount))} 个部门</span></div><div class="p-3">${hrTalentPulseBarHtml(departmentRows,'ad.department','ad.workforce_headcount',10,employeeFilters)}</div></section>
+        <section class="pulse-card"><div class="pulse-card-head"><div><span class="pulse-index">04 · MIX</span><h3>组织层级与司龄结构</h3><p>层级分布与稳定性并行观察</p></div><span class="pulse-status ${mobilityState[1]}">流动${mobilityState[0]}</span></div><div class="p-3"><div class="exec-report-card-title">组织层级</div>${hrTalentPulseBarHtml(orgLevelRows,'ad.org_level_band','ad.workforce_headcount',8,employeeFilters)}<div class="exec-report-card-title mt-3">司龄结构</div>${hrTalentPulseBarHtml(tenureRows,'ad.tenure_band','ad.workforce_headcount',8,employeeFilters)}</div></section>
+      </div>
+      <section class="pulse-card mb-3"><div class="pulse-card-head"><div><span class="pulse-index">05 · TALENT MATRIX</span><h3>司龄 × 组织层级人才矩阵</h3><p>颜色越深表示该人才群体人数越多</p></div><span class="pulse-status good">${escHtml(execReportNumber(talentMatrixRows.length))} 个有效组合</span></div><div class="exec-report-heatmap-wrap">${heatmap}</div></section>
+      <div class="pulse-grid">
+        <section class="pulse-card"><div class="pulse-card-head"><div><span class="pulse-index">06 · DEPARTMENT</span><h3>部门组织健康明细</h3><p>人数、管理覆盖与薪酬口径同屏核对</p></div></div>${hrTalentPulseDepartmentTable(departmentRows, employeeFilters)}</section>
+        <section class="pulse-card"><div class="pulse-card-head"><div><span class="pulse-index">07 · MOBILITY</span><h3>内部流动事件结构</h3><p>历史事件用于观察流动机制，不代表当期离职</p></div><span class="pulse-status ${mobilityState[1]}">${escHtml(execReportNumber(totalMobility))} 次</span></div>${mobilityTable}<div class="p-3"><div class="exec-report-card-title">区域人员分布</div>${hrTalentPulseBarHtml(regionRows,'ad.region','ad.workforce_headcount',8,employeeFilters)}</div></section>
+      </div>
+      <div class="pulse-footer"><span>数据源：HRRDB · vw_hr_employee_profile / vw_hr_career_mobility</span><span>指标来源：激活业务图谱 indicator-data.ttl</span></div>
+    </div>`;
+    _dashboardWidgetResults[widget?.id || targetId] = {
+      rows:[summary, ...departmentRows, ...mobilityRows],
+      query:{measures:spec.query?.measures || [], dimensions:spec.query?.dimensions || [], filters:allFilters},
+      name:widget.name || spec.name || reportTitle
+    };
+  } catch(e) {
+    target.innerHTML = `<div class="alert alert-danger m-2">${escHtml(e.message || e)}</div>`;
+  }
+}
+
 async function renderExecutiveReportWidget(targetId, spec={}, widget={}) {
   const target = document.getElementById(targetId);
   if (!target) return;
   ensureAdhocAlertStyles();
   const reportTemplate = (spec.view?.encoding || {}).reportTemplate;
+  if (reportTemplate === 'hr_talent_pulse') {
+    await renderHrTalentPulseWidget(targetId, spec, widget);
+    return;
+  }
   if (reportTemplate === 'call_quality_report') {
     await renderCallQualityReportWidget(targetId, spec, widget);
     return;
@@ -12783,6 +13050,7 @@ function renderAdhocResult(result, query, targetId='adhoc-preview', clickHandler
   }
   let chartType = _adhocState.view.type === 'table' ? 'table' : adhocRecommendChart(query);
   if (chartType === 'kpi' && adhocKpiShouldRenderDrillChart(query)) chartType = adhocRecommendDrillChart(query);
+  if (chartType === 'heatmap' && (query.dimensions || []).length !== 2) chartType = adhocRecommendDrillChart(query);
   if (chartType === 'table') return renderAdhocTable(target, rows, result.alerts, query, clickHandler, targetId);
   if (chartType === 'kpi') return renderAdhocKpi(target, rows, query, result.alerts, targetId, clickHandler);
   const dim = query.dimensions[0];
@@ -12986,6 +13254,29 @@ function adhocHeatmapColor(value, max, avg) {
   return `rgba(20,128,111,${alpha.toFixed(2)})`;
 }
 
+function adhocHeatmapDrillData(rowDim, rowValue, rowFilterValue, colDim, colValue, colFilterValue) {
+  const drillFilters = [
+    {
+      member:rowDim,
+      operator:'equals',
+      values:[String(rowFilterValue ?? rowValue)],
+      label:String(rowValue),
+    },
+    {
+      member:colDim,
+      operator:'equals',
+      values:[String(colFilterValue ?? colValue)],
+      label:String(colValue),
+    },
+  ];
+  return {
+    __member:rowDim,
+    __value:rowValue,
+    __filterValues:drillFilters[0].values,
+    __drillFilters:drillFilters,
+  };
+}
+
 async function renderAdhocHeatmap(target, rows, query, clickHandler=adhocChartClicked, targetId='adhoc-preview', alertSummary=null) {
   const rowDim = query.dimensions?.[0];
   const colDim = query.dimensions?.[1];
@@ -13001,6 +13292,7 @@ async function renderAdhocHeatmap(target, rows, query, clickHandler=adhocChartCl
     const colTotals = new Map();
     const valueMap = new Map();
     const alertMap = new Map();
+    const filterValueMap = new Map();
     matrixRows.forEach(row => {
       const rowKey = row[rowDim];
       const colKey = row[colDim];
@@ -13009,6 +13301,10 @@ async function renderAdhocHeatmap(target, rows, query, clickHandler=adhocChartCl
       const value = execReportValue(row, meas);
       valueMap.set(cellKey, (valueMap.get(cellKey) || 0) + value);
       alertMap.set(cellKey, adhocMergeAlerts([alertMap.get(cellKey) || [], adhocAlertsFor(row, meas)]));
+      filterValueMap.set(cellKey, {
+        row:String(row.__filterValues?.[rowDim] ?? rowKey),
+        col:String(row.__filterValues?.[colDim] ?? colKey),
+      });
       colTotals.set(colKey, (colTotals.get(colKey) || 0) + value);
     });
     const alertCols = Array.from(new Set(matrixRows
@@ -13029,12 +13325,13 @@ async function renderAdhocHeatmap(target, rows, query, clickHandler=adhocChartCl
         const cellKey = `${rowKey}||${colKey}`;
         const value = valueMap.get(cellKey) || 0;
         const alerts = alertMap.get(cellKey) || [];
+        const filterValues = filterValueMap.get(cellKey) || {row:String(rowKey), col:String(colKey)};
         const bg = adhocHeatmapColor(value, max, avg);
         const title = [
           `${adhocMemberLabel(rowDim)} ${rowKey}，${adhocMemberLabel(colDim)} ${colKey}，${adhocMemberLabel(meas)} ${execReportNumber(value)}`,
           adhocAlertTitle(alerts),
         ].filter(Boolean).join('\n');
-        return `<td class="adhoc-heatmap-cell ${adhocAlertClasses(alerts)}" data-row-value="${escHtml(rowKey)}" data-col-value="${escHtml(colKey)}" style="background:${bg};${adhocAlertStyle(alerts)}" title="${escHtml(title)}">${escHtml(execReportNumber(value))}</td>`;
+        return `<td class="adhoc-heatmap-cell ${adhocAlertClasses(alerts)}" data-row-value="${escHtml(rowKey)}" data-row-filter-value="${escHtml(filterValues.row)}" data-col-value="${escHtml(colKey)}" data-col-filter-value="${escHtml(filterValues.col)}" style="background:${bg};${adhocAlertStyle(alerts)}" title="${escHtml(title)}">${escHtml(execReportNumber(value))}</td>`;
       }).join('');
       return `<tr><td>${escHtml(rowKey)}</td>${cells}</tr>`;
     }).join('');
@@ -13051,13 +13348,17 @@ async function renderAdhocHeatmap(target, rows, query, clickHandler=adhocChartCl
       cell.addEventListener('click', event => {
         event.stopPropagation();
         const rowValue = cell.dataset.rowValue || '';
+        const colValue = cell.dataset.colValue || '';
         clickHandler({
           name: rowValue,
-          data: {
-            __member: rowDim,
-            __value: rowValue,
-            __filterValues: [rowValue],
-          },
+          data: adhocHeatmapDrillData(
+            rowDim,
+            rowValue,
+            cell.dataset.rowFilterValue || rowValue,
+            colDim,
+            colValue,
+            cell.dataset.colFilterValue || colValue,
+          ),
         }, query, matrixRows);
       });
     });
@@ -13435,10 +13736,16 @@ function adhocChartItemStyle(alerts=[], chartType='bar') {
   };
 }
 
-function adhocFormatKpiValue(value) {
+function adhocFormatKpiValue(value, member='') {
   if (value === null || value === undefined || value === '') return '-';
   const numeric = Number(String(value).replace(/,/g, ''));
   if (!Number.isFinite(numeric)) return value;
+  const meta = adhocFindMember(member);
+  const unit = String(meta?.unit || '').trim();
+  if (unit === '%' || unit.includes('百分比')) {
+    const percentValue = Math.abs(numeric) <= 1 ? numeric * 100 : numeric;
+    return `${percentValue.toLocaleString('zh-CN', {maximumFractionDigits:2})}%`;
+  }
   const maximumFractionDigits = Math.abs(numeric) >= 1 ? 2 : 4;
   return numeric.toLocaleString('zh-CN', {maximumFractionDigits});
 }
@@ -13454,7 +13761,7 @@ function renderAdhocKpi(target, rows, query, alertSummary=null, targetId='adhoc-
     ${adhocAlertSummaryHtml(alertSummary)}
     <div class="ad-doc-alert-summary-slot w-100">${documentAlertSummaryBadgesHtml(targetId, _documentAlertResultsByTarget[targetId] || [])}</div>
     <div class="text-muted mb-2">${escHtml(adhocMemberLabel(meas))}</div>
-    <div class="adhoc-kpi">${escHtml(adhocFormatKpiValue(value))}</div>
+    <div class="adhoc-kpi">${escHtml(adhocFormatKpiValue(value, meas))}</div>
   </div>`;
   const kpi = target.querySelector('[data-adhoc-kpi-click="1"]');
   if (kpi) {
@@ -14171,9 +14478,13 @@ function dashboardUpdatePresentationHeader() {
   const dashboardName = _dashboardState.name || document.getElementById('dashboard-name')?.value || 'Dashboard 画布';
   if (title) title.innerHTML = `<i class="bi bi-grid-1x2-fill me-2 text-success"></i>${escHtml(dashboardName)}`;
   if (!subtitle) return;
-  subtitle.textContent = _dashboardState.id === 'dash_mall_robot_after_sales_marketing'
-    ? '跟踪发券、核销、权益开通与服务销售表现，按时间、战区、门店和营销场景定位售后营销机会。'
-    : '集中查看核心经营指标，并通过筛选、联动和上下钻定位业务机会。';
+  const dashboardSubtitles = {
+    dash_mall_robot_after_sales_marketing: '跟踪发券、核销、权益开通与服务销售表现，按时间、战区、门店和营销场景定位售后营销机会。',
+    dash_hr_human_capital_panorama: '统一查看人员规模、人力成本、管理覆盖、薪酬结构和内部流动，按部门、岗位与区域定位组织经营机会。',
+    dash_hr_talent_vitality_pulse: '从组织结论进入结构、风险、人才梯队与行动建议，持续追踪人才活力和组织健康。',
+  };
+  subtitle.textContent = dashboardSubtitles[_dashboardState.id]
+    || '集中查看核心经营指标，并通过筛选、联动和上下钻定位业务机会。';
 }
 
 function dashboardConfigureCanvasMode(forceFallback=false) {
@@ -15549,8 +15860,9 @@ function dashboardStartKpiDrill(widgetId, params={}, query={}) {
   const member = data.__member || query?.dimensions?.[0] || null;
   const value = data.__value ?? params.name ?? '汇总';
   const filterValues = data.__filterValues?.length ? data.__filterValues : [];
+  const drillFilters = data.__drillFilters || [];
   if (adhocDrillMode(spec) === 'dynamic') {
-    openDynamicDrillChooser({kind:'dashboard-kpi-modal', widgetId, member, value, filterValues});
+    openDynamicDrillChooser({kind:'dashboard-kpi-modal', widgetId, member, value, filterValues, drillFilters});
   } else {
     dashboardRenderKpiDrillModal();
   }
@@ -15631,11 +15943,12 @@ function dashboardKpiModalChartClicked(params, query) {
   const member = data.__member || query?.dimensions?.[0];
   const value = data.__value ?? params.name;
   const filterValues = data.__filterValues?.length ? data.__filterValues : [String(value)];
+  const drillFilters = data.__drillFilters || [];
   if (!member) return;
   if (adhocDrillMode(context.spec) === 'dynamic') {
     const modalEl = document.getElementById('dashboard-kpi-drill-modal');
     modalEl.addEventListener('hidden.bs.modal', () => {
-      openDynamicDrillChooser({kind:'dashboard-kpi-modal', widgetId:context.widgetId, member, value, filterValues});
+      openDynamicDrillChooser({kind:'dashboard-kpi-modal', widgetId:context.widgetId, member, value, filterValues, drillFilters});
       context.resumeOnChooserClose = true;
       const chooser = document.getElementById('dynamic-drill-modal');
       chooser.addEventListener('hidden.bs.modal', () => {
@@ -15707,10 +16020,11 @@ function dashboardWidgetClicked(widgetId, params, query) {
   const member = data.__member || query.dimensions?.[0];
   const value = data.__value ?? params.name;
   const filterValues = data.__filterValues?.length ? data.__filterValues : [String(value)];
+  const drillFilters = data.__drillFilters || [];
   widget.spec = widget.spec || {};
   widget.spec.drill = widget.spec.drill || {mode:'path', path:[], stack:[]};
   if (adhocDrillMode(widget.spec) === 'dynamic') {
-    openDynamicDrillChooser({kind:'dashboard', widgetId, member, value, filterValues});
+    openDynamicDrillChooser({kind:'dashboard', widgetId, member, value, filterValues, drillFilters});
     return;
   }
   if (!member) return;
@@ -17581,11 +17895,61 @@ function sendCellInsightToSmartInsight() {
 }
 
 function applyCellInsightDimensionDrill(code) {
+  if (openCellInsightDashboardDrill(code)) return;
   const drawerEl = document.getElementById('cell-insight-drawer');
   if (drawerEl?.classList.contains('show')) {
     bootstrap.Offcanvas.getOrCreateInstance(drawerEl).hide();
   }
   applyPivotDimensionDrill(code);
+}
+
+function openCellInsightDashboardDrill(code) {
+  const targetId = _pivotActionContext?.targetId || '';
+  const isDashboardWidget = targetId.startsWith('dash-chart-');
+  const isKpiDrillFlow = targetId === 'dashboard-kpi-drill-chart';
+  if (!isDashboardWidget && !isKpiDrillFlow) return false;
+  const widgetId = isDashboardWidget
+    ? targetId.slice('dash-chart-'.length)
+    : (_dashboardKpiDrillContext?.widgetId || '');
+  const widget = (_dashboardState.widgets || []).find(item => item.id === widgetId);
+
+  const dim = dashboardFindDimension(code) || pivotFieldMeta(code);
+  const nextMember = dim?.name || dim?.code || code;
+  if (!nextMember) return false;
+  const sourceSpec = (isKpiDrillFlow ? _dashboardKpiDrillContext?.spec : null) || widget?.spec || {
+    query: {
+      measures: (_pivotActionContext?.config?.measures || []).map(item => item.code).filter(Boolean),
+      dimensions: (_pivotActionContext?.config?.rows || []).map(item => item.code).filter(Boolean),
+      filters: _pivotActionContext?.config?.filters || [],
+      limit: 1000,
+    },
+    view: {type:'chart', chartType:'kpi'},
+  };
+  const spec = JSON.parse(JSON.stringify(sourceSpec));
+  spec.view = {...(spec.view || {}), type:'chart', chartType:'bar'};
+  spec.drill = {...(spec.drill || {}), mode:'dynamic', stack:[{
+    member:null,
+    operator:'equals',
+    values:[],
+    label:'汇总',
+    nextMember,
+  }]};
+  _dashboardKpiDrillContext = {
+    widgetId,
+    name:widget?.name || _pivotActionContext?.cell?.measureName || '指标下钻分析',
+    spec,
+    rows:_dashboardWidgetResults[widgetId]?.rows || [],
+    query:_dashboardWidgetResults[widgetId]?.query || sourceSpec.query || {},
+  };
+  const drawerEl = document.getElementById('cell-insight-drawer');
+  const openModal = () => dashboardRenderKpiDrillModal();
+  if (drawerEl?.classList.contains('show')) {
+    drawerEl.addEventListener('hidden.bs.offcanvas', openModal, {once:true});
+    bootstrap.Offcanvas.getOrCreateInstance(drawerEl).hide();
+  } else {
+    openModal();
+  }
+  return true;
 }
 
 function pivotSemanticDimension(dim) {
@@ -17659,6 +18023,17 @@ async function applyPivotDimensionDrill(code) {
     }
     renderPivotResult(targetId, d, nextConfig);
     schedulePivotDocumentAlertScans(targetId, d, nextConfig);
+    if (out) {
+      const notice = document.createElement('div');
+      notice.className = 'alert alert-success py-2 px-3 mb-2 small';
+      notice.innerHTML = `<i class="bi bi-arrow-down-right-circle me-1"></i>已按 <strong>${escHtml(dim.name || dim.code)}</strong> 下钻，结果显示在这里。`;
+      out.prepend(notice);
+      out.scrollIntoView({behavior:'smooth', block:'center'});
+      out.animate([
+        {boxShadow:'0 0 0 0 rgba(25,135,84,.55)'},
+        {boxShadow:'0 0 0 8px rgba(25,135,84,0)'},
+      ], {duration:900, easing:'ease-out'});
+    }
     showToast(`已按 ${dim.name || dim.code} 下钻`, 'info');
   } catch(e) {
     if (out) out.innerHTML = `<div class="alert alert-danger m-3">${escHtml(e.message || e)}</div>`;
@@ -18398,8 +18773,10 @@ async function runNlqWithElements(btn, ids) {
       }
       const target = (ids.contextTarget || 'nlq') === 'smart' ? 'smart' : 'nlq';
       const sugHtml = _renderSuggestedQuestions(d.suggestedNextQuestions, target);
+      const clarificationHtml = renderNlqClarification(d, target);
       res.innerHTML = `<div class="alert alert-warning mb-2">
         <div class="mb-2">${_escHtml(d.error || d.clarification || '查询失败')}</div>
+        ${clarificationHtml}
         ${sugHtml}
       </div>${renderNlqFeedback(d, ids.resultId)}`;
       return;
@@ -18411,6 +18788,61 @@ async function runNlqWithElements(btn, ids) {
   } finally {
     btnRestore(btn);
   }
+}
+
+function _clarificationSlotLabel(slot='') {
+  return ({
+    measure: '指标',
+    dimension: '维度',
+    value: '筛选值',
+    filter: '筛选条件',
+    factTableScope: '数据范围',
+    queryIntent: '查询意图'
+  })[slot] || slot;
+}
+
+function _clarificationCandidateLabel(candidate={}) {
+  return candidate.name || candidate.label || candidate.value || candidate.code || '';
+}
+
+function applyNlqClarificationCandidate(originalQuestion, candidateType, candidateCode, candidateName, resumeToken='', target='nlq', button=null) {
+  const input = document.getElementById(target === 'smart' ? 'smart-nlq-question' : 'nlq-question');
+  if (!input || !candidateName) return;
+  const original = originalQuestion || input.value;
+  const state = _getNlqConversation(target);
+  if (candidateType === 'measureCandidates' && candidateCode) state.context.confirmedMeasureCode = candidateCode;
+  if (candidateType === 'dimensionCandidates' && candidateCode) state.context.confirmedDimensionCode = candidateCode;
+  if (resumeToken) state.context.confirmedClarificationToken = resumeToken;
+  state.hasTurns = true;
+  input.value = original;
+  input.dispatchEvent(new Event('input', {bubbles:true}));
+  if (target === 'smart') runSmartInsight(document.getElementById('smart-nlq-run-btn'));
+  else runUnifiedNlq(document.getElementById('nlq-run-btn'));
+}
+
+function renderNlqClarification(d={}, target='nlq') {
+  const spec = d.clarificationSpec || {};
+  const candidates = Array.isArray(spec.candidates) ? spec.candidates.slice(0, 8) : [];
+  const slots = Array.isArray(spec.requiredSlots) ? spec.requiredSlots.filter(Boolean) : [];
+  if (!slots.length && !candidates.length) return '';
+  const slotHtml = slots.length
+    ? `<div class="small text-muted mb-2">需要确认：${slots.map(x => `<span class="badge bg-light text-dark border me-1">${_escHtml(_clarificationSlotLabel(x))}</span>`).join('')}</div>`
+    : '';
+  const candidateHtml = candidates.length
+    ? `<div class="small fw-semibold mb-1">请选择后继续执行：</div><div class="d-flex flex-wrap gap-2 mb-2">
+        ${candidates.map(candidate => {
+          const name = _clarificationCandidateLabel(candidate);
+          if (!name) return '';
+          const score = Number(candidate.score);
+          const scoreLabel = Number.isFinite(score) && score >= 0 && score <= 1
+            ? ` · ${Math.round(score * 100)}%`
+            : '';
+          return `<button type="button" class="btn btn-sm btn-outline-primary" title="${_escHtml(candidate.code || '')}"
+            onclick="applyNlqClarificationCandidate('${_escJs(d.question || '')}','${_escJs(candidate.candidateType || '')}','${_escJs(candidate.code || '')}','${_escJs(name)}','${_escJs(spec.resumeToken || '')}','${_escJs(target)}',this)">${_escHtml(name + scoreLabel)}</button>`;
+        }).join('')}
+      </div>`
+    : '';
+  return `<div class="border rounded bg-white p-2 mb-2" data-clarification-spec="${_escHtml(spec.reasonCode || '')}">${slotHtml}${candidateHtml}</div>`;
 }
 
 function updateSmartFlowFromNlqResult(d={}) {
@@ -19873,7 +20305,7 @@ function onBkgModeChange() {
     if (lblSuffix) lblSuffix.textContent = '(可选)';
     if (llmBtn) llmBtn.style.display = '';
     if (logTitle) logTitle.textContent = '构建日志';
-    if (ta) ta.placeholder = '例如：这是一个销售系统，需要分析销售指标…';
+    if (ta) ta.placeholder = '例如：这是一个 HR 系统，需要分析人员规模、人力成本和组织健康指标…';
   } else {
     if (buildCfg)  buildCfg.style.display = 'none';
     if (refineCfg) refineCfg.style.display = '';
@@ -20243,40 +20675,25 @@ async function runBkgValidate() {
     return html;
   }
 
-  let appendedAny = false;
-  const es = new EventSource(url);
-  es.onmessage = (ev) => {
-    if (ev.data === '__DONE__') { es.close(); finalize(); return; }
-    let msg;
-    try { msg = JSON.parse(ev.data); } catch (_) { return; }
-    if (msg.type === 'init') {
-      total = msg.total;
-      sum.textContent = `${total} 个指标，校验中… 0/${total}`;
-      if (!appendedAny) res.innerHTML = '';
-    } else if (msg.type === 'measure') {
-      if (!appendedAny) { res.innerHTML = ''; appendedAny = true; }
-      const m = msg.result;
-      _bkvResults.push(m);
-      if (m.allOk) passed += 1; else failed += 1;
-      sum.textContent = `${total} 个指标，已完成 ${msg.index}/${total}（通过 ${passed} / 失败 ${failed}）`;
-      const wrap = document.createElement('div');
-      wrap.innerHTML = buildMeasureCardHtml(m);
-      res.appendChild(wrap.firstElementChild);
-      res.scrollTop = res.scrollHeight;
-    } else if (msg.type === 'summary') {
-      sum.textContent = `${msg.total} 个指标，${msg.passed} 通过，${msg.failed} 失败`;
-    } else if (msg.type === 'error') {
-      res.insertAdjacentHTML('beforeend', `<div class="alert alert-danger m-2 py-2 small">${msg.error}</div>`);
-    }
-  };
-  es.onerror = () => {
-    es.close();
-    if (!appendedAny) {
-      res.innerHTML = '<div class="alert alert-danger m-2 py-2 small">校验请求未能启动。请确认已选择或激活业务图谱，然后重试。</div>';
-      sum.textContent = '校验未完成';
-    }
+  try {
+    const response = await fetch(url, {method: 'POST'});
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `校验请求失败（HTTP ${response.status}）`);
+
+    const results = Array.isArray(data.results) ? data.results : [];
+    total = Number(data.total || results.length);
+    passed = Number(data.passed || 0);
+    failed = Number(data.failed || 0);
+    _bkvResults = results;
+    res.innerHTML = results.map(buildMeasureCardHtml).join('')
+      || '<div class="text-muted small p-2">未返回指标校验结果。</div>';
+    sum.textContent = `${total} 个指标，${passed} 通过，${failed} 失败`;
+  } catch (error) {
+    res.innerHTML = `<div class="alert alert-danger m-2 py-2 small">${escHtml(error.message || String(error))}</div>`;
+    sum.textContent = '校验未完成';
+  } finally {
     finalize();
-  };
+  }
 }
 
 let _bkvResults = [];
@@ -22328,7 +22745,7 @@ function _isSpecificDocumentLookupQuestion(question='') {
   if (!q) return false;
   const value = '[A-Za-z0-9_.\\-]{2,}';
   const field = '[\\u4e00-\\u9fa5A-Za-z_][\\u4e00-\\u9fa5A-Za-z0-9_\\-]{0,40}';
-  const docField = /(订单编号|订单号|订单ID|单据编号|单据号|退货单号|销售单号|order\s*(?:number|no|id)?|bill|document)/i;
+  const docField = /(订单编号|订单号|订单ID|单据编号|单据号|退货单号|销售单号|order\s*(?:number|no|id)|bill|document)/i;
   const tableField = new RegExp(`${field}\\s*[-－—]\\s*${field}\\s*(?:[:：=]|为|是)\\s*["'“”]?${value}["'“”]?`);
   const fieldValue = new RegExp(`^(?:查|查询|查看|检索|搜索)?\\s*${field}\\s*(?:[:：=]|为|是)?\\s*["'“”]?${value}["'“”]?$`);
   const label = (q.split(/[:：=]|为|是/)[0] || q).trim();
@@ -22338,6 +22755,7 @@ function _isSpecificDocumentLookupQuestion(question='') {
 function _isExactAttributeLookupQuestion(question='') {
   const q = String(question || '').trim();
   if (!q) return false;
+  if (/^.{1,240}\s*(?:[:：=]|为|是)\s*[^,，;；。！？\n\r:：=]{1,80}$/.test(q)) return true;
   const value = '[^,，;；。！？\\n\\r]{1,80}';
   const field = '[\\u4e00-\\u9fa5A-Za-z_][\\u4e00-\\u9fa5A-Za-z0-9_\\-]{0,40}';
   const tableField = new RegExp(`${field}\\s*[-－—]\\s*${field}\\s*(?:[:：=]|为|是)\\s*[\"'“”]?${value}[\"'“”]?`);

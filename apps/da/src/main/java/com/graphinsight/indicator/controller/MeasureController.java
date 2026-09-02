@@ -42,7 +42,6 @@ import com.graphinsight.indicator.model.vo.PageVO;
 import com.graphinsight.indicator.model.vo.SummedUpDimensionQueryVO;
 import com.graphinsight.indicator.util.BuildSqlUtil;
 import com.graphinsight.indicator.util.IndicatorAssert;
-import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.CollectionUtils;
@@ -55,7 +54,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import springfox.documentation.annotations.ApiIgnore;
 
 import java.sql.Timestamp;
 import java.util.*;
@@ -92,14 +90,12 @@ public class MeasureController {
 
     @SyncReloadCache
     @GetMapping("/online/{id}")
-    @ApiOperation("指标上线")
     public Response<MeasureOnlineCheck> online(@PathVariable Integer id){
         MeasureOnlineCheck check = measureManager.online(id);
         return Response.ok(check);
     }
 
     @GetMapping("/online/check/{id}")
-    @ApiOperation("指标上线")
     public Response<MeasureOnlineCheck> onlineCheck(@PathVariable Integer id){
         Measure measure = measureService.getById(id);
         IndicatorAssert.indicatorAssert(measure == null, "指标不存在,ID:" + id);
@@ -109,7 +105,6 @@ public class MeasureController {
 
     @SyncReloadCache
     @PostMapping("/offline")
-    @ApiOperation("指标下线")
     public Response<List<ReferenceCheck>> offline(@RequestBody OfflineRequest request){
         List<ReferenceCheck> checks = measureManager.offline(request);
         if (!CollectionUtils.isEmpty(checks)){
@@ -119,7 +114,6 @@ public class MeasureController {
     }
 
     @PostMapping("/offline/check")
-    @ApiOperation("指标下线检查接口")
     public Response<List<ReferenceCheck>> offlineCheck(@RequestBody OfflineRequest request){
         List<ReferenceCheck> checks = measureManager.offlineCheck(request);
         return Response.ok(checks);
@@ -131,7 +125,6 @@ public class MeasureController {
      * @return
      */
     @PostMapping("/list/sumable/dimension")
-    @ApiOperation("获取可归总的维度列表")
     @CheckCacheVersion
     public Response<List<Dimension>> listCanBeSummedUpDimension(@Validated @RequestBody SummedUpDimensionQueryVO summedUpDimensionQueryVO) {
         List<Dimension> dimensionList = measureManager.listCanBeSummedUpDimension(summedUpDimensionQueryVO);
@@ -148,7 +141,6 @@ public class MeasureController {
 
 
     @PostMapping("/natural/dim/echo")
-    @ApiOperation("维度归总配置回显")
     public Response<List<Dimension>> naturalDimConfig(@Validated @RequestBody NaturalDimConfigQueryVO queryVO) {
         List<MeasureNaturalDateMapping> measureNaturalDateMappings = naturalDateMappingService
                 .list(Wrappers.<MeasureNaturalDateMapping>lambdaQuery()
@@ -206,7 +198,6 @@ public class MeasureController {
 
     @OperateLog
     @SyncReloadCache
-    @ApiOperation("创建计算指标或者给现有计算指标添加新的计算表达式.判断创建指标还是创建表达式的依据是英文名是否存在")
     @PostMapping("/complex/create")
     public Response createComplexMeasure(@Validated @RequestBody ComplexMeasureCreateVO measureCreateVO) {
         boolean nameRepeat = measureManager.measureNameRepeat(measureCreateVO.getEnName(), measureCreateVO.getCnName());
@@ -220,7 +211,6 @@ public class MeasureController {
 
     @OperateLog
     @SyncReloadCache
-    @ApiOperation("更新现有计算指标表达式")
     @PostMapping("/complex/update")
     public Response updateComplexMeasure(@Validated @RequestBody ComplexMeasureUpdateVO measureUpdateVO) {
         checkParam(measureUpdateVO);
@@ -266,7 +256,7 @@ public class MeasureController {
     @OperateLog
     @PostMapping("/update")
     @ReloadCache
-    public Response updateMeasure(@ApiIgnore @CurrentUser User user, @RequestBody @Validated MeasureUpdateVO measureUpdateVO) {
+    public Response updateMeasure(@CurrentUser User user, @RequestBody @Validated MeasureUpdateVO measureUpdateVO) {
         List<Measure> measures = measureService.list(Wrappers.<Measure>lambdaQuery()
                 .and(query -> query.ne(Measure::getId, measureUpdateVO.getId()))
                 .and(query ->

@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.manager;
 
 import lombok.extern.slf4j.Slf4j;
-import org.mortbay.log.Log;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -94,7 +93,7 @@ public class MysqlDumpManager {
             sm = conn.createStatement();
         } catch (Exception e) {
             e.printStackTrace();
-            Log.info(e.getMessage());
+            log.info(e.getMessage());
         }
     }
 

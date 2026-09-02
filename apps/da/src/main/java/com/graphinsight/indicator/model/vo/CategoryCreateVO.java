@@ -1,6 +1,5 @@
 package com.graphinsight.indicator.model.vo;
 
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 /**
@@ -35,22 +34,18 @@ public class CategoryCreateVO extends BaseVO{
     /**
      * 是否适用于指标
      */
-    @ApiModelProperty(value = "是否适用于指标",example = "1")
     private Byte measApplicable = 1;
     /**
      * 是否适用于模型
      */
-    @ApiModelProperty(value = "是否适用于模型",example = "1")
     private Byte modelApplicable = 1;
 
     /**
      * 适用于维度
      */
-    @ApiModelProperty(value = "是否适用于维度",example = "1")
     private Byte dimApplicable = 1;
 
 
-    @ApiModelProperty(value = "主键",example = "1")
     private Integer id;
 
 }

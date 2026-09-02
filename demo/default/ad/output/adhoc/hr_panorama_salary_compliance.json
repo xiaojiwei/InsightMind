@@ -1,0 +1,35 @@
+{
+  "id": "hr_panorama_salary_compliance",
+  "name": "薪酬带合规率",
+  "summary": "基本薪酬位于岗位批准薪酬带内的人员占比。",
+  "query": {
+    "measures": [
+      "ad.salary_band_compliance_rate"
+    ],
+    "dimensions": [],
+    "filters": [],
+    "order": {},
+    "limit": 1000
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "kpi",
+    "encoding": {
+      "y": "ad.salary_band_compliance_rate"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": true,
+    "anomalyFocusMode": true
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.salary_band_status",
+      "ad.department",
+      "ad.job"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

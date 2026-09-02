@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.model.vo;
 
 import com.graphinsight.indicator.auto.entity.User;
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 /**

@@ -4,7 +4,6 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.junit.Test;
 
 /**
  * Date: 2023/6/6
@@ -12,7 +11,6 @@ import org.junit.Test;
  */
 public class MUTest {
 
-    @Test
     public void test1(){
         value("if(false, 1 + 1, 2 + 2)");
         value("if(true, 1 + 1, 2 + 2)");

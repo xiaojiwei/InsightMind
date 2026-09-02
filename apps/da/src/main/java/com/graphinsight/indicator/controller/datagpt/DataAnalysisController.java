@@ -16,13 +16,11 @@ import com.graphinsight.indicator.model.vo.AttributionAnalysisResponseVO;
 import com.graphinsight.indicator.service.IDataAnalysisService;
 import com.graphinsight.indicator.util.UserThreadLocalUtil;
 
-import io.swagger.annotations.Api;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
 @RequestMapping(IndicatorConstant.DATA_GPT_AI + "/data-analysis")
-@Api(tags = "【dataGpt】数据分析接口 ")
 public class DataAnalysisController extends BaseController {
     @Resource
     private IDataAnalysisService dataAnalysisService;

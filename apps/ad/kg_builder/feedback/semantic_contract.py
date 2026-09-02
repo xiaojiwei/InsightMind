@@ -198,6 +198,13 @@ def build_semantic_contract(
     validation = result.get("validation") if isinstance(result.get("validation"), dict) else {}
     validation_status = sanitize_text(validation.get("status") or "not_available", max_chars=40)
     execution_status = sanitize_text(status or ("succeeded" if result.get("ok") else "failed"), max_chars=40)
+    analysis_spec = result.get("analysisSpec") if isinstance(result.get("analysisSpec"), dict) else {}
+    analysis_spec_meta = {
+        "version": sanitize_text(analysis_spec.get("specVersion") or "", max_chars=20),
+        "hash": sanitize_text(result.get("analysisSpecHash") or "", max_chars=64),
+        "kind": sanitize_text(analysis_spec.get("analysisKind") or "", max_chars=80),
+        "status": sanitize_text(result.get("planStatus") or "", max_chars=40),
+    }
     plan = {
         "version": SEMANTIC_PLAN_VERSION,
         "traceId": sanitize_text(trace_id, max_chars=100),
@@ -211,6 +218,9 @@ def build_semantic_contract(
             "reason": sanitize_text(result.get("algorithmReason") or "按当前语义模型默认口径执行", max_chars=500),
             "operands": result.get("operandPlans") if isinstance(result.get("operandPlans"), list) else [],
         },
+        # Store only the identity of the pre-execution spec.  Logical filter
+        # values remain represented by the redacted descriptors above.
+        "analysisSpec": analysis_spec_meta,
         "authorization": {
             "status": "not_evaluated",
             "policyIds": [],
@@ -241,6 +251,7 @@ def build_semantic_contract(
         "semanticSelection": selection,
         "filterScopes": filters,
         "algorithm": plan["algorithm"],
+        "analysisSpec": plan["analysisSpec"],
         "authorization": plan["authorization"],
         "versions": plan["versions"],
         "validation": {

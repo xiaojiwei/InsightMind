@@ -2,7 +2,6 @@ package com.graphinsight.indicator.model.vo;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import javax.validation.constraints.NotNull;
@@ -31,7 +30,6 @@ public class MeasureMonitorRuleVO {
      * 0-AND 1-OR
      */
     @NotNull(message = "逻辑关系逻辑关系不能为空")
-    @ApiModelProperty(value = "逻辑关系 0-AND 1-OR")
     private Integer logicType;
 
     /**

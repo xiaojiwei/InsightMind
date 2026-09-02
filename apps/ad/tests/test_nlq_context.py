@@ -82,6 +82,51 @@ def test_same_follow_up_without_context_still_requires_clarification() -> None:
     assert response["clarification"] == "指标匹配不唯一，请明确要查哪个指标"
 
 
+def test_confirmed_clarification_measure_becomes_governed_semantic_hint() -> None:
+    service = _service()
+
+    intent = service._apply_conversation_context(
+        {},
+        {"confirmedMeasureCode": "MEAS_web_sales_amount"},
+        is_follow_up=True,
+    )
+    invalid = service._apply_conversation_context(
+        {},
+        {"confirmedMeasureCode": "MEAS_not_in_graph"},
+        is_follow_up=True,
+    )
+
+    assert intent["measureCode"] == "MEAS_web_sales_amount"
+    assert intent["clarificationConfirmed"] is True
+    assert "measureCode" not in invalid
+
+
+def test_confirmed_clarification_resolves_ambiguous_metric_question() -> None:
+    service = _service()
+    service._semantic_map = lambda *_args, **_kwargs: {
+        "measureCandidates": [],
+        "dimensionCandidates": [],
+        "valueBindings": [],
+        "decision": "clarify",
+        "needsClarification": True,
+        "diagnostics": {
+            "unresolvedValueIntent": True,
+            "unexplainedTokens": ["利润"],
+        },
+    }
+
+    response = service.query(
+        "查询利润",
+        execute=False,
+        context={"confirmedMeasureCode": "MEAS_web_net_profit"},
+        is_follow_up=True,
+    )
+
+    assert response["ok"] is True
+    assert response["matched"]["measureCode"] == "MEAS_web_net_profit"
+    assert "confirmedMeasureCode" not in response["resolvedContext"]
+
+
 def test_missing_metric_is_structured_reject_not_clarification() -> None:
     service = _service()
     response = service.query("查询退款率", execute=False)
@@ -109,6 +154,36 @@ def test_query_trace_id_is_forwarded_to_data_agent() -> None:
 
     assert captured["traceId"] == "trace-forward-1"
     assert response["daPayload"]["traceId"] == "trace-forward-1"
+    assert response["planStatus"] == "ready"
+    assert response["analysisSpec"]["semantic"]["measureCodes"] == [
+        "MEAS_web_sales_amount"
+    ]
+    assert "daPayload" not in response["analysisSpec"]
+
+
+def test_data_agent_request_inherits_authorization(monkeypatch) -> None:
+    service = NaturalLanguageQueryService(
+        "unused.ttl",
+        "http://unused",
+        authorization="Bearer user-token",
+    )
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["authorization"] = request.get_header("Authorization")
+        captured["timeout"] = timeout
+        return _FakeHttpResponse({"code": 200, "data": {"cellList": []}})
+
+    monkeypatch.setattr("kg_builder.nlq.service.urlopen", fake_urlopen)
+    result = service._execute_da({
+        "configureList": [{"code": "MEAS_web_sales_amount"}],
+        "filterList": [],
+        "pageSize": 1,
+        "pageNum": 1,
+    })
+
+    assert result["ok"] is True
+    assert captured == {"authorization": "Bearer user-token", "timeout": 30}
 
 
 def test_llm_measure_match_requires_confirmation_not_execution() -> None:
@@ -130,6 +205,11 @@ def test_llm_measure_match_requires_confirmation_not_execution() -> None:
     assert response["matched"]["measureCode"] == "MEAS_web_sales_amount"
     assert response["diagnostics"]["llmMeasureMatch"]["confidenceLevel"] == "medium"
     assert response["diagnostics"]["llmMeasureMatch"]["matchedTerms"] == ["收入"]
+    assert response["planStatus"] == "requires_input"
+    assert response["clarificationSpec"]["requiredSlots"] == ["measure"]
+    assert response["clarificationSpec"]["resumeToken"]
+    assert "activeMeasureCode" not in response["resolvedContext"]
+    assert "measureCodes" not in response["resolvedContext"]
 
 
 def test_llm_measure_conflict_with_rule_candidate_requires_clarification() -> None:
@@ -225,3 +305,124 @@ def test_deep_insight_metric_match_honors_inherited_fact_table() -> None:
     assert matched is not None
     assert matched["meas_code"] == "MEAS_web_net_profit"
     assert matched["table_name"] == "web_sales"
+
+
+def test_deep_insight_preserves_explicit_requested_dimension() -> None:
+    analyzer = InsightAnalyzer(
+        data_agent_url="http://unused",
+        ttl_path="unused.ttl",
+        llm_config={},
+        log_cb=lambda _message: None,
+    )
+    analyzer._kg_meas_table_cache = {"MEAS_web_net_profit": ["web_sales"]}
+    analyzer._kg_table_dims_cache = {
+        # Simulate a legacy graph whose table association omits a dimension
+        # that is nevertheless present in DA's deterministic catalogue.
+        "web_sales": ["DIM_store"],
+    }
+    analyzer._kg_dim_detail_cache = {
+        "DIM_province": {"cn_name": "省份"},
+        "DIM_store": {"cn_name": "门店"},
+    }
+    analyzer._kg_dim_histogram_cache = {}
+    analyzer._load_kg_cache = lambda: {
+        "MEAS_web_net_profit": {"cn_name": "网络净利润"},
+    }
+
+    matched = analyzer._find_meas_in_kg(
+        ["网络净利润"],
+        "查看网络净利润在省份的贡献结构",
+    )
+
+    assert matched is not None
+    assert matched["requested_dim_codes"] == ["DIM_province"]
+    params = analyzer._build_query_params(matched, {
+        "gran": "month",
+        "time_start": "2026-08-01",
+        "time_end": "2026-08-31",
+        "prev_start": "2026-07-01",
+        "prev_end": "2026-07-31",
+    })
+    configured = [item["code"] for item in params["configureList"]]
+    assert "DIM_province" in configured
+    assert "DIM_store" not in configured
+
+
+def test_fallback_direct_answer_promotes_requested_dimension_to_conclusion() -> None:
+    report = """## 综合报告
+- 核销量 从 152 变为 90，变化幅度 -40.79%。
+- 核销量：152 -> 90。
+- 省份 的贡献变化合计为 0.156。
+  - 其中 上海_001 的贡献/变化约为 0.002。
+  - 其中 上海_002 的贡献/变化约为 0.001。
+- 战区 的整体变化幅度为 -40.79%。
+- 先按营销场景下钻。
+"""
+
+    answer = InsightAnalyzer._fallback_direct_answer(
+        "分析不同省份的核销量差异原因", "核销量", report, {}, "LLM 暂时不可用"
+    )
+
+    conclusion = answer.split("## 关键证据", 1)[0]
+    assert "省份当前可确认的差异/归因线索" in conclusion
+    assert "上海_001" in conclusion
+    assert "继续沿「省份」下钻" in answer
+
+
+def test_deep_insight_empty_report_falls_back_to_local_answer() -> None:
+    analyzer = InsightAnalyzer(
+        data_agent_url="http://unused",
+        ttl_path="unused.ttl",
+        llm_config={},
+        log_cb=lambda _message: None,
+    )
+
+    chunks = list(analyzer._stream_insight_answer(
+        "分析网络销售金额变化原因",
+        {"anomaly_profile": {}},
+        {"meas_code": "MEAS_web_sales_amount", "cn_name": "网络销售金额"},
+        {
+            1: {"measures": [{
+                "col": "MEAS_web_sales_amount",
+                "cn_name": "网络销售金额",
+                "current": 120,
+                "previous": 100,
+                "change": 20,
+                "change_pct": 20.0,
+            }]},
+        },
+        "",
+    ))
+
+    answer = "".join(chunks)
+    assert "分析报告尚未生成" not in answer
+    assert "网络销售金额" in answer
+    assert "## 结论" in answer
+
+
+def test_attribute_expression_is_not_misread_as_specific_order_lookup() -> None:
+    from web_app import _parse_specific_document_lookup
+
+    attribute_question = (
+        "DWS-战区日粒度权益销售聚合-有销售额的订单量"
+        "（order amount>0的记录数） ： 1"
+    )
+
+    assert _parse_specific_document_lookup(attribute_question) == {}
+    assert _parse_specific_document_lookup("订单编号 ： 8000000") == {
+        "fieldText": "订单编号",
+        "value": "8000000",
+    }
+
+
+def test_long_generated_attribute_example_is_parseable() -> None:
+    service = _service()
+    question = (
+        "DWS-战区日粒度权益销售聚合-有销售额的订单量"
+        "（order amount>0的记录数） ： 1"
+    )
+
+    parsed = service._parse_entity_lookup(question)
+
+    assert parsed["fieldText"].endswith("（order amount>0的记录数）")
+    assert parsed["value"] == "1"

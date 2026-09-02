@@ -5,7 +5,6 @@ import com.graphinsight.indicator.model.dto.BuildSqlParam;
 import com.graphinsight.indicator.model.dto.ColumnItemExp;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.engine.jdbc.internal.FormatStyle;
-import org.junit.Assert;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
@@ -51,9 +50,15 @@ public class BuildSqlUtil {
     }
 
     public static String buildSql(BuildSqlParam buildSqlParam){
-        Assert.assertNotNull("参数不能为空",buildSqlParam);
-        Assert.assertNotNull("事实表不能为空",buildSqlParam.getFactTable());
-        Assert.assertNotNull("列信息不能为空",buildSqlParam.getColumnExps());
+        if (buildSqlParam == null) {
+            throw new IllegalArgumentException("参数不能为空");
+        }
+        if (buildSqlParam.getFactTable() == null) {
+            throw new IllegalArgumentException("事实表不能为空");
+        }
+        if (buildSqlParam.getColumnExps() == null) {
+            throw new IllegalArgumentException("列信息不能为空");
+        }
 
         String factTable = buildSqlParam.getFactTable();
         List<ColumnItemExp> columnExps = buildSqlParam.getColumnExps();

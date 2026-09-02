@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.model.vo;
 
 
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import javax.validation.constraints.NotNull;
@@ -18,7 +17,6 @@ public class TaskScheduleVO {
      * 4  ->间隔（每隔2个小时，每隔30分钟）
      */
     @NotNull(message = "定时时间类型不能为空")
-    @ApiModelProperty(value = "定时时间类型")
     Integer jobType;
 
     Integer[] dayOfWeeks;
@@ -26,11 +24,9 @@ public class TaskScheduleVO {
     Integer[] dayOfMonths;
 
 
-    @ApiModelProperty(value = "分钟")
     Integer minute;
 
 
-    @ApiModelProperty(value = "小时")
     Integer hour;
 
     public Integer getJobType() {

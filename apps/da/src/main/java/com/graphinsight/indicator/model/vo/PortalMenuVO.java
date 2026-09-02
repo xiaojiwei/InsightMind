@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.model.vo;
 
 import com.graphinsight.indicator.enums.IndicatorAuthType;
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import javax.validation.constraints.NotNull;
@@ -24,7 +23,6 @@ public class PortalMenuVO {
      * 名称
      */
     @NotNull(message = "菜单名称不能为空")
-    @ApiModelProperty(value = "菜单名称",required = true)
     private String name;
 
     /**
@@ -40,20 +38,17 @@ public class PortalMenuVO {
     /**
      * 顺序
      */
-    @ApiModelProperty(value = "菜单名称,用于显示菜单顺序 前端保证list正确情况下可不传")
     private Integer seq;
 
     /**
      * 内容类型 0-看板 1-外链
      */
     @NotNull(message = "内容类型不能为空")
-    @ApiModelProperty(value = "内容类型 0-看板 1-外链")
     private Integer contentType;
 
     /**
      * 内容
      */
-    @ApiModelProperty(value = "内容")
     private String content;
 
     /**

@@ -1,5 +1,6 @@
 package com.graphinsight.indicator.job;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.graphinsight.indicator.auto.entity.Department;
 import com.graphinsight.indicator.auto.entity.User;
@@ -7,7 +8,6 @@ import com.graphinsight.indicator.manager.*;
 import com.graphinsight.indicator.schedule.MeasureMonitorJob;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mortbay.util.ajax.JSON;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -57,7 +57,7 @@ public class JobTest {
     @Test
     public void getUserByDeptId(){
         List<User> usersByDepartment = loginManager.getUsersByDepartment("3603");
-        System.out.println(JSON.toString(usersByDepartment));
+        System.out.println(JSON.toJSONString(usersByDepartment));
     }
 
     @Test

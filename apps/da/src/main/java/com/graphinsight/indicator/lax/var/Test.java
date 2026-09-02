@@ -9,7 +9,6 @@ public class Test {
     private static final String NEWLINE = "\n";
 
 
-    @org.junit.Test
     public void cal(){
         System.out.println(value("1+2"));
         System.out.println(value("1+(2*3)"));

@@ -6,7 +6,6 @@ import com.graphinsight.indicator.model.Response;
 import com.graphinsight.indicator.model.post.Post;
 import com.graphinsight.indicator.model.post.PostEmp;
 import com.graphinsight.indicator.model.vo.OrganizationVO;
-import io.swagger.annotations.ApiOperation;
 import org.apache.commons.collections.CollectionUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,7 +27,6 @@ public class PostController {
     @Resource
     PostManager postManager;
 
-    @ApiOperation("获取岗位列表信息")
     @GetMapping("/list")
     public Response<List<OrganizationVO>> pageObjects(String searchText){
         List<Post> posts = postManager.listAvaiablePost(searchText);
@@ -40,14 +38,12 @@ public class PostController {
     }
 
 
-    @ApiOperation("获取岗位列表信息")
     @GetMapping("/get/postInfo/{username}")
     public Response<PostEmp> postInfo(@PathVariable String username){
         PostEmp postInfo = postManager.getPostInfo(username);
         return Response.ok(postInfo);
     }
 
-    @ApiOperation("获取岗位用户列表")
     @GetMapping("/listEmpByPost")
     public Response<List<PostEmp>> empListByCode(String postCode){
         List<PostEmp> postEmps = postManager.listPostEmpInfo(postCode);

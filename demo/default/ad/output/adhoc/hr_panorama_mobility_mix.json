@@ -1,0 +1,41 @@
+{
+  "id": "hr_panorama_mobility_mix",
+  "name": "人才流动事件结构",
+  "summary": "按流动类型比较历史内部流动事件数量。",
+  "query": {
+    "measures": [
+      "ad.mobility_event_count"
+    ],
+    "dimensions": [
+      "ad.mobility_type"
+    ],
+    "filters": [],
+    "order": {
+      "ad.mobility_event_count": "desc"
+    },
+    "limit": 20
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "bar",
+    "encoding": {
+      "x": "ad.mobility_type",
+      "y": "ad.mobility_event_count"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": false,
+    "anomalyFocusMode": false
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.mobility_type",
+      "ad.from_department",
+      "ad.to_department",
+      "ad.employee"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

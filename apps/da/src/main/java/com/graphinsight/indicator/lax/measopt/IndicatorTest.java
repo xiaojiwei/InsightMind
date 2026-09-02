@@ -1,6 +1,5 @@
 package com.graphinsight.indicator.lax.measopt;
 
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,7 +20,6 @@ public class IndicatorTest {
     }
 
 
-    @Test
     public void test2(){
         System.out.println(value("[MEAS_a]+2"));
         System.out.println(value("[MEAS_a]+[MEAS_b]"));
@@ -30,7 +28,6 @@ public class IndicatorTest {
 
 
 
-    @Test
     public void test1(){
         System.out.println(value("1+2"));
         System.out.println(value("1+(2*3)"));

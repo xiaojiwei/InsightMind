@@ -57,7 +57,6 @@ import com.graphinsight.indicator.model.vo.PageVO;
 import com.graphinsight.indicator.model.vo.TableCreateVO;
 import com.graphinsight.indicator.model.vo.TableFieldVO;
 import com.graphinsight.indicator.model.vo.TableUpdateVO;
-import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.CollectionUtils;
@@ -70,7 +69,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import springfox.documentation.annotations.ApiIgnore;
 
 import javax.annotation.Resource;
 import java.util.ArrayList;
@@ -114,7 +112,6 @@ public class ModelController {
 
     @PostMapping("/offline")
     @OperateLog
-    @ApiOperation("模型下线接口")
     @SyncReloadCache
     public Response offline(@RequestBody OfflineRequest request) {
         modelManager.offline(request);
@@ -123,7 +120,6 @@ public class ModelController {
 
     @GetMapping("/online/{id}")
     @OperateLog
-    @ApiOperation("模型上线接口")
     @SyncReloadCache
     public Response online(@PathVariable Integer id) {
         modelManager.online(id);
@@ -131,14 +127,12 @@ public class ModelController {
     }
 
 
-    @ApiOperation("获取待同步的字段列表(新)")
     @GetMapping("/sync/list/column/{modelId}")
     public Response<List<ModelColumnVO>> listSyncColumns(@PathVariable("modelId") Integer modelId) {
         List<ModelColumnVO> vos = modelManager.listColumns(modelId);
         return Response.ok(vos);
     }
 
-    @ApiOperation("批量同步字段(新)")
     @SyncReloadCache
     @OperateLog
     @PostMapping("/sync/column/{modelId}")
@@ -149,7 +143,6 @@ public class ModelController {
 
     @CheckCacheVersion
     @PostMapping("/cnName/repeat")
-    @ApiOperation("判断中文名是否重复")
     public Response<Boolean> cnNameIsRepeat(@RequestBody @Validated CnNameRepeatCheckVO checkVO) {
         MetadataCache metadataCache = cacheManager.getMetadataCache();
         if (metadataCache == null) {
@@ -174,7 +167,6 @@ public class ModelController {
 
     @CheckCacheVersion
     @PostMapping("/dimension/name/repeat")
-    @ApiOperation("维度中英文名称是否重复")
     public Response<Boolean> enNameIsRepeat(@RequestBody @Validated NameRepeatCheckVO checkVO) {
         MetadataCache metadataCache = cacheManager.getMetadataCache();
         if (metadataCache == null) {
@@ -192,7 +184,6 @@ public class ModelController {
     @PostMapping("/update")
     @ReloadCache
     @OperateLog
-    @ApiOperation("更新模型接口")
     public Response<ModelBaseVO> updateModel(@RequestBody @Validated TableUpdateVO modelVO) {
         DwTable dwTable = dwTableMapper.selectById(modelVO.getId());
         BeanUtils.copyProperties(modelVO, dwTable);
@@ -206,7 +197,6 @@ public class ModelController {
     @PostMapping("/create")
     @ReloadCache
     @OperateLog
-    @ApiOperation("创建模型接口")
     public Response<ModelBaseVO> saveModel(@RequestBody @Validated TableCreateVO modelVO) {
         String enName = modelVO.getEnName();
         String tableName = modelVO.getTableName();
@@ -258,7 +248,6 @@ public class ModelController {
     }
 
     @GetMapping("/list/table/column/{id}")
-    @ApiOperation("获取模型字段")
     public Response<List<TableFieldVO>> listColumn(@PathVariable Integer id) {
         DwTable dwTable = dwTableMapper.selectById(id);
         List<Columns> columns = columnsMapper.selectList(Wrappers.<Columns>lambdaQuery()
@@ -275,7 +264,6 @@ public class ModelController {
     }
 
     @GetMapping("/list/column/{id}")
-    @ApiOperation("获取待同步的模型字段")
     public Response<List<TableFieldVO>> preCreateModel(@PathVariable Integer id) {
         List<Dimension> dimensions = dimensionMapper.selectList(null);
         Set<String> dimCnNames = dimensions.stream().map(Dimension::getCnName).collect(Collectors.toSet());
@@ -381,8 +369,7 @@ public class ModelController {
     @PostMapping("/sync/column")
     @SyncReloadCache
     @OperateLog
-    @ApiOperation("同步模型字段接口")
-    public Response createModel(@ApiIgnore @CurrentUser User user, @RequestBody @Validated ModelCreateVO modelVO) {
+    public Response createModel(@CurrentUser User user, @RequestBody @Validated ModelCreateVO modelVO) {
         List<OriginMeasureCreateFieldVO> filedVOList = modelVO.getColumns();
 
         DwTable dwTable = dwTableMapper.selectById(modelVO.getId());
@@ -421,7 +408,6 @@ public class ModelController {
 
     @GetMapping("/delete/{id}")
     @OperateLog
-    @ApiOperation("模型删除接口")
     @ReloadCache
     public Response delete(@PathVariable Integer id) {
         modelManager.delete(id);
@@ -432,7 +418,6 @@ public class ModelController {
     IDimensionApplicationService dimensionApplicationService;
 
     @PostMapping("/list/all")
-    @ApiOperation("模型列表接口")
     public Response<PageVO<ModelVO>> listModelWithoutPage(@RequestBody @Validated ModelQueryVO modelQueryVO) {
         Set<Integer> tableIds = new HashSet<>();
         if (modelQueryVO.getMeasId() != null) {
@@ -467,7 +452,6 @@ public class ModelController {
 
 
     @PostMapping("/list")
-    @ApiOperation("模型列表接口")
     public Response<PageVO<ModelVO>> listModel(@RequestBody @Validated ModelPageQueryVO modelPageQueryVO) {
         List<Integer> leafCategoryIds = Optional.ofNullable(modelPageQueryVO.getCategoryId())
                 .map(id -> categoryManager.findLeafIdById(id))

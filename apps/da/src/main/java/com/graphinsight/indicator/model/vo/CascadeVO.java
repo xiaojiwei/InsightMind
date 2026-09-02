@@ -1,6 +1,5 @@
 package com.graphinsight.indicator.model.vo;
 
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import java.util.List;
@@ -12,9 +11,7 @@ import java.util.List;
 @Data
 public class CascadeVO {
 
-    @ApiModelProperty(value = "层次ID")
     private Integer hierarchyId;
 
-    @ApiModelProperty(value = "级别信息")
     private List<LevelVO> levels;
 }

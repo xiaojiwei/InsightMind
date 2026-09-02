@@ -2,7 +2,6 @@ package com.graphinsight.indicator.auto.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -21,7 +20,6 @@ public class Customer {
      * 名称
      */
     @NotNull(message = "用户名称")
-    @ApiModelProperty(value = "用户名称",required = true)
     private String name;
 
     /**

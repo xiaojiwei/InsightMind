@@ -1,6 +1,5 @@
 package com.graphinsight.indicator.model.vo;
 
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import javax.validation.constraints.NotEmpty;
@@ -21,7 +20,6 @@ public class Grant extends BaseVO{
      * 空间ID
      */
     @NotNull(message = "空间ID不能为空")
-    @ApiModelProperty(value = "空间ID")
     private Long spaceId;
 
 }

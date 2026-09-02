@@ -7,7 +7,6 @@ import com.graphinsight.indicator.enums.ResourceEnum;
 import com.graphinsight.indicator.model.dto.RelatedResourceDTO;
 import com.graphinsight.indicator.service.GoalService;
 import com.graphinsight.indicator.service.RelatedResourceService;
-import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

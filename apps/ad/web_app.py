@@ -133,8 +133,6 @@ def _seed_demo_assets() -> None:
         if not src.is_file():
             continue
         rel = src.relative_to(DEMO_OUTPUT_DIR)
-        if rel.parts and rel.parts[0] == "dashboards" and not src.name.startswith("dash_da_tms_"):
-            continue
         dst = OUTPUT_DIR / rel
         if dst.exists():
             continue
@@ -707,7 +705,15 @@ async def feedback_page(request: Request):
 
 @app.get("/dashboard/view/{item_id}", response_class=HTMLResponse)
 async def dashboard_view(request: Request, item_id: str):
-    return TEMPLATES.TemplateResponse(request, "index.html")
+    if not _artifact_path(DASHBOARD_DIR, item_id).exists():
+        return HTMLResponse("Dashboard 不存在或不属于当前激活图谱", status_code=404)
+    # The dashboard template contains its interaction logic inline.  Serving a
+    # stale copy leaves users on an older drill-down flow after a local restart.
+    return TEMPLATES.TemplateResponse(
+        request,
+        "index.html",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
 
 
 @app.post("/api/connect-test")
@@ -6384,7 +6390,7 @@ def _parse_specific_document_lookup(question: str) -> dict[str, str]:
         return {}
     patterns = [
         r"(?P<field>[\u4e00-\u9fa5A-Za-z_][\u4e00-\u9fa5A-Za-z0-9_\-\s]{0,60})\s*(?:为|是|=|:|：)\s*[\"'“”]?(?P<value>[A-Za-z0-9_.\-]+)[\"'“”]?",
-        r"(?:查|查询|查看)?\s*(?P<field>订单编号|订单号|订单ID|单据编号|单据号|退货单号|销售单号|order[_\s-]?(?:number|no|id)?)\s*(?:为|是|=|:|：)?\s*[\"'“”]?(?P<value>[A-Za-z0-9_.\-]+)[\"'“”]?",
+        r"(?:查|查询|查看)?\s*(?P<field>订单编号|订单号|订单ID|单据编号|单据号|退货单号|销售单号|order[_\s-](?:number|no|id))\s*(?:为|是|=|:|：)?\s*[\"'“”]?(?P<value>[A-Za-z0-9_.\-]+)[\"'“”]?",
     ]
     for pat in patterns:
         m = re.search(pat, q, re.I)
@@ -6815,7 +6821,7 @@ async def _query_specific_document_trace(
 
 
 @app.post("/api/nlq/query")
-async def nlq_query(req: NLQRequest):
+async def nlq_query(req: NLQRequest, request: Request):
     """Natural language -> business KG match -> DA query payload/result."""
     question = (req.question or "").strip()
     if not question:
@@ -6916,6 +6922,7 @@ async def nlq_query(req: NLQRequest):
             source_ttl_path=source_ttl_path,
             log_cb=lambda msg: logging.getLogger("uvicorn").info(msg),
             semantic_mapping_service=_semantic_mapping_service(ttl_path, source_ttl_path),
+            authorization=str(request.headers.get("authorization") or ""),
         )
         return service.query(
             question,
@@ -7332,12 +7339,13 @@ def _pivot_da_query(payload: dict[str, Any]) -> dict[str, Any]:
     return _pivot_da_post(_DATA_AGENT_URL, payload)
 
 
-def _ad_semantic_service():
+def _ad_semantic_service(authorization: str = ""):
     from kg_builder.semantic import AdSemanticService
 
+    auth_headers = {"Authorization": authorization} if authorization else {}
     return AdSemanticService(
         catalog=_pivot_catalog(),
-        da_query=_pivot_da_query,
+        da_query=lambda payload: _pivot_da_post(_DATA_AGENT_URL, payload, auth_headers),
         da_filter_builder=_pivot_da_filters,
     )
 
@@ -7556,6 +7564,93 @@ def _pivot_da_filters(filters: Any) -> list[dict[str, Any]]:
             "internal": True,
         })
     return da_filters
+
+
+def _pivot_query_formula_measures(
+    measures: list[dict[str, str]],
+    measure_metas: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+    columns: list[dict[str, Any]],
+    filters: list[dict[str, Any]],
+    catalog: dict[str, Any],
+    limit: int,
+) -> dict[str, Any]:
+    """Run formula measures through the semantic layer before shaping a pivot.
+
+    Formula measures live in AD's semantic registry and therefore cannot be
+    sent directly to DA.  The semantic layer expands their dependencies,
+    executes the base query, and evaluates the formula for each returned row.
+    """
+    from kg_builder.semantic import AdSemanticService
+
+    service = AdSemanticService(catalog, _pivot_da_query, _pivot_da_filters)
+    selected_dims = rows + columns
+    measure_member_names = {
+        meta["code"]: service._code_to_member_name(meta["code"])
+        for meta in measure_metas
+    }
+    dimension_member_names = {
+        dim["code"]: service._code_to_member_name(dim["code"])
+        for dim in selected_dims
+    }
+    semantic_result = service.load({
+        "measures": [measure_member_names[item["code"]] for item in measures],
+        "dimensions": [dimension_member_names[dim["code"]] for dim in selected_dims],
+        # Pivot filters have already been validated and resolved above; passing
+        # their DA representation avoids losing filter IDs while evaluating a
+        # formula measure.
+        "_adFiltersForDa": _pivot_da_filters(filters),
+        "limit": limit,
+    })
+
+    row_headers: dict[str, dict[str, Any]] = {}
+    column_headers: dict[str, dict[str, Any]] = {}
+    cells = []
+    for row in semantic_result.get("data") or []:
+        filter_values = row.get("__filterValues") or {}
+        values = {
+            code: {
+                "value": row.get(member_name),
+                "filterValue": filter_values.get(member_name, row.get(member_name)),
+                "viewType": next((dim.get("viewType") or 0 for dim in selected_dims if dim["code"] == code), 0),
+            }
+            for code, member_name in dimension_member_names.items()
+        }
+        row_path = _pivot_path(rows, values)
+        column_path = _pivot_path(columns, values)
+        row_key = _pivot_key(row_path)
+        column_key = _pivot_key(column_path)
+        row_headers.setdefault(row_key, {"key": row_key, "path": row_path})
+        column_headers.setdefault(column_key, {"key": column_key, "path": column_path})
+        for measure in measures:
+            code = measure["code"]
+            meta = next(item for item in measure_metas if item["code"] == code)
+            cells.append({
+                "rowKey": row_key,
+                "columnKey": column_key,
+                "measureCode": code,
+                "measureName": meta.get("name") or code,
+                "value": row.get(measure_member_names[code]),
+                "rowPath": row_path,
+                "columnPath": column_path,
+            })
+    if not column_headers:
+        column_headers[_pivot_key([])] = {"key": _pivot_key([]), "path": []}
+    if not row_headers:
+        row_headers[_pivot_key([])] = {"key": _pivot_key([]), "path": []}
+    diagnostics = semantic_result.get("diagnostics") or {}
+    return {
+        "rows": list(row_headers.values()),
+        "columns": list(column_headers.values()),
+        "measures": [{**item, **next(meta for meta in measure_metas if meta["code"] == item["code"])} for item in measures],
+        "cells": cells,
+        "filters": filters,
+        "diagnostics": {
+            "elapsedMs": diagnostics.get("elapsedMs"),
+            "rowCount": diagnostics.get("rowCount", len(cells)),
+            "reviewSql": diagnostics.get("reviewSql") or "",
+        },
+    }
 
 
 # ── AD Semantic API (Cube-like facade over DA) ───────────────────────────── #
@@ -7856,7 +7951,7 @@ async def ad_semantic_drill_dimensions(request: Request):
 async def ad_semantic_load(request: Request):
     try:
         body = await request.json()
-        service = _ad_semantic_service()
+        service = _ad_semantic_service(str(request.headers.get("authorization") or ""))
         result = await asyncio.to_thread(service.load, body)
         if body.get("enableAlerts", True) is not False:
             from kg_builder.alerts import annotate_semantic_result
@@ -7882,7 +7977,7 @@ async def ad_semantic_load(request: Request):
 async def ad_semantic_sql(request: Request):
     try:
         body = await request.json()
-        service = _ad_semantic_service()
+        service = _ad_semantic_service(str(request.headers.get("authorization") or ""))
         payload = service.translate_query(dict(body))
         result: dict[str, Any] = {"daPayload": payload}
         if body.get("execute"):
@@ -7903,7 +7998,8 @@ async def ad_semantic_sql(request: Request):
 async def ad_semantic_chart(request: Request):
     try:
         body = await request.json()
-        result = await asyncio.to_thread(_ad_semantic_service().chart, body)
+        service = _ad_semantic_service(str(request.headers.get("authorization") or ""))
+        result = await asyncio.to_thread(service.chart, body)
         return result
     except FileNotFoundError as exc:
         return JSONResponse({"error": str(exc)}, status_code=404)
@@ -7917,7 +8013,7 @@ async def ad_semantic_chart(request: Request):
 async def ad_semantic_drilldown(request: Request):
     body = await request.json()
     try:
-        service = _ad_semantic_service()
+        service = _ad_semantic_service(str(request.headers.get("authorization") or ""))
         measure_member = body.get("measure") or body.get("measureCode")
         measure = service._resolve_member(measure_member, "measure")
         if not measure:
@@ -9755,6 +9851,14 @@ def _list_json_artifacts(base_dir: Path) -> list[dict[str, Any]]:
     return items
 
 
+def _artifact_json_response(content: dict[str, Any], status_code: int = 200) -> JSONResponse:
+    return JSONResponse(
+        content,
+        status_code=status_code,
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
+
+
 def _save_json_artifact(base_dir: Path, body: dict[str, Any], kind: str) -> dict[str, Any]:
     now = time.strftime("%Y-%m-%d %H:%M:%S")
     item_id = _artifact_safe_id(body.get("id") or body.get("name") or f"{kind}_{uuid.uuid4().hex[:8]}")
@@ -9766,15 +9870,15 @@ def _save_json_artifact(base_dir: Path, body: dict[str, Any], kind: str) -> dict
 
 @app.get("/api/adhoc/v1/list")
 async def adhoc_list():
-    return {"items": _list_json_artifacts(ADHOC_DIR)}
+    return _artifact_json_response({"items": _list_json_artifacts(ADHOC_DIR)})
 
 
 @app.get("/api/adhoc/v1/{item_id}")
 async def adhoc_get(item_id: str):
     try:
-        return _read_json_artifact(_artifact_path(ADHOC_DIR, item_id))
+        return _artifact_json_response(_read_json_artifact(_artifact_path(ADHOC_DIR, item_id)))
     except FileNotFoundError:
-        return JSONResponse({"error": "Ad-Hoc 组件不存在"}, status_code=404)
+        return _artifact_json_response({"error": "Ad-Hoc 组件不存在"}, status_code=404)
 
 
 @app.post("/api/adhoc/v1/save")
@@ -9796,15 +9900,15 @@ async def adhoc_delete(item_id: str):
 
 @app.get("/api/dashboard/v1/list")
 async def dashboard_list():
-    return {"items": _list_json_artifacts(DASHBOARD_DIR)}
+    return _artifact_json_response({"items": _list_json_artifacts(DASHBOARD_DIR)})
 
 
 @app.get("/api/dashboard/v1/{item_id}")
 async def dashboard_get(item_id: str):
     try:
-        return _read_json_artifact(_artifact_path(DASHBOARD_DIR, item_id))
+        return _artifact_json_response(_read_json_artifact(_artifact_path(DASHBOARD_DIR, item_id)))
     except FileNotFoundError:
-        return JSONResponse({"error": "Dashboard 不存在"}, status_code=404)
+        return _artifact_json_response({"error": "Dashboard 不存在"}, status_code=404)
 
 
 @app.post("/api/dashboard/v1/save")
@@ -10456,6 +10560,17 @@ async def pivot_query(request: Request):
                 raise ValueError(
                     f"指标「{meta['name']}」与维度 {', '.join(incompatible)} 没有共用事实表"
                 )
+        limit = max(1, min(int(body.get("limit") or 1000), 10000))
+        resolved_filters = _pivot_resolve_filters_for_measures(
+            filters, measure_metas, catalog,
+        )
+        if any(meta.get("formula") for meta in measure_metas):
+            result = _pivot_query_formula_measures(
+                measures, measure_metas, rows, columns, resolved_filters, catalog, limit,
+            )
+            from kg_builder.alerts import annotate_pivot_result
+
+            return annotate_pivot_result(result, measures, rows, columns)
         configure = [{"code": item["code"]} for item in measures]
         configure.extend({
             "code": item["code"],
@@ -10465,8 +10580,8 @@ async def pivot_query(request: Request):
         } for item in selected_dims)
         payload = {
             "configureList": configure,
-            "filterList": _pivot_da_filters(_pivot_resolve_filters_for_measures(filters, measure_metas, catalog)),
-            "pageSize": max(1, min(int(body.get("limit") or 1000), 10000)),
+            "filterList": _pivot_da_filters(resolved_filters),
+            "pageSize": limit,
             "pageNum": 1,
         }
         da_result = await asyncio.to_thread(_pivot_da_query, payload)

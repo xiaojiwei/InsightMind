@@ -5,7 +5,6 @@ import com.graphinsight.indicator.annotation.*;
 import com.graphinsight.indicator.auto.entity.*;
 import com.graphinsight.indicator.constant.IndicatorConstant;
 import com.graphinsight.indicator.model.Response;
-import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -37,7 +36,6 @@ public class RobotController {
     @Value("${pbApiSalt:XEfjXmit7vRi}")
     private String pbApiSalt;
 
-    @ApiOperation("机器人拉群功能")
     @GetMapping("/group/create")
     public Response createExp(@CurrentUser User user) {
         try {

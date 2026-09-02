@@ -1,14 +1,5 @@
 package com.graphinsight.indicator.model;
 
-import com.baidubce.BceClientConfiguration;
-import com.baidubce.auth.BceCredentials;
-import com.baidubce.auth.DefaultBceCredentials;
-import com.baidubce.auth.DefaultBceSessionCredentials;
-import com.baidubce.services.bos.BosClient;
-import com.baidubce.services.bos.BosClientConfiguration;
-import com.baidubce.services.sts.StsClient;
-import com.baidubce.services.sts.model.GetSessionTokenRequest;
-import com.baidubce.services.sts.model.GetSessionTokenResponse;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.csvreader.CsvWriter;
 import com.graphinsight.indicator.constant.IndicatorConstant;
@@ -701,44 +692,4 @@ public class FileTask extends Thread {
         output.close();
 
     }
-
-
-
-    public static void main1(String[] args) {
-
-        String ACCESS_KEY_ID = "484c2441595e11eca4098113115ab41d";     // 用户的Access Key ID
-        String SECRET_ACCESS_KEY =  "e7ffc4a7ed604307a0e297eae8264c08";        // 用户的Secret Access Key
-        String STS_ENDPOINT = "https://bj.bcebos.com";
-
-        BceCredentials credentials = new DefaultBceCredentials(ACCESS_KEY_ID, SECRET_ACCESS_KEY);
-        StsClient client = new StsClient(
-                new BceClientConfiguration().withEndpoint(STS_ENDPOINT).withCredentials(credentials)
-        );
-        GetSessionTokenResponse response = client.getSessionToken(new GetSessionTokenRequest());
-        // or simply call:
-        // GetSessionTokenResponse response = client.getSessionToken();
-        // or you can specify limited permissions with ACL:
-        // GetSessionTokenResponse response = client.getSessionToken(new GetSessionTokenRequest().withAcl("blabla"));
-        // build DefaultBceSessionCredentials object from response:
-        BceCredentials bosstsCredentials = new DefaultBceSessionCredentials(
-                response.getAccessKeyId(),
-                response.getSecretAccessKey(),
-                response.getSessionToken());
-        System.out.println("==================================");
-        System.out.println("GetSessionToken result:");
-        System.out.println("    accessKeyId:  " + response.getAccessKeyId());
-        System.out.println("    secretAccessKey:  " + response.getSecretAccessKey());
-        System.out.println("    securityToken:  " + response.getSessionToken());
-        System.out.println("    expiresAt:  " + response.getExpiration().toString());
-        System.out.println("==================================");
-
-        // build bos client
-        BosClientConfiguration config = new BosClientConfiguration();
-        config.setCredentials(bosstsCredentials);
-        String ENDPOINT = "bj.bcebos.com";
-        config.setEndpoint(ENDPOINT);
-        BosClient bosClient = new BosClient(config);
-
-    }
-
 }

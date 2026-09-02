@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.model.vo;
 
 import com.graphinsight.indicator.model.Filter;
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import javax.validation.constraints.NotEmpty;
@@ -19,7 +18,6 @@ public class MultiDimensionQueryVO {
 
 
     @NotNull(message = "任务ID不能为空")
-    @ApiModelProperty(value = "任务ID,有就传.有这个值就不需要二查结果指标的值了")
     private Long taskId;
 
     /**
@@ -34,7 +32,6 @@ public class MultiDimensionQueryVO {
     @NotEmpty(message = "维度列不能为空")
     private Set<String> colDimCodes;
 
-    @ApiModelProperty(value = "过滤条件")
     private LinkedList<Filter> filterList = new LinkedList<>();
 
     /**
@@ -61,14 +58,12 @@ public class MultiDimensionQueryVO {
     @NotNull(message = "空间ID不能为空")
     private Long spaceId;
 
-    @ApiModelProperty(value = "是否是下载文件，默认false")
     private boolean downloadFile;
 
     private Integer pageNo = 1;
 
     private Integer pageSize = 20;
 
-    @ApiModelProperty(value = "排序字段")
     private LinkedList<OrderVO> orderList = new LinkedList<>();
 
     // public LinkedList<OrderVO> getOrderList() {

@@ -93,23 +93,15 @@ def test_workbench_kpis_open_the_shared_drill_chooser():
     assert "callWorkbenchApplyKpiDrill" not in html
 
 
-def test_call_quality_pulse_supports_the_management_action_loop():
+def test_active_demo_dashboards_are_hr_only():
     base = Path(__file__).parents[1]
-    template = base / "kg_builder" / "web" / "templates" / "index.html"
-    html = template.read_text(encoding="utf-8")
-    dashboard = (
-        base
-        / "output"
-        / "dashboards"
-        / "dash_da_tms_call_quality_pulse.json"
-    ).read_text(encoding="utf-8")
+    dashboard_dir = base / "output" / "dashboards"
 
-    assert "今日业务结论" in html
-    assert "近 7 日质量趋势" in html
-    assert "指标联动解释" in html
-    assert "行动清单与结果追踪" in html
-    assert "callPulseLoadTrend" in html
-    assert "callPulseBindActions" in html
-    assert "callSopOpenWorkbenchDrill(action.drill" in html
-    assert '"filters": []' in dashboard
-    assert '"h": 34' in dashboard
+    assert {path.stem for path in dashboard_dir.glob("*.json")} == {
+        "dash_hr_human_capital_panorama",
+        "dash_hr_talent_vitality_pulse",
+    }
+    assert not (dashboard_dir / "dash_mall_robot_after_sales_marketing.json").exists()
+    assert not (dashboard_dir / "dash_da_tms_call_quality_pulse.json").exists()
+    assert not (dashboard_dir / "dash_da_tms_call_sop_workbench.json").exists()
+    assert not (dashboard_dir / "dash_da_tms_call_monitor_alert.json").exists()

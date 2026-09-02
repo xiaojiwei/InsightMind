@@ -1,0 +1,40 @@
+{
+  "id": "hr_panorama_compa_ratio_mix",
+  "name": "薪酬中位比分布",
+  "summary": "按 compa-ratio 区间观察人员薪酬定位结构。",
+  "query": {
+    "measures": [
+      "ad.workforce_headcount"
+    ],
+    "dimensions": [
+      "ad.compa_ratio_band"
+    ],
+    "filters": [],
+    "order": {
+      "ad.workforce_headcount": "desc"
+    },
+    "limit": 20
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "donut",
+    "encoding": {
+      "x": "ad.compa_ratio_band",
+      "y": "ad.workforce_headcount"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": false,
+    "anomalyFocusMode": false
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.compa_ratio_band",
+      "ad.department",
+      "ad.job"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

@@ -1,0 +1,55 @@
+{
+  "id": "hr_talent_vitality_pulse_board",
+  "name": "组织效能驾驶舱｜人才活力脉搏",
+  "description": "从组织结论进入结构、风险、人才梯队与行动建议，指标全部来自 HRRDB 激活业务图谱。",
+  "query": {
+    "measures": [
+      "ad.workforce_headcount",
+      "ad.monthly_base_payroll",
+      "ad.average_tenure_years",
+      "ad.manager_coverage_rate",
+      "ad.average_span_of_control",
+      "ad.salary_band_compliance_rate",
+      "ad.internal_mobility_coverage_rate"
+    ],
+    "dimensions": [
+      "ad.department",
+      "ad.org_level_band",
+      "ad.tenure_band",
+      "ad.compa_ratio_band",
+      "ad.mobility_type",
+      "ad.region"
+    ],
+    "filters": [],
+    "order": {
+      "ad.workforce_headcount": "desc"
+    },
+    "limit": 1000
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "executive_report",
+    "encoding": {
+      "reportTemplate": "hr_talent_pulse",
+      "reportTitle": "组织效能驾驶舱｜人才活力脉搏",
+      "reportSubtitle": "组织规模、管理覆盖、薪酬合规与人才流动的经营闭环"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": true,
+    "anomalyFocusMode": true
+  },
+  "drill": {
+    "mode": "path",
+    "path": [
+      "ad.department",
+      "ad.org_level_band",
+      "ad.tenure_band",
+      "ad.job",
+      "ad.employee"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc",
+  "updatedAt": "2026-08-27 18:30:00"
+}

@@ -1,6 +1,5 @@
 package com.graphinsight.indicator.model.vo;
 
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import javax.validation.constraints.NotNull;
@@ -23,6 +22,5 @@ public class BaseInfo {
      * 叶子分类ID
      */
     @NotNull
-    @ApiModelProperty(value = "指标二级分类ID",required = false,example = "1")
     public Integer leafCategoryId = -2;
 }

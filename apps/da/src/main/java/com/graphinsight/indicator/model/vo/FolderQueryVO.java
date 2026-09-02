@@ -1,6 +1,5 @@
 package com.graphinsight.indicator.model.vo;
 
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import javax.validation.constraints.NotNull;
@@ -13,11 +12,9 @@ import javax.validation.constraints.NotNull;
 public class FolderQueryVO {
 
     @NotNull(message = "空间ID不能为空")
-    @ApiModelProperty(value = "空间ID")
     private Long spaceId;
 
     @NotNull(message = "folderOnly不能为空")
-    @ApiModelProperty(value = "true-只查文件夹,false-带看板")
     private Boolean folderOnly;
 
     private Integer status;

@@ -1,0 +1,35 @@
+{
+  "id": "hr_panorama_headcount",
+  "name": "在册人数",
+  "summary": "当前员工快照中的在册人员总数。",
+  "query": {
+    "measures": [
+      "ad.workforce_headcount"
+    ],
+    "dimensions": [],
+    "filters": [],
+    "order": {},
+    "limit": 1000
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "kpi",
+    "encoding": {
+      "y": "ad.workforce_headcount"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": true,
+    "anomalyFocusMode": false
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.department",
+      "ad.job",
+      "ad.employee"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

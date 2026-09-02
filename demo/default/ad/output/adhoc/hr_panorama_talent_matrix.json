@@ -1,0 +1,39 @@
+{
+  "id": "hr_panorama_talent_matrix",
+  "name": "司龄 × 组织层级人才矩阵",
+  "summary": "用司龄与组织层级交叉观察人才梯队密度。",
+  "query": {
+    "measures": [
+      "ad.workforce_headcount"
+    ],
+    "dimensions": [
+      "ad.tenure_band",
+      "ad.org_level_band"
+    ],
+    "filters": [],
+    "order": {
+      "ad.workforce_headcount": "desc"
+    },
+    "limit": 200
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "heatmap",
+    "encoding": {}
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": false,
+    "anomalyFocusMode": false
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.tenure_band",
+      "ad.org_level_band",
+      "ad.department",
+      "ad.employee"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

@@ -1,6 +1,5 @@
 package com.graphinsight.indicator.model.vo;
 
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import javax.validation.constraints.NotBlank;
@@ -29,10 +28,8 @@ public class DecisionTreeNodeData {
      */
     private String nodeName;
 
-    @ApiModelProperty(value = "指标贡献度信息")
     private DecisionTreeContributionInfo contributionInfo;
 
-    @ApiModelProperty(value = "是否有指标权限,如果没有,贡献度信息、指标统计信息统一显示星号 : * ")
     private boolean hasAuth = true;
 
 

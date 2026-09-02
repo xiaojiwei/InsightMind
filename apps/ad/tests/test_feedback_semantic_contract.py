@@ -58,6 +58,36 @@ def test_semantic_contract_can_fall_back_to_executed_da_payload() -> None:
     assert contract["corrections"][0]["correctorCode"] == "TRACE_CONTEXT_FALLBACK"
 
 
+def test_semantic_contract_links_redacted_pre_execution_analysis_spec() -> None:
+    contract = build_semantic_contract(
+        trace_id="trace-spec",
+        source="nlq",
+        status="succeeded",
+        result={
+            "ok": True,
+            "planStatus": "ready",
+            "analysisSpecHash": "b" * 64,
+            "analysisSpec": {
+                "specVersion": "1.0",
+                "analysisKind": "metric_query",
+                "semantic": {
+                    "measureCodes": ["MEAS_sales"],
+                    "filters": [{"values": ["private-value"]}],
+                },
+            },
+            "matched": {"measureCode": "MEAS_sales"},
+        },
+    )
+
+    assert contract["plan"]["analysisSpec"] == {
+        "version": "1.0",
+        "hash": "b" * 64,
+        "kind": "metric_query",
+        "status": "ready",
+    }
+    assert "private-value" not in str(contract)
+
+
 def test_only_explicit_quality_feedback_changes_memory_state() -> None:
     assert compatible_memory_status("RESULT_HELPFUL") == "ENABLED"
     assert compatible_memory_status("RESULT_UNHELPFUL") == "DISABLED"

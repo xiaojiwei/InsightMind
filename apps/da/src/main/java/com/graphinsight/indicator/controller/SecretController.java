@@ -67,7 +67,6 @@ import com.graphinsight.indicator.model.vo.MeasureCacheVO;
 import com.graphinsight.indicator.model.vo.SimpleInfo;
 import com.graphinsight.indicator.model.vo.UpdateItem;
 import com.graphinsight.indicator.service.IndicatorService;
-import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -255,7 +254,6 @@ public class SecretController {
     }
 
 
-    @ApiOperation(value = "备份库测试")
     @GetMapping("/test/dump")
     public Response dump() {
         mysqlDumpManager.dump();
@@ -266,7 +264,6 @@ public class SecretController {
     @Resource
     IMeasureNaturalDateMappingService measureNaturalDateMappingService;
 
-    @ApiOperation(value = "清洗脏数据")
     @GetMapping("/dim/natural/wash")
     public Response washDirtyData() {
         List<MeasureNaturalDateMapping> list = measureNaturalDateMappingService.list(null);
@@ -280,7 +277,6 @@ public class SecretController {
     }
 
 
-    @ApiOperation(value = "测试内存排序")
     @GetMapping("/sync/table/{id}")
     public Response syncColumns(@PathVariable("id") Long id) {
         DwTable table = dwTableService.getById(id);
@@ -289,63 +285,53 @@ public class SecretController {
     }
 
 
-    @ApiOperation(value = "测试内存排序")
     @GetMapping("/mem/sort/test/{num}")
     public Response sortTest(@PathVariable("num") Long num) {
         dorisQueryManager.sortTest(num);
         return Response.ok();
     }
 
-    @ApiOperation(value = "查看超级管理员")
     @GetMapping("/dim/context/list")
     public Response dimContextList() {
         return Response.ok(dimContextRelationService.list());
     }
 
-    @ApiOperation(value = "保存超级管理员")
     @PostMapping("/dim/context/save")
     public Response dimContextSave(@RequestBody DimContextRelation dimContextRelation) {
         return Response.ok(dimContextRelationService.save(dimContextRelation));
     }
 
-    @ApiOperation(value = "删除超级管理员")
     @GetMapping("/dim/context/delete/{id}")
     public Response dimContextDel(@PathVariable("id") Long id) {
         return Response.ok(dimContextRelationService.removeById(id));
     }
 
-    @ApiOperation(value = "更新超级管理员")
     @PostMapping("/dim/context/update")
     public Response dimContextUpdate(@RequestBody DimContextRelation dimContextRelation) {
         return Response.ok(dimContextRelationService.updateById(dimContextRelation));
     }
 
 
-    @ApiOperation(value = "查看超级管理员")
     @GetMapping("/super/admin/list")
     public Response list() {
         return Response.ok(superAdminService.list());
     }
 
-    @ApiOperation(value = "保存超级管理员")
     @PostMapping("/super/admin/save")
     public Response save(@RequestBody TSuperAdmin tSuperAdmin) {
         return Response.ok(superAdminService.save(tSuperAdmin));
     }
 
-    @ApiOperation(value = "删除超级管理员")
     @GetMapping("/super/admin/delete/{id}")
     public Response delSuperAdmin(@PathVariable("id") Long id) {
         return Response.ok(superAdminService.removeById(id));
     }
 
-    @ApiOperation(value = "更新超级管理员")
     @PostMapping("/super/admin/update")
     public Response update(@RequestBody TSuperAdmin tSuperAdmin) {
         return Response.ok(superAdminService.updateById(tSuperAdmin));
     }
 
-    @ApiOperation(value = "保存")
     @PostMapping("/operate/grant/save/config")
     public Response save(@RequestBody OperateGrantConfig operateGrantConfig) {
         return Response.ok(operateGrantConfigService.save(operateGrantConfig));
@@ -356,13 +342,11 @@ public class SecretController {
         return Response.ok(operateGrantConfigService.removeById(id));
     }
 
-    @ApiOperation(value = "更新")
     @PostMapping("/operate/grant/update")
     public Response update(@RequestBody OperateGrantConfig operateGrantConfig) {
         return Response.ok(operateGrantConfigService.updateById(operateGrantConfig));
     }
 
-    @ApiOperation(value = "获取指标的缓存信息")
     @GetMapping("/get/measureCache/{id}")
     public Response getMeasureCacheInfo(@PathVariable Integer id) {
         MeasureCache measureCache = cacheManager.getMeasureCache(id);
@@ -430,7 +414,6 @@ public class SecretController {
         return simpleInfo;
     }
 
-    @ApiOperation(value = "批量修改创建人、更新人")
     @PostMapping("/batch/update/operator")
     public Response batchUpdateOperator(@RequestBody BatchUpdateOperatorVO batchUpdateOperatorVO) {
 
@@ -480,7 +463,6 @@ public class SecretController {
     @Autowired
     UserGrantContextManager userGrantContextManager;
 
-    @ApiOperation(value = "获取指定用户的运营架构上下文信息")
     @GetMapping("/sync/user/{username}/{configId}")
     public Response getUserOperateContext(@PathVariable("username") String username,
                                           @PathVariable("configId") Long configId) {
@@ -488,7 +470,6 @@ public class SecretController {
         return Response.ok(operateGrantValue);
     }
 
-    @ApiOperation(value = "获取指定用户的上下文信息")
     @GetMapping("/get/userContext/{username}/{spaceId}")
     public Response getUserContext(@PathVariable("username") String username,
                                    @PathVariable("spaceId") Long spaceId) {
@@ -507,7 +488,6 @@ public class SecretController {
         return Response.ok();
     }
 
-    @ApiOperation(value = "同步最新的部门信息")
     @GetMapping("/sync/dept/")
     public Response syncDept() {
         departmentManager.syncDepartment();

@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.model.vo;
 
 import com.graphinsight.indicator.auto.entity.AiSearchInfo;
-import io.swagger.models.auth.In;
 import lombok.Data;
 
 import java.util.*;

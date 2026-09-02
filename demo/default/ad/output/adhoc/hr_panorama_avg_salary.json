@@ -1,0 +1,35 @@
+{
+  "id": "hr_panorama_avg_salary",
+  "name": "平均基本薪酬",
+  "summary": "在册员工月度基本薪酬均值。",
+  "query": {
+    "measures": [
+      "ad.average_base_salary"
+    ],
+    "dimensions": [],
+    "filters": [],
+    "order": {},
+    "limit": 1000
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "kpi",
+    "encoding": {
+      "y": "ad.average_base_salary"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": true,
+    "anomalyFocusMode": false
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.department",
+      "ad.job",
+      "ad.compa_ratio_band"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

@@ -1,0 +1,40 @@
+{
+  "id": "hr_panorama_department_headcount",
+  "name": "部门人员规模",
+  "summary": "按部门比较在册人员规模，包含未归属部门人员。",
+  "query": {
+    "measures": [
+      "ad.workforce_headcount"
+    ],
+    "dimensions": [
+      "ad.department"
+    ],
+    "filters": [],
+    "order": {
+      "ad.workforce_headcount": "desc"
+    },
+    "limit": 30
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "bar",
+    "encoding": {
+      "x": "ad.department",
+      "y": "ad.workforce_headcount"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": true,
+    "anomalyFocusMode": false
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.department",
+      "ad.job",
+      "ad.employee"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

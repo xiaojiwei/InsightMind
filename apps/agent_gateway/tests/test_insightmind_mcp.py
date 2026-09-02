@@ -92,6 +92,31 @@ class CatalogTests(unittest.TestCase):
 
 
 class SafetyTests(unittest.TestCase):
+    def test_compile_analysis_spec_never_executes_data_query(self):
+        with patch.object(
+            gateway,
+            "_request",
+            return_value={"ok": True, "planStatus": "ready", "analysisSpec": {}},
+        ) as request:
+            result = gateway.compile_analysis_spec(
+                "按区域看收入",
+                query_mode="deterministic",
+                conversation_id="conversation-1",
+                context={"region": "华东"},
+                is_follow_up=True,
+                max_dimensions=99,
+            )
+
+        self.assertTrue(result["ok"])
+        request.assert_called_once()
+        args, kwargs = request.call_args
+        self.assertEqual(("ad", "POST", "/api/nlq/query"), args)
+        self.assertFalse(kwargs["json_body"]["execute"])
+        self.assertEqual("conversation-1", kwargs["json_body"]["conversationId"])
+        self.assertEqual({"region": "华东"}, kwargs["json_body"]["context"])
+        self.assertTrue(kwargs["json_body"]["isFollowUp"])
+        self.assertEqual(5, kwargs["json_body"]["maxDimensions"])
+
     def test_page_size_is_capped(self):
         self.assertEqual(gateway.MAX_PAGE_SIZE, gateway._cap_page_size(gateway.MAX_PAGE_SIZE + 100))
         self.assertEqual(1, gateway._cap_page_size(-10))

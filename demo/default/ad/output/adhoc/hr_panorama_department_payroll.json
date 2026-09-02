@@ -1,0 +1,40 @@
+{
+  "id": "hr_panorama_department_payroll",
+  "name": "部门薪酬规模",
+  "summary": "按部门比较月度基本薪酬总额。",
+  "query": {
+    "measures": [
+      "ad.monthly_base_payroll"
+    ],
+    "dimensions": [
+      "ad.department"
+    ],
+    "filters": [],
+    "order": {
+      "ad.monthly_base_payroll": "desc"
+    },
+    "limit": 30
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "bar",
+    "encoding": {
+      "x": "ad.department",
+      "y": "ad.monthly_base_payroll"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": true,
+    "anomalyFocusMode": false
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.department",
+      "ad.job",
+      "ad.employee"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

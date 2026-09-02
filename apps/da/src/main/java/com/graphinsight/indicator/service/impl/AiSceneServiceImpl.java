@@ -15,7 +15,6 @@ import com.graphinsight.indicator.model.dto.UserContext;
 import com.graphinsight.indicator.model.vo.*;
 import com.graphinsight.indicator.service.AiSceneService;
 import com.graphinsight.indicator.util.UserThreadLocalUtil;
-import io.swagger.models.auth.In;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;

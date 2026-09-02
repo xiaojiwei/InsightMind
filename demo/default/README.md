@@ -1,23 +1,19 @@
 # InsightMind Default Demo
 
-This directory contains the checked-in demo assets restored by
-`scripts/init-demo-assets.sh` and auto-seeded by AD when `apps/ad/output` is
-empty or missing.
+This directory contains the checked-in HR demo assets restored by
+`scripts/init-demo-assets.sh` and auto-seeded by AD when runtime output assets
+are missing.
 
 ## Contents
 
-- `ad/output/kg_tpcds.ttl` — default TPC-DS data-source knowledge graph.
-- `ad/output/business_kg/indicator-data.ttl` — default business knowledge graph.
-- `ad/output/adhoc/*.json` — saved Ad-Hoc components.
-- `ad/output/dashboards/*.json` — saved dashboard definitions.
+- `ad/output/kg_20260901_003.ttl` — current HR data-source knowledge graph.
+- `ad/output/business_kg/indicator-data.ttl` — current HR business knowledge graph.
+- `ad/output/adhoc/hr_*.json` — saved HR Ad-Hoc components.
+- `ad/output/dashboards/dash_hr_*.json` — saved HR dashboard definitions.
 
 The database schema and deterministic data generator live in the application
 tree so they can also be used directly during development:
 
-- `apps/ad/tpcds_schema.sql`
-- `apps/ad/tpcds_data.py`
-- `apps/ad/demo_call_sop_data.py` — 54 fully synthetic call-quality records.
-- `apps/ad/demo_celn_data.py` — synthetic CELN funnel and drill-down records for Smart Insight.
 - `apps/da/schema.sql`
 
 To initialize a fresh local demo:
@@ -28,14 +24,10 @@ To initialize a fresh local demo:
 ./scripts/insightmind.sh restart
 ```
 
-The initializer recreates the local `tpcds` and `da_tms` demo databases, loads
-the DA metadata database, and installs the checked-in pivot alert rules. The
-call transcripts, CELN customers, stage evidence, employees, store and
-conversion events are synthetic and use the fictional demo scope
-`理想汽车`.
+The initializer restores the current HR graph files and saved HR dashboard
+assets used by the active demo.
 
-After both services start, open the three ready-to-use dashboards:
+After both services start, open the ready-to-use dashboards:
 
-- `/dashboard/view/dash_da_tms_call_sop_diagnosis`
-- `/dashboard/view/dash_da_tms_call_sop_workbench`
-- `/dashboard/view/dash_da_tms_call_monitor_alert`
+- `/dashboard/view/dash_hr_human_capital_panorama`
+- `/dashboard/view/dash_hr_talent_vitality_pulse`

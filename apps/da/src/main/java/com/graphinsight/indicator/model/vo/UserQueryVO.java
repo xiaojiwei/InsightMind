@@ -1,6 +1,5 @@
 package com.graphinsight.indicator.model.vo;
 
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 /**
@@ -10,7 +9,6 @@ import lombok.Data;
 @Data
 public class UserQueryVO {
 
-    @ApiModelProperty(value = "域账号或者姓名")
     private String username;
 
 }

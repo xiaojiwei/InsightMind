@@ -54,8 +54,7 @@ import com.graphinsight.indicator.service.IndicatorService;
 import com.graphinsight.indicator.util.CloneUtils;
 import com.graphinsight.indicator.util.MemCacheUtils;
 import com.graphinsight.indicator.util.StringUtil;
-import org.apache.directory.api.util.Strings;
-import org.mortbay.log.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.owasp.esapi.ESAPI;
 import org.owasp.esapi.codecs.MySQLCodec;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,6 +74,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service("buildSql")
+@Slf4j
 public class BuildSqlServiceImpl implements BuildSqlService {
 
     @Autowired
@@ -2284,7 +2284,7 @@ public class BuildSqlServiceImpl implements BuildSqlService {
             OperationItem.MeasureBasicInfo measBasicInfo = operaItem.getOperand();
             if (null != measBasicInfo) {
                 String measCode = measBasicInfo.getMeasCode();
-                if (Strings.isNotEmpty(measCode) && measCode.equalsIgnoreCase(code)) {
+                if (StringUtil.isNotEmpty(measCode) && measCode.equalsIgnoreCase(code)) {
                     isSon = true;
                     break;
                 }
@@ -5761,7 +5761,7 @@ public class BuildSqlServiceImpl implements BuildSqlService {
             formatColumn = column;
         }
 
-        Log.info(formatColumn);
+        log.info(formatColumn);
 
         return formatColumn;
 
@@ -5878,7 +5878,7 @@ public class BuildSqlServiceImpl implements BuildSqlService {
 
     public static String setAlias(String sql, String alias, String where) {
 
-        if (Strings.isEmpty(sql)) {
+        if (StringUtil.isEmpty(sql)) {
             return "";
         }
 

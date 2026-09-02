@@ -10,7 +10,7 @@ import com.graphinsight.indicator.model.PageData;
 import com.graphinsight.indicator.model.QueryResult;
 import com.graphinsight.indicator.service.QueryPlanService;
 import com.graphinsight.indicator.service.RedisCacheService;
-import org.mortbay.log.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service("dorisQueryExecutorService")
+@Slf4j
 public class DorisQueryExecutorServiceImpl extends QueryExecutorService {
 
 
@@ -56,7 +57,7 @@ public class DorisQueryExecutorServiceImpl extends QueryExecutorService {
         QueryResult queryResult = new QueryResult();
         //将sql模版替换为mysql sql语法，并设置executeSql，作为最终执行的sql。
         String executeSql = super.formatSqlByEngine(SourceType.MYSQL, tuple);
-        Log.info(executeSql);
+        log.info(executeSql);
         JdbcTemplate jdbcTemplate = getJdbc(tuple);
         boolean measureDetail = tuple.isMeasureDetail();
         if (measureDetail) {

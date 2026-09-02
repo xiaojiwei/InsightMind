@@ -2,7 +2,8 @@ package com.graphinsight.indicator.model;
 
 import com.graphinsight.indicator.enums.ResponseErrorType;
 import lombok.Data;
-import org.apache.skywalking.apm.toolkit.trace.TraceContext;
+
+import java.util.UUID;
 
 @Data
 public class Response<T> {
@@ -66,7 +67,7 @@ public class Response<T> {
      */
     String traceId;
 
-    String skywalkingTraceId = TraceContext.traceId();
+    String skywalkingTraceId = UUID.randomUUID().toString();
 
     public Response() {
         this.code = SUCCESS;
@@ -215,7 +216,7 @@ public class Response<T> {
 
 //    private void setTraceId(){
 ////        traceId = MDC.get("TRACE_ID");
-//        traceId = TraceContext.traceId();
+//        traceId = UUID.randomUUID().toString();
 //    }
 
     private String findCode(String info) {

@@ -173,6 +173,8 @@ def complete_query_trace(
                 "status": status, "diagnosticCode": diagnostic, "errorCode": error_code,
                 "rowCount": row_count, "elapsedMs": result.get("elapsedMs"),
                 "validationStatus": (result.get("validation") or {}).get("status"),
+                "analysisSpecHash": result.get("analysisSpecHash") or "",
+                "planStatus": result.get("planStatus") or "",
             },
             "dedupe_key": f"execution:{trace_id}",
         })

@@ -28,7 +28,6 @@ import com.graphinsight.indicator.service.wordNlpV2.parse.TreeParse;
 import com.graphinsight.indicator.util.StringUtil;
 import com.graphinsight.indicator.util.TempThreadLocalUtil;
 import com.graphinsight.indicator.util.UserThreadLocalUtil;
-import io.swagger.annotations.Api;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -40,7 +39,6 @@ import java.util.stream.Collectors;
 @DS("mysql")
 @RestController
 @RequestMapping(IndicatorConstant.DATA_GPT_AI)
-@Api(tags = "【dataGpt】查询模块接口 ")
 public class AiQueryController extends BaseController {
 
     @Autowired

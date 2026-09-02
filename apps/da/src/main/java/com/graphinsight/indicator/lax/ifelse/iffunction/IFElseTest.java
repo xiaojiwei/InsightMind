@@ -1,6 +1,5 @@
 package com.graphinsight.indicator.lax.ifelse.iffunction;
 
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,7 +19,6 @@ public class IFElseTest {
     }
 
 
-    @Test
     public void test2(){
         System.out.println("[MEAS_a] = 1, [MEAS_b] = 2");
         System.out.println("[MEAS_a] + [MEAS_b] = " + value("[MEAS_a]+[MEAS_b]"));
@@ -31,7 +29,6 @@ public class IFElseTest {
 
 
 
-    @Test
     public void test1(){
         System.out.println(value("1+2"));
         System.out.println(value("1+(2*3)"));

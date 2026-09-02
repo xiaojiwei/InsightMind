@@ -1,5 +1,6 @@
 package com.graphinsight.indicator.cache;
 
+import com.alibaba.fastjson.JSON;
 import com.graphinsight.indicator.auto.entity.MeasureApplication;
 import com.graphinsight.indicator.auto.mapper.MeasureApplicationMapper;
 import com.graphinsight.indicator.constant.CacheConstant;
@@ -9,7 +10,6 @@ import com.graphinsight.indicator.model.cache.MetadataCache;
 import com.graphinsight.indicator.service.RedisCacheService;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mortbay.util.ajax.JSON;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -61,6 +61,6 @@ public class CacheManagerTest {
         List<MeasureApplication> measureApplications = measureApplicationMapper.selectList(null);
         Map<Integer, List<MeasureApplication>> measIdAppList = measureApplications.stream().collect(Collectors.groupingBy(MeasureApplication::getMeasId));
         List<MeasureDependencyTreeInfo> complexMeasureCaches = cacheManager.buildDependencyTree(measIdAppList,null);
-        System.out.println(JSON.toString(complexMeasureCaches));
+        System.out.println(JSON.toJSONString(complexMeasureCaches));
     }
 }

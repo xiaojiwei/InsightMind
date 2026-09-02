@@ -1,6 +1,6 @@
 package com.graphinsight.indicator.service.impl;
 
-import org.mortbay.log.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.owasp.esapi.ESAPI;
 import org.owasp.esapi.codecs.MySQLCodec;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +15,7 @@ import java.util.Date;
 import java.util.List;
 
 @Service("sqliteSQLGeneratorReadService")
+@Slf4j
 public class SqliteSQLGeneratorReadServiceImpl {
 
     @Value(value = "${spring.datasource.dynamic.datasource.mysql.url}")
@@ -230,7 +231,7 @@ public class SqliteSQLGeneratorReadServiceImpl {
             try {
                 file.createNewFile();
             } catch (IOException e) {
-                Log.info(e.getMessage());
+                log.info(e.getMessage());
                 System.out.println("创建文件名失败！！");
                 e.printStackTrace();
             }
@@ -248,14 +249,14 @@ public class SqliteSQLGeneratorReadServiceImpl {
             }
         } catch (IOException e) {
             e.printStackTrace();
-            Log.info(e.getMessage());
+            log.info(e.getMessage());
         } finally {
             try {
                 bw.close();
                 fw.close();
             } catch (IOException e) {
                 e.printStackTrace();
-                Log.info(e.getMessage());
+                log.info(e.getMessage());
             }
         }
     }
@@ -275,7 +276,7 @@ public class SqliteSQLGeneratorReadServiceImpl {
             sm = conn.createStatement();
         } catch (Exception e) {
             e.printStackTrace();
-            Log.info(e.getMessage());
+            log.info(e.getMessage());
         }
     }
 
@@ -294,7 +295,7 @@ public class SqliteSQLGeneratorReadServiceImpl {
             rs = getColumnNameAndColumeValue(sm, listSQL, listTable, rs);
         } catch (Exception e) {
             e.printStackTrace();
-            Log.info(e.getMessage());
+            log.info(e.getMessage());
         } finally {
             rs.close();
             sm.close();
@@ -436,14 +437,14 @@ public class SqliteSQLGeneratorReadServiceImpl {
 
     public void exportDB(HttpServletResponse response) {
         try {
-            Log.info("导出脚本开始....");
+            log.info("导出脚本开始....");
             insertList.clear();
             executeSelectSQLFile();
-            Log.info("导出数据完毕....");
+            log.info("导出数据完毕....");
             writeSheet(response);
 
         } catch (Exception ex) {
-           Log.info(ex.getMessage());
+           log.info(ex.getMessage());
         }
 
     }
@@ -495,7 +496,7 @@ public class SqliteSQLGeneratorReadServiceImpl {
 
         } catch (Exception e) {
             e.printStackTrace();
-            Log.info(e.getMessage());
+            log.info(e.getMessage());
         } finally {
             try {
                 buff.close();
@@ -504,7 +505,7 @@ public class SqliteSQLGeneratorReadServiceImpl {
                 os.close();
             } catch (Exception e) {
                 e.printStackTrace();
-                Log.info(e.getMessage());
+                log.info(e.getMessage());
             }
         }
 

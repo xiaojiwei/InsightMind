@@ -36,7 +36,6 @@ import com.graphinsight.indicator.model.vo.QueryBaseInfoVO;
 import com.graphinsight.indicator.model.vo.RelatedCodeSet;
 import com.graphinsight.indicator.model.vo.RelatedSet;
 import com.graphinsight.indicator.util.UserThreadLocalUtil;
-import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -83,7 +82,6 @@ public class DimMeasRelationController {
     private UserManager userManager;
 
     @CheckCacheVersion
-    @ApiOperation("获取分类树")
     @PostMapping("/space/category/tree")
     public Response<List<CategoryTree>> listTree(@RequestBody CategoryQueryVO categoryQueryVO) {
         if (categoryQueryVO.getSpaceId() == null) {
@@ -95,7 +93,6 @@ public class DimMeasRelationController {
     }
 
     @CheckCacheVersion
-    @ApiOperation("根据分类查询指标")
     @PostMapping("/space/category/measure/tree")
     public Response<List<CategoryNodeItem>> listMeasureByCategoryId(@RequestBody MeasureQueryParam query) {
         Set<Integer> categoryIds = query.getCategoryIds();
@@ -150,7 +147,6 @@ public class DimMeasRelationController {
     }
 
     @CheckCacheVersion
-    @ApiOperation("根据分类查询维度")
     @PostMapping("/space/category/dimension/tree")
     public Response<List<DimensionBaseVO>> listDimensionByCategoryId(@RequestBody MeasureQueryParam query) {
         MetadataCache metdataCache = cacheManager.getMetadataCache();
@@ -161,7 +157,6 @@ public class DimMeasRelationController {
 
 
     @CheckCacheVersion
-    @ApiOperation("指标是否能下钻接口")
     @PostMapping("/drill/down")
     public Response<List<MeasureDrillDown>> measureDrillDown(@RequestBody RelatedCodeSet relatedCodeSet) {
         Set<String> measureSet = relatedCodeSet.getMeasureSet();
@@ -179,7 +174,6 @@ public class DimMeasRelationController {
 
 
     @CheckCacheVersion
-    @ApiOperation("获取决策树的可选日期型维度列表")
     @GetMapping("/list/dimension/byTreeId/{treeId}")
     public Response<List<BaseInfo>> listDimensionByTreeId(@PathVariable("treeId") Long treeId) {
         DecisionTree decisionTree = decisionTreeService.getById(treeId);
@@ -202,7 +196,6 @@ public class DimMeasRelationController {
     }
 
     @CheckCacheVersion
-    @ApiOperation("获取日期类型的公共维度")
     @PostMapping("/list/dateTypeDimension/")
     public Response<List<BaseInfo>> listDimensionByMeasCode(@RequestBody RelatedCodeSet relatedCodeSet) {
         RelatedSet relatedSet = bloodManager.listDateTypeDimension(convert(relatedCodeSet));
@@ -222,7 +215,6 @@ public class DimMeasRelationController {
     }
 
     @CheckCacheVersion
-    @ApiOperation("获取具有日期类型公共维度的指标集合")
     @PostMapping("/list/measure/byDateTypeDimension")
     public Response<List<BaseInfo>> listDateTypeDimensionRelatedSet(@RequestBody RelatedCodeSet relatedCodeSet) {
         RelatedSet relatedSet = convert(relatedCodeSet);
@@ -698,7 +690,6 @@ public class DimMeasRelationController {
     }
 
     @PostMapping("/list/dismantlingTreeName")
-    @ApiOperation(value = "拆解树选择")
     public Response<List<String>> listDismantlingTreeName(@RequestBody DismantlingData query) {
 //        String measureName = query.getMeasureName();
 //        Measure measure = iMeasureService.getOne(Wrappers.<Measure>lambdaQuery().eq(Measure::getCnName, measureName));
@@ -712,7 +703,6 @@ public class DimMeasRelationController {
         return Response.ok(names);
     }
 
-    @ApiOperation(value = "数据解读来源选择")
     @GetMapping("/getSourceName")
     public Response<List<String>> getSourceName() {
         List<String> list = sourceMapper.getSourceName();

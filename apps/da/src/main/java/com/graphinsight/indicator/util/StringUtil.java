@@ -3,7 +3,6 @@ package com.graphinsight.indicator.util;
 
 import com.ibm.icu.text.RuleBasedNumberFormat;
 import com.graphinsight.indicator.constant.IndicatorConstant;
-import org.apache.directory.api.util.Strings;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -54,7 +53,7 @@ public class StringUtil {
     public static boolean isEmpty(String value) {
 
         boolean isNull = false;
-        if ("null".equalsIgnoreCase(value) || Strings.isEmpty(value) || IndicatorConstant.BI_NULL.equalsIgnoreCase(value) || "-".equalsIgnoreCase(value)) {
+        if ("null".equalsIgnoreCase(value) || value == null || value.isEmpty() || IndicatorConstant.BI_NULL.equalsIgnoreCase(value) || "-".equalsIgnoreCase(value)) {
             isNull = true;
         }
         return isNull;
@@ -64,7 +63,7 @@ public class StringUtil {
     public static boolean isAllBlank(List<String> values) {
         boolean ret = true;
         for(String v : values) {
-            if (!Strings.isEmpty(v)) {
+            if (v != null && !v.isEmpty()) {
                 ret = false;
                 break;
             }

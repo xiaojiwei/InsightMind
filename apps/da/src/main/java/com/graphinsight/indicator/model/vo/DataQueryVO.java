@@ -1,6 +1,5 @@
 package com.graphinsight.indicator.model.vo;
 
-import io.swagger.annotations.ApiModelProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -26,7 +25,6 @@ public class DataQueryVO {
     private Integer limit;
 
     @NotBlank
-    @ApiModelProperty(value = "关键字搜", required = true, example = "1")
     private String word;
 
     //临时后门
@@ -34,7 +32,6 @@ public class DataQueryVO {
 
     private Integer searchId;
     @NonNull
-    @ApiModelProperty(value = "对话sessionId", required = true, example = "1")
     private Integer sessionId;
 
     private Boolean isData = true;

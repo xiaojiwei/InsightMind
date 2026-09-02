@@ -12,7 +12,6 @@ import com.graphinsight.indicator.service.ChartQueryService;
 import com.graphinsight.indicator.service.impl.BuildSqlServiceImpl;
 import com.graphinsight.indicator.util.CloneUtils;
 import com.graphinsight.indicator.util.StringUtil;
-import org.apache.zookeeper.Op;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 

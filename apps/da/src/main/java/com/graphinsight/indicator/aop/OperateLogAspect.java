@@ -6,7 +6,6 @@ import com.graphinsight.indicator.auto.entity.UserAuditLog;
 import com.graphinsight.indicator.auto.service.IUserAuditLogService;
 import com.graphinsight.indicator.util.UserThreadLocalUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.skywalking.apm.toolkit.trace.TraceContext;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
@@ -18,6 +17,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * @Description: 日志切面
@@ -35,7 +35,7 @@ public class OperateLogAspect {
     public void webLog(JoinPoint point, OperateLog operateLog){
         String methodName = point.getSignature().toShortString();
         try {
-            String skywalkingTraceId = TraceContext.traceId();
+            String skywalkingTraceId = UUID.randomUUID().toString();
             HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
             String ipAddr = getRemoteHost(request);
             String url = request.getRequestURL().toString();

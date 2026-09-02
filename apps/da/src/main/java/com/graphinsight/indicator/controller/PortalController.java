@@ -15,7 +15,6 @@ import com.graphinsight.indicator.model.vo.PageVO;
 import com.graphinsight.indicator.model.vo.PortalQuery;
 import com.graphinsight.indicator.model.vo.PortalVO;
 import com.graphinsight.indicator.util.CreatGroupUtil;
-import io.swagger.annotations.ApiOperation;
 import org.apache.commons.collections.CollectionUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,7 +23,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import springfox.documentation.annotations.ApiIgnore;
 
 import javax.annotation.Resource;
 import java.util.ArrayList;
@@ -48,7 +46,6 @@ public class PortalController {
     @Resource
     CreatGroupUtil creatGroupUtil;
 
-    @ApiOperation("分页获取有该资源权限的用户列表")
     @PostMapping("/page/list/object")
     public Response<PageVO<GrantAuth>> pageObjects(@RequestBody @Validated AuthQuery query){
         PageVO<GrantAuth> pageVO = portalManagerV2.pageObjectByElement(query);
@@ -56,7 +53,6 @@ public class PortalController {
     }
 
     @OperateLog
-    @ApiOperation("追加授权")
     @PostMapping("/append/grant")
     public Response appendGrant(@RequestBody @Validated Grant grant){
         portalManagerV2.appendGrant(grant);
@@ -64,7 +60,6 @@ public class PortalController {
     }
 
     @OperateLog
-    @ApiOperation("覆盖授权")
     @PostMapping("/cover/grant")
     public Response coverGrant(@RequestBody @Validated Grant grant){
         portalManagerV2.converGrant(grant);
@@ -75,21 +70,18 @@ public class PortalController {
 
 
     @OperateLog
-    @ApiOperation("更新/保存 门户")
     @PostMapping("/save")
     public Response save(@RequestBody @Validated PortalVO portalVO){
         PortalVO vo = portalManagerV2.saveOrUpdate(portalVO);
         return Response.ok(vo);
     }
 
-    @ApiOperation("门户列表")
     @PostMapping("/list")
     public Response<List<PortalVO>> list(@RequestBody @Validated PortalQuery query){
         List<PortalVO> vos = portalManagerV2.list(query);
         return Response.ok(vos);
     }
 
-    @ApiOperation("门户详情")
     @GetMapping("/detail/{id}")
     @IgnoreWebLog
     public Response<PortalVO> detail(@PathVariable Long id){
@@ -100,7 +92,6 @@ public class PortalController {
         return Response.ok(vo);
     }
 
-    @ApiOperation("门户详情")
     @GetMapping("/url/detail/{url}")
     @IgnoreWebLog
     public Response<PortalVO> detail(@PathVariable String url){
@@ -110,16 +101,14 @@ public class PortalController {
 
 
     @OperateLog
-    @ApiOperation("删除门户")
     @GetMapping("/delete/{id}")
     public Response<MeasureMonitorVO> delete(@PathVariable Long id){
         portalManagerV2.delete(id);
         return Response.ok();
     }
 
-    @ApiOperation("创建群聊")
     @GetMapping("/createGroup")
-    public Response createGroup(Long id, @ApiIgnore @CurrentUser User user) {
+    public Response createGroup(Long id, @CurrentUser User user) {
         creatGroupUtil.creatFeishuGroup(id, user);
         return Response.ok("拉群成功");
     }

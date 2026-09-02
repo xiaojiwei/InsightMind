@@ -1,0 +1,35 @@
+{
+  "id": "hr_panorama_payroll",
+  "name": "月度基本薪酬总额",
+  "summary": "员工快照中月度基本薪酬合计。",
+  "query": {
+    "measures": [
+      "ad.monthly_base_payroll"
+    ],
+    "dimensions": [],
+    "filters": [],
+    "order": {},
+    "limit": 1000
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "kpi",
+    "encoding": {
+      "y": "ad.monthly_base_payroll"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": true,
+    "anomalyFocusMode": false
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.department",
+      "ad.job",
+      "ad.employee"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

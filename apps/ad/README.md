@@ -171,14 +171,13 @@ From the repository root:
 ./scripts/insightmind.sh restart
 ```
 
-This restores the data-source KG, call-quality business KG, saved Ad-Hoc
-components, three dashboards, synthetic call records and pivot alert rules.
+This restores the current HR data-source KG, HR business KG, saved HR Ad-Hoc
+components and HR dashboards.
 Open:
 
 ```text
-http://localhost:8080/dashboard/view/dash_da_tms_call_sop_diagnosis
-http://localhost:8080/dashboard/view/dash_da_tms_call_sop_workbench
-http://localhost:8080/dashboard/view/dash_da_tms_call_monitor_alert
+http://localhost:8080/dashboard/view/dash_hr_human_capital_panorama
+http://localhost:8080/dashboard/view/dash_hr_talent_vitality_pulse
 ```
 
 ## Run From CLI

@@ -3,8 +3,6 @@ package com.graphinsight.indicator.model.vo;
 import com.graphinsight.indicator.auto.entity.MeasureMonitorConfigDesc;
 import com.graphinsight.indicator.auto.entity.User;
 import com.graphinsight.indicator.model.feishu.ChatGroup;
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import javax.validation.constraints.NotEmpty;
@@ -18,7 +16,6 @@ import java.util.List;
  * Desc:
  */
 @Data
-@ApiModel(value = "MeasureMonitor", description = "创建预警参数")
 public class MeasureMonitorVO {
 
     /**
@@ -30,7 +27,6 @@ public class MeasureMonitorVO {
      * 名称
      */
     @NotNull(message = "预警名称不能为空")
-    @ApiModelProperty(value = "预警名称")
     private String name;
 
     /**
@@ -41,13 +37,11 @@ public class MeasureMonitorVO {
     /**
      * 状态 0-停用 1-启用
      */
-    @ApiModelProperty(value = "状态 0-停用 1-启用")
     private Integer status = 0;
 
     /**
      * 累计触发次数
      */
-    @ApiModelProperty(value = "累计触发次数")
     private Integer triggerCount;
 
     /**
@@ -78,32 +72,27 @@ public class MeasureMonitorVO {
 
 
     @NotNull(message = "监控推送时间不能为空")
-    @ApiModelProperty(value = "监控推送时间")
     private TaskScheduleVO taskSchedule;
 
     private String cronDesc;
 
     @NotNull(message = "告警模版不能为空")
-    @ApiModelProperty(value = "告警模版")
     private String alertContent;
 
     /*
     * 告警接收群
      */
-    @ApiModelProperty(value = "告警接收群")
     private List<ChatGroup> receiveChatGroup;
 
     /**
      * 告警接收人
      */
-    @ApiModelProperty(value = "告警接收人")
     private List<User> receiver = new ArrayList<>();
 
     /**
      * 告警规则
      */
     @NotEmpty(message = "规则列表不能为空")
-    @ApiModelProperty(value = "预警规则")
     private List<MeasureMonitorRuleVO> rules;
 
     /**

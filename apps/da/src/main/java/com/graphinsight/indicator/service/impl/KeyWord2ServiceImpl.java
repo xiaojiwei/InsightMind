@@ -1,5 +1,6 @@
 package com.graphinsight.indicator.service.impl;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -47,7 +48,6 @@ import org.ansj.domain.Term;
 import org.ansj.splitWord.analysis.DicAnalysis;
 import org.apache.commons.collections.map.HashedMap;
 import org.codehaus.jackson.map.Serializers;
-import org.mortbay.util.ajax.JSON;
 import org.nlpcn.commons.lang.tire.domain.Forest;
 import org.nlpcn.commons.lang.tire.domain.Value;
 import org.nlpcn.commons.lang.tire.library.Library;
@@ -1575,7 +1575,7 @@ public class KeyWord2ServiceImpl implements KeyWord2Service {
                 Map<String, Integer> settingsMap = new HashedMap();
                 settingsMap.put("type", ratioType.getCode());
 
-                ratio.setSettings(JSON.toString(settingsMap));
+                ratio.setSettings(JSON.toJSONString(settingsMap));
                 ratioList.add(ratio);
             }
 
@@ -1590,7 +1590,7 @@ public class KeyWord2ServiceImpl implements KeyWord2Service {
                 Map<String, Integer> settingsMap = new HashedMap();
                 settingsMap.put("type", ratioType.getCode());
 
-                ratio.setSettings(JSON.toString(settingsMap));
+                ratio.setSettings(JSON.toJSONString(settingsMap));
                 ratioList.add(ratio);
             }
             if (!ratioList.isEmpty()) {

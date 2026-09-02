@@ -1,0 +1,40 @@
+{
+  "id": "hr_panorama_org_level_mix",
+  "name": "组织层级结构",
+  "summary": "按汇报链深度观察组织层级分布。",
+  "query": {
+    "measures": [
+      "ad.workforce_headcount"
+    ],
+    "dimensions": [
+      "ad.org_level_band"
+    ],
+    "filters": [],
+    "order": {
+      "ad.workforce_headcount": "desc"
+    },
+    "limit": 20
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "donut",
+    "encoding": {
+      "x": "ad.org_level_band",
+      "y": "ad.workforce_headcount"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": false,
+    "anomalyFocusMode": false
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.org_level_band",
+      "ad.department",
+      "ad.employee"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

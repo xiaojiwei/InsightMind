@@ -1,0 +1,35 @@
+{
+  "id": "hr_panorama_mobility_coverage",
+  "name": "内部流动覆盖率",
+  "summary": "当前员工中存在历史任职记录的人员占比。",
+  "query": {
+    "measures": [
+      "ad.internal_mobility_coverage_rate"
+    ],
+    "dimensions": [],
+    "filters": [],
+    "order": {},
+    "limit": 1000
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "kpi",
+    "encoding": {
+      "y": "ad.internal_mobility_coverage_rate"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": true,
+    "anomalyFocusMode": false
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.mobility_history_status",
+      "ad.department",
+      "ad.employee"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

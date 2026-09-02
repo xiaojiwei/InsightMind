@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.model;
 
 import com.graphinsight.indicator.enums.DimType;
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import javax.persistence.Transient;
@@ -138,7 +137,6 @@ public class PageData {
     @Transient
     private String chatText = "";
 
-    @ApiModelProperty(value = "解读模板")
     String explainTemplate = "";
 
 }

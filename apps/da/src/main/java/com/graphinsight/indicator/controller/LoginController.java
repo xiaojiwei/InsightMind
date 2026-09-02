@@ -14,7 +14,6 @@ import com.graphinsight.indicator.model.vo.UserVO;
 import com.graphinsight.indicator.service.IDaaSLoginService;
 import com.graphinsight.indicator.service.UserService;
 import com.graphinsight.indicator.util.TokenUtils;
-import io.swagger.annotations.ApiOperation;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -74,7 +73,6 @@ public class LoginController {
         return Response.ok(userVO);
     }
 
-    @ApiOperation(value = "idass Login")
     @AuthIgnore
     @IgnoreWebLog
     @PostMapping(value = "IDaaS", consumes = MediaType.ALL_VALUE, produces = MediaType.APPLICATION_JSON_UTF8_VALUE)

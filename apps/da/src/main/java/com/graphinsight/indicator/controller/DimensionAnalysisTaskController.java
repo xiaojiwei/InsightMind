@@ -17,7 +17,6 @@ import com.graphinsight.indicator.model.vo.DimensionAnalysisVO;
 import com.graphinsight.indicator.model.vo.MultiDimensionQueryVO;
 import com.graphinsight.indicator.model.vo.PageVO;
 import com.graphinsight.indicator.util.UserThreadLocalUtil;
-import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.CollectionUtils;
 import org.springframework.validation.annotation.Validated;
@@ -47,28 +46,24 @@ public class DimensionAnalysisTaskController {
     @Autowired
     private DimensionAnalysisManagerV2 dimensionAnalysisManagerV2;
 
-    @ApiOperation("多维分析查询")
     @PostMapping("/multi/dimensional/chart/query")
     public Response queryGini(DimensionAnalysisGiniQueryVO queryVO) {
         List<DimensionAnalysisTaskDetailVO> detailVOS = dimensionAnalysisManagerV2.queryGini(queryVO);
         return Response.ok(detailVOS);
     }
 
-    @ApiOperation("根据指定指标编码获取多维分析结果")
     @GetMapping("/task/detail/meas-code/{measCode}")
     public Response<DimensionAnalysisDetailVO> detail(@PathVariable("measCode") String measCode) {
         DimensionAnalysisDetailVO detailVO = dimensionAnalysisManager.detail(measCode);
         return Response.ok(detailVO);
     }
 
-    @ApiOperation("任务详情")
     @GetMapping("/task/detail/{taskId}")
     public Response<DimensionAnalysisDetailVO> detail(@PathVariable("taskId") Long taskId) {
         DimensionAnalysisDetailVO detailVO = dimensionAnalysisManager.detail(taskId);
         return Response.ok(detailVO);
     }
 
-    @ApiOperation("多维分析查询")
     @PostMapping("/multi/dimensional/query")
     public Response chartQuery(@RequestBody @Validated MultiDimensionQueryVO multiDimensionQueryVO) {
         PageData pageData = dimensionAnalysisManager.multiDimensionalChartQuery(multiDimensionQueryVO);
@@ -77,7 +72,6 @@ public class DimensionAnalysisTaskController {
 
 
     @OperateLog
-    @ApiOperation("创建任务")
     @PostMapping("/task/create")
     public Response createTask(@RequestBody @Validated DimensionAnalysisCreateVO dimensionAnalysisVO) {
         List<DimensionAnalysisTask> dimensionAnalysisTasks = dimensionAnalysisManager.listExistedTask(
@@ -99,7 +93,6 @@ public class DimensionAnalysisTaskController {
     }
 
     @IgnoreWebLog
-    @ApiOperation("任务列表")
     @PostMapping("/task/list")
     public Response<PageVO<DimensionAnalysisVO>> listTask(@RequestBody @Validated DimensionAnalysisTaskQueryVO queryVO) {
         PageVO<DimensionAnalysisVO> pageVO = dimensionAnalysisManager.listTask(queryVO);
@@ -107,14 +100,12 @@ public class DimensionAnalysisTaskController {
     }
 
     @IgnoreWebLog
-    @ApiOperation("正在执行的任务列表")
     @GetMapping("/task/procressing/list/{spaceId}")
     public Response<List<DimensionAnalysisVO>> listProcressingTask(@PathVariable("spaceId") Long spaceId) {
         List<DimensionAnalysisVO> analysisVOS = dimensionAnalysisManager.listProcressingTask(spaceId);
         return Response.ok(analysisVOS);
     }
 
-    @ApiOperation("重试任务")
     @GetMapping("/task/retry/{taskId}")
     public Response retryTask(@PathVariable("taskId") Long taskId) {
         dimensionAnalysisManager.retryTask(taskId);
@@ -122,7 +113,6 @@ public class DimensionAnalysisTaskController {
     }
 
     @OperateLog
-    @ApiOperation("取消任务")
     @GetMapping("/task/cancel/{taskId}")
     public Response cancelTask(@PathVariable("taskId") Long taskId) {
         dimensionAnalysisManager.cancel(taskId);
@@ -130,7 +120,6 @@ public class DimensionAnalysisTaskController {
     }
 
     @OperateLog
-    @ApiOperation("删除任务")
     @GetMapping("/task/delete/{taskId}")
     public Response deleteTask(@PathVariable("taskId") Long taskId) {
         dimensionAnalysisManager.delete(taskId);
@@ -139,7 +128,6 @@ public class DimensionAnalysisTaskController {
 
 
     @IgnoreWebLog
-    @ApiOperation("正在执行的任务列表")
     @GetMapping("/task/has/procressing/{spaceId}")
     public Response<Boolean> hasProcressingTask(@PathVariable("spaceId") Long spaceId) {
         return Response.ok(dimensionAnalysisManager.hasProcessingTask(spaceId));

@@ -388,6 +388,32 @@ def nlq_query(
 
 
 @mcp.tool()
+def compile_analysis_spec(
+    question: str,
+    query_mode: str = "auto",
+    conversation_id: str = "",
+    context: dict[str, Any] | None = None,
+    is_follow_up: bool = False,
+    reset_context: bool = False,
+    max_dimensions: int = 3,
+) -> dict[str, Any]:
+    """Compile an NLQ request into a governed AnalysisSpec without querying data."""
+    body = {
+        "question": question,
+        "execute": False,
+        "pageSize": 100,
+        "pageNum": 1,
+        "maxDimensions": max(0, min(int(max_dimensions or 3), 5)),
+        "queryMode": query_mode,
+        "conversationId": conversation_id,
+        "context": context or {},
+        "isFollowUp": bool(is_follow_up),
+        "resetContext": bool(reset_context),
+    }
+    return _request("ad", "POST", "/api/nlq/query", json_body=body)
+
+
+@mcp.tool()
 def semantic_query(query: dict[str, Any]) -> dict[str, Any]:
     """Run AD's structured semantic query API."""
     safe_query = dict(query or {})

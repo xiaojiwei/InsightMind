@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.graphinsight.indicator.controller.MonitorController;
 import com.graphinsight.indicator.util.UserThreadLocalUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

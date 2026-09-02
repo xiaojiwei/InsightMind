@@ -16,7 +16,6 @@ import com.graphinsight.indicator.model.vo.GoalAddVO;
 import com.graphinsight.indicator.model.vo.GoalQueryVO;
 import com.graphinsight.indicator.service.ChartQueryService;
 import com.graphinsight.indicator.service.GoalService;
-import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
@@ -48,7 +47,6 @@ public class GoalController {
     DimensionManager dimensionManager;
 
     @OperateLog
-    @ApiOperation("新增目标")
     @PostMapping("/add")
     public Response add(@RequestBody @Validated GoalAddVO goalAddVo){
         try {
@@ -72,14 +70,12 @@ public class GoalController {
         return Response.ok(res);
     }
 
-    @ApiOperation("筛选器获取日期维度")
     @GetMapping("{spaceId}/getDateDim")
     public Response getDateDim(@PathVariable Integer spaceId,@RequestParam(required = false) String measureCode){
         List<GoalDateDimDTO> res = goalService.getDateDim(spaceId,measureCode);
         return Response.ok(res);
     }
 
-    @ApiOperation("筛选器，日期维度获取指标")
     @GetMapping("{spaceId}/getMeasure")
     public Response getMeasure(@PathVariable Integer spaceId,
                                @RequestParam(required = false) Integer dateType,
@@ -89,14 +85,12 @@ public class GoalController {
     }
 
 
-    @ApiOperation("新增子目标获取维度")
     @GetMapping("/{goalId}/dimension")
     public Response goalDimension(@PathVariable Integer goalId){
         List<BaseInfo> res = goalService.getDimForSubGoal(goalId);
         return Response.ok(res);
     }
 
-    @ApiOperation("查询目标")
     @GetMapping("/{spaceId}/query")
     public Response queryGoal(@PathVariable Integer spaceId,
                               @RequestParam(value = "measureCode",required = false) String measureCode,
@@ -107,7 +101,6 @@ public class GoalController {
         return Response.ok(data);
     }
 
-    @ApiOperation("按ID查询目标")
     @GetMapping("/detail/{goalId}")
     public Response detail(@PathVariable Long goalId) {
         GoalDTO data = goalService.detail(goalId);
@@ -118,7 +111,6 @@ public class GoalController {
     }
 
     @OperateLog
-    @ApiOperation("更新目标")
     @PostMapping("/update")
     public Response update(@RequestBody GoalDTO goalDTO) throws Exception {
         try {
@@ -130,7 +122,6 @@ public class GoalController {
     }
 
     @OperateLog
-    @ApiOperation("删除目标")
     @GetMapping("/{goalId}/delete")
     public Response delete(@PathVariable Long goalId){
         goalService.delete(goalId);

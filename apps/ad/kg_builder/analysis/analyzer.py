@@ -13,11 +13,26 @@ import decimal
 import json
 import math
 import re
+import time
 import urllib.request as _ureq
 from pathlib import Path
 from typing import Callable, Generator, Optional
 
 from kg_builder.utils.http_client import urlopen as _urlopen
+
+
+_LLM_CIRCUIT_UNTIL: dict[str, float] = {}
+
+
+def _llm_circuit_open(base_url: str) -> bool:
+    key = str(base_url or "").rstrip("/")
+    return bool(key and _LLM_CIRCUIT_UNTIL.get(key, 0.0) > time.monotonic())
+
+
+def _trip_llm_circuit(base_url: str, seconds: int = 300) -> None:
+    key = str(base_url or "").rstrip("/")
+    if key:
+        _LLM_CIRCUIT_UNTIL[key] = time.monotonic() + max(30, seconds)
 
 
 class _SafeEncoder(json.JSONEncoder):
@@ -657,7 +672,7 @@ class IndicatorAnalyzer:
             self._log(f"  ⚠ Part 4 规划生成失败: {e}")
 
         # 收集 Parts 1/2/3 中有问题的维度，作为 KG 分析的聚焦范围
-        focus_dim_codes: set = set()
+        focus_dim_codes: set = set(dim_codes)
         # Part 1：LMDI Top 贡献维度
         for m in part1.get("global_top20", [])[:10]:
             if m.get("dim_col"):
@@ -2596,7 +2611,11 @@ class IndicatorAnalyzer:
                 if not fallback:
                     fallback = app_entry
 
-            chosen = best or fallback
+            # Never borrow a DimApp from another fact table. The old fallback
+            # produced syntactically valid SQL against columns that do not
+            # exist on the selected fact table (for example province_name on
+            # dws_coupon_region_day), weakening evidence and flooding logs.
+            chosen = best
             if chosen:
                 dim_map[d_code] = chosen
 
@@ -2837,7 +2856,12 @@ class IndicatorAnalyzer:
                 sib_mapps = list(g.objects(sib_inst, IND.hasMeasureApp))
                 if not sib_mapps:
                     continue
-                sm        = sib_mapps[0]
+                sm = next((candidate for candidate in sib_mapps if (
+                    _v(g.value(candidate, IND.appliesToTable), IND.tableName)
+                    == fact_table
+                )), None)
+                if sm is None:
+                    continue
                 sib_fc    = _v(sm, IND.factColumn)
                 sib_agg   = (_v(sm, IND.aggOperator) or "SUM").upper()
                 sib_where = _v(sm, IND.whereCondition) or ""
@@ -3018,6 +3042,8 @@ class IndicatorAnalyzer:
         is_anthropic = "anthropic" in base_url.lower()
         if not api_key or not base_url:
             return "（LLM 未配置）"
+        if _llm_circuit_open(base_url):
+            return ""
         if is_anthropic:
             payload = json.dumps({
                 "model": model, "max_tokens": max_tokens,
@@ -3044,8 +3070,12 @@ class IndicatorAnalyzer:
             )
         if self._cancel_cb and self._cancel_cb():
             raise RuntimeError("分析已被新任务取消，跳过 LLM 调用")
-        with _urlopen(req, timeout=90) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        try:
+            with _urlopen(req, timeout=45) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            _trip_llm_circuit(base_url)
+            raise
         if is_anthropic:
             content = data.get("content", [])
             stop_reason = data.get("stop_reason") or data.get("finish_reason", "")
@@ -3069,6 +3099,7 @@ class IndicatorAnalyzer:
             # Strip chain-of-thought / reasoning noise from models that output it
             text = self._strip_reasoning(text)
             return text
+        _trip_llm_circuit(base_url)
         return ""
 
     @staticmethod
@@ -3479,9 +3510,16 @@ class IndicatorAnalyzer:
             lines.append("- 当前图谱没有返回可用维度。")
 
         lines.extend(["", "### 3. 维度归因线索"])
-        kg_dims = part_kg_attr.get("kg_dimensions") if isinstance(part_kg_attr, dict) else []
+        kg_dims = (part_kg_attr.get("kg_dimensions") or []) if isinstance(part_kg_attr, dict) else []
+        kg_dims = sorted(
+            kg_dims,
+            key=lambda item: (
+                0 if item.get("is_selected") else 1,
+                -abs(item.get("total_change_pct") or 0),
+            ),
+        )
         if kg_dims:
-            for kd in sorted(kg_dims, key=lambda x: abs(x.get("total_change_pct") or 0), reverse=True)[:5]:
+            for kd in kg_dims[:5]:
                 pct = kd.get("total_change_pct")
                 pct_text = f"{pct:+.2f}%" if isinstance(pct, (int, float)) else "无变化幅度"
                 lines.append(f"- {kd.get('cn_name') or kd.get('dim_code')}：整体变化 {pct_text}。")
@@ -3762,22 +3800,32 @@ class IndicatorAnalyzer:
             )
 
         self._log("  正在调用 LLM 生成图谱 AI 分析…")
+        if _llm_circuit_open(base_url):
+            self._log("  ⚠ LLM 熔断窗口生效，使用本地图谱摘要")
+            return self._fallback_kg_report(part1, part2, part_kg_attr, "LLM 暂时不可用")
         try:
-            with _urlopen(req, timeout=120) as resp:
+            with _urlopen(req, timeout=45) as resp:
                 resp_data = json.loads(resp.read().decode("utf-8"))
         except Exception as exc:
+            _trip_llm_circuit(base_url)
             self._log(f"  ⚠ LLM 图谱分析失败，使用本地图谱摘要: {exc}")
             return self._fallback_kg_report(part1, part2, part_kg_attr, str(exc))
 
         if is_anth:
             content = resp_data.get("content", [])
             if content and isinstance(content, list):
-                return content[0].get("text", "")
+                report = str(content[0].get("text", "") or "").strip()
+                if report:
+                    return report
         choices = resp_data.get("choices", [])
         if choices:
-            return choices[0].get("message", {}).get("content", "")
+            report = str(choices[0].get("message", {}).get("content", "") or "").strip()
+            if report:
+                return report
 
-        return f"LLM 响应异常: {json.dumps(resp_data, ensure_ascii=False)}"
+        self._log("  ⚠ LLM 图谱分析返回空内容，使用本地图谱摘要")
+        _trip_llm_circuit(base_url)
+        return self._fallback_kg_report(part1, part2, part_kg_attr, "LLM 返回空内容")
 
     # ── Part 6: 综合报告 ───────────────────────────────────────────────── #
 
@@ -3797,7 +3845,43 @@ class IndicatorAnalyzer:
                          reason: str = "") -> str:
         measures = part1.get("measures") if isinstance(part1, dict) else []
         movers = part1.get("global_top20") if isinstance(part1, dict) else []
-        kg_dims = part_kg_attr.get("kg_dimensions") if isinstance(part_kg_attr, dict) else []
+        kg_dims = (part_kg_attr.get("kg_dimensions") or []) if isinstance(part_kg_attr, dict) else []
+        kg_dims = [dict(item) for item in kg_dims]
+        selected_codes = set(meta.get("dim_codes") or [])
+        existing_codes = {item.get("dim_code") for item in kg_dims}
+        for item in kg_dims:
+            if item.get("dim_code") in selected_codes:
+                item["is_selected"] = True
+
+        # A legacy KG can omit a DimensionApp→fact-table edge even when DA
+        # successfully returned that requested dimension.  Preserve the
+        # deterministic Part-1 contribution evidence so the final report still
+        # answers the dimension the user actually named.
+        for contrib in (part1.get("dimension_contrib") or []):
+            dim_code = contrib.get("dim_col")
+            if dim_code not in selected_codes or dim_code in existing_codes:
+                continue
+            top_movers = contrib.get("top_movers") or []
+            dim_name = next(
+                (m.get("dim_cn") for m in top_movers if m.get("dim_cn")),
+                dim_code,
+            )
+            kg_dims.append({
+                "dim_code": dim_code,
+                "cn_name": dim_name,
+                "is_selected": True,
+                "total_change_pct": None,
+                "total_change": contrib.get("total_change"),
+                "top_movers": top_movers,
+            })
+            existing_codes.add(dim_code)
+        kg_dims = sorted(
+            kg_dims,
+            key=lambda item: (
+                0 if item.get("is_selected") else 1,
+                -abs(item.get("total_change_pct") or 0),
+            ),
+        )
         current_period = part1.get("current_period") or meta.get("time_col") or "当期"
         previous_period = part1.get("previous_period") or "上期"
 
@@ -3835,11 +3919,18 @@ class IndicatorAnalyzer:
 
         lines.extend(["", "### 3. 问题出在哪里"])
         if kg_dims:
-            for dim in sorted(kg_dims, key=lambda x: abs(x.get("total_change_pct") or 0), reverse=True)[:3]:
+            # ``kg_dims`` is already ordered with the user's explicitly
+            # selected dimensions first.  Re-sorting only by fluctuation here
+            # used to erase that intent and could answer a “省份” question with
+            # the larger “战区” movement instead.
+            for dim in kg_dims[:3]:
                 dim_name = dim.get("cn_name") or dim.get("dim_code") or "维度"
                 pct = dim.get("total_change_pct")
-                pct_text = f"{pct:+.2f}%" if isinstance(pct, (int, float)) else "无变化幅度"
-                lines.append(f"- {dim_name} 的整体变化幅度为 {pct_text}。")
+                if isinstance(pct, (int, float)):
+                    lines.append(f"- {dim_name} 的整体变化幅度为 {pct:+.2f}%。")
+                else:
+                    total_change = cls._report_value(dim.get("total_change"))
+                    lines.append(f"- {dim_name} 的贡献变化合计为 {total_change}。")
                 for mv in (dim.get("top_movers") or [])[:2]:
                     val = mv.get("value") or mv.get("dim_value") or "-"
                     contrib = cls._report_value(mv.get("lmdi_contrib") or mv.get("change"))
@@ -4011,6 +4102,12 @@ class IndicatorAnalyzer:
 
         self._log("  正在调用 LLM 生成报告（预计 20-40 秒）…")
 
+        if _llm_circuit_open(base_url):
+            self._log("  ⚠ LLM 熔断窗口生效，使用本地综合报告")
+            return self._fallback_report(
+                part1, part2, part3, meta, part5, part_kg_attr, "LLM 暂时不可用"
+            )
+
         # 进度心跳：每 8 秒往日志发一条消息，让页面不显示卡死
         _done_flag = threading.Event()
         def _heartbeat():
@@ -4022,9 +4119,10 @@ class IndicatorAnalyzer:
         _hb.start()
 
         try:
-            with _urlopen(req, timeout=120) as resp:
+            with _urlopen(req, timeout=45) as resp:
                 resp_data = json.loads(resp.read().decode("utf-8"))
         except Exception as exc:
+            _trip_llm_circuit(base_url)
             self._log(f"  ⚠ LLM 报告生成失败，使用本地综合报告: {exc}")
             return self._fallback_report(part1, part2, part3, meta, part5, part_kg_attr, str(exc))
         finally:
@@ -4033,11 +4131,30 @@ class IndicatorAnalyzer:
         # Anthropic API response format
         content = resp_data.get("content", [])
         if content and isinstance(content, list):
-            return content[0].get("text", "")
+            report = str(content[0].get("text", "") or "").strip()
+            if report:
+                return report
+            self._log("  ⚠ LLM 报告返回空内容，使用本地综合报告")
+            _trip_llm_circuit(base_url)
+            return self._fallback_report(
+                part1, part2, part3, meta, part5, part_kg_attr, "LLM 返回空内容"
+            )
 
         # OpenAI-compatible format
         choices = resp_data.get("choices", [])
         if choices:
-            return choices[0].get("message", {}).get("content", "")
+            report = str(choices[0].get("message", {}).get("content", "") or "").strip()
+            if report:
+                return report
+            self._log("  ⚠ LLM 报告返回空内容，使用本地综合报告")
+            _trip_llm_circuit(base_url)
+            return self._fallback_report(
+                part1, part2, part3, meta, part5, part_kg_attr, "LLM 返回空内容"
+            )
 
-        return f"LLM 响应异常: {json.dumps(resp_data, ensure_ascii=False)}"
+        self._log("  ⚠ LLM 报告响应缺少正文，使用本地综合报告")
+        _trip_llm_circuit(base_url)
+        return self._fallback_report(
+            part1, part2, part3, meta, part5, part_kg_attr,
+            f"LLM 响应缺少正文: {json.dumps(resp_data, ensure_ascii=False)[:500]}",
+        )

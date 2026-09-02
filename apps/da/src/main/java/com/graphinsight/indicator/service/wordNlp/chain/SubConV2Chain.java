@@ -4,7 +4,6 @@ import com.graphinsight.indicator.model.vo.CompareVo;
 import com.graphinsight.indicator.model.vo.TextNodeVo;
 import com.graphinsight.indicator.model.vo.WordSyntaxVo;
 import com.graphinsight.indicator.service.wordNlp.WordSyntax;
-import io.swagger.models.auth.In;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

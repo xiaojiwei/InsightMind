@@ -71,3 +71,36 @@ def test_empty_part2_stops_before_contribution_and_kg(monkeypatch):
     no_data = next(event for event in events if event.get("step") == "no_data")
     assert "统计归因" in no_data["result"]["message"]
     assert not any(event.get("part") in (3, 4, 5) for event in events)
+
+
+def test_fallback_report_keeps_explicit_dimension_first():
+    report = IndicatorAnalyzer._fallback_report(
+        part1={"measures": [{
+            "cn_name": "核销量", "previous": 10, "current": 12,
+            "change": 2, "change_pct": 20,
+        }], "dimension_contrib": [{
+            "dim_col": "DIM_province",
+            "total_change": 5,
+            "top_movers": [{
+                "dim_cn": "省份", "value": "浙江省", "lmdi_contrib": 3,
+            }, {
+                "dim_cn": "省份", "value": "江苏省", "lmdi_contrib": 2,
+            }],
+        }]},
+        part2={},
+        part3={},
+        meta={"dim_codes": ["DIM_province"]},
+        part_kg_attr={"kg_dimensions": [
+            {
+                "dim_code": "DIM_region", "cn_name": "战区",
+                "is_selected": False, "total_change_pct": -80,
+                "top_movers": [],
+            },
+        ]},
+    )
+
+    problem_section = report.split("### 3. 问题出在哪里", 1)[1]
+    assert problem_section.index("省份") < problem_section.index("战区")
+    assert "浙江省" in problem_section
+    assert "江苏省" in problem_section
+    assert "贡献变化合计为 5" in problem_section

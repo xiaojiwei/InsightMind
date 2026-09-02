@@ -1,7 +1,6 @@
 package com.graphinsight.indicator.model.vo;
 
 import com.graphinsight.indicator.enums.IndicatorAuthType;
-import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import javax.validation.constraints.NotNull;
@@ -17,14 +16,12 @@ public class GrantAuth {
     /**
      * 资源对象
      */
-    @ApiModelProperty(value = "资源对象")
     private IndicatorAuthElement authElement;
 
     /**
      * 授权对象
      */
     @NotNull
-    @ApiModelProperty(value = "授权对象")
     private AuthObject authObject;
 
     /**
@@ -35,7 +32,6 @@ public class GrantAuth {
     /**
      * 权限类型
      */
-    @ApiModelProperty(value = "权限类型")
     private List<IndicatorAuthType> authTypes;
 
 

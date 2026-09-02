@@ -35,9 +35,6 @@ import com.graphinsight.indicator.service.wordNlp.WordDictService;
 import com.graphinsight.indicator.service.wordNlp.WordSyntax;
 import com.graphinsight.indicator.util.StringUtil;
 import com.graphinsight.indicator.util.UserThreadLocalUtil;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,7 +49,6 @@ import java.util.stream.Collectors;
 @RestController
 @Slf4j
 @RequestMapping(IndicatorConstant.DATA_GPT_AI)
-@Api(tags = "【dataGpt】首页接口 ")
 public class AiHomeController extends BaseController {
 
     @Autowired
@@ -83,7 +79,6 @@ public class AiHomeController extends BaseController {
     private DaMeasLabelMapper daMeasLabelMapper;
 
 
-    @ApiOperation("历史会话创建")
     @PostMapping(value = "/session/create")
     public Response<AiSessionInfo> sessionCreate(@RequestBody AiSessionCreateVo aiSessionVo) {
 
@@ -91,35 +86,30 @@ public class AiHomeController extends BaseController {
     }
 
 
-    @ApiOperation("历史会话记录列表")
     @PostMapping(value = "session/list")
     public Response<IPage<AiSessionInfo>> searchHistory(@RequestBody AiSessionVo aiSessionVo) {
 
         return Response.ok(aiSessionService.listSession(aiSessionVo));
     }
 
-    @ApiOperation("历史会话详情创建")
     @PostMapping(value = "search/content/create")
     public Response searchContentCreate(@Validated @RequestBody AiContentCreateVo aiContentCreateVo) {
         aiSessionService.createContent(aiContentCreateVo);
         return Response.ok();
     }
 
-    @ApiOperation("历史会话记录修改")
     @PostMapping(value = "session/update")
     public Response sessionUpdate(@RequestBody AiSessionUpdateVo aiSessionUpdateVo) {
         aiSessionService.updateSession(aiSessionUpdateVo);
         return Response.ok();
     }
 
-    @ApiOperation("历史会话记录删除")
     @GetMapping(value = "session/del/{id}")
     public Response sessionDel(@PathVariable("id") Integer searchId) {
         aiSessionService.delSession(searchId);
         return Response.ok();
     }
 
-    @ApiOperation("指定历史会话记录的详情")
     @PostMapping(value = "session/detail")
     public Response<IPage<AiSearchInfo>> sessionDetail(@RequestBody AiSessionDetailVo aiSessionDetailVo) {
 
@@ -127,41 +117,35 @@ public class AiHomeController extends BaseController {
     }
 
 
-    @ApiOperation("场景列表")
     @GetMapping(value = "/scene/list")
     public Response<List<AiSceneInfoVo>> sceneList() {
         return Response.ok(aiSceneService.sceneList());
     }
 
-    @ApiOperation("场景指标详情列表信息")
     @PostMapping(value = "/scene/meas/detail")
     public Response<List<CategoryNodeItem>> sceneMeasDetail(@RequestBody AiSceneDetailVo aiSceneDetailVo) {
 
         return Response.ok(aiSceneService.sceneMeasDetail(aiSceneDetailVo));
     }
 
-    @ApiOperation("场景维度详情列表信息")
     @PostMapping(value = "/scene/dim/detail")
     public Response<List<DimensionVO>> sceneDimDetail(@RequestBody AiSceneDetailVo aiSceneDetailVo) {
 
         return Response.ok(aiSceneService.sceneDimDetail(aiSceneDetailVo));
     }
 
-    @ApiOperation("数据市场全量场景")
     @PostMapping(value = "/market/scene/list")
     public Response<Page<CategoryNodeItem>> marketSceneList(@RequestBody AiMarkerDetailVo aiSceneDetailVo) {
 
         return Response.ok(aiSceneService.marketSceneList(aiSceneDetailVo));
     }
 
-    @ApiOperation("数据市场全量指标列表")
     @PostMapping(value = "/market/meas/detail")
     public Response<Page<CategoryNodeItem>> marketMeasDetail(@RequestBody AiMarkerDetailVo aiSceneDetailVo) {
 
         return Response.ok(aiSceneService.marketMeasDetail(aiSceneDetailVo));
     }
 
-    @ApiOperation("数据市场全量维度列表")
     @PostMapping(value = "/market/dim/detail")
     public Response<Page<Dimension>> marketDimDetail(@RequestBody AiMarkerDetailVo aiSceneDetailVo) {
 
@@ -198,11 +182,9 @@ public class AiHomeController extends BaseController {
     @Autowired
     ITSpaceService itSpaceService;
 
-    @ApiOperation("推荐问题列表")
     @GetMapping(value = "/recommend/questions")
     public Response recommendQuestion(
-            @ApiParam("标签ID")
-            String labelId) {
+                        String labelId) {
         //推荐问题数量
         Integer recommendQuestionCount = 4;
         List<AiQuestionTemplate> questionTemplates = new ArrayList() {{

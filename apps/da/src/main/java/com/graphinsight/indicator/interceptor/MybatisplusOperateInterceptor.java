@@ -7,15 +7,15 @@ import com.graphinsight.indicator.auto.service.IAuditLogService;
 import com.graphinsight.indicator.util.UserThreadLocalUtil;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.ibatis.executor.Executor;
 import org.apache.ibatis.mapping.MappedStatement;
-import org.apache.skywalking.apm.toolkit.trace.TraceContext;
+import org.apache.ibatis.executor.Executor;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.util.StringUtils;
 
 import javax.annotation.Resource;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -46,7 +46,7 @@ public class MybatisplusOperateInterceptor implements InnerInterceptor {
 
     private AuditLog createAudit(MappedStatement ms, Object parameter){
         AuditLog auditLog = new AuditLog();
-        String traceId = TraceContext.traceId();
+        String traceId = UUID.randomUUID().toString();
         String sql = ms.getBoundSql(parameter).getSql();
         auditLog.setSql(sql);
         auditLog.setUsername(UserThreadLocalUtil.getUserName());

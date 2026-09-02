@@ -1,0 +1,40 @@
+{
+  "id": "hr_panorama_tenure_mix",
+  "name": "司龄结构",
+  "summary": "按当前司龄区间观察人员稳定性与梯队结构。",
+  "query": {
+    "measures": [
+      "ad.workforce_headcount"
+    ],
+    "dimensions": [
+      "ad.tenure_band"
+    ],
+    "filters": [],
+    "order": {
+      "ad.workforce_headcount": "desc"
+    },
+    "limit": 20
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "bar",
+    "encoding": {
+      "x": "ad.tenure_band",
+      "y": "ad.workforce_headcount"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": false,
+    "anomalyFocusMode": false
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.tenure_band",
+      "ad.department",
+      "ad.employee"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

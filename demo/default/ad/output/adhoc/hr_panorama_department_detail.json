@@ -1,0 +1,43 @@
+{
+  "id": "hr_panorama_department_detail",
+  "name": "部门组织健康明细",
+  "summary": "按部门核对人员规模、管理覆盖、薪酬规模与平均薪酬。",
+  "query": {
+    "measures": [
+      "ad.workforce_headcount",
+      "ad.managed_employee_headcount",
+      "ad.monthly_base_payroll",
+      "ad.average_base_salary"
+    ],
+    "dimensions": [
+      "ad.department"
+    ],
+    "filters": [],
+    "order": {
+      "ad.workforce_headcount": "desc"
+    },
+    "limit": 50
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "table",
+    "encoding": {
+      "x": "ad.department",
+      "y": "ad.workforce_headcount"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": true,
+    "anomalyFocusMode": true
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.department",
+      "ad.job",
+      "ad.employee"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

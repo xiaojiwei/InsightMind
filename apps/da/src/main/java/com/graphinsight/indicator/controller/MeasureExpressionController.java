@@ -12,7 +12,6 @@ import com.graphinsight.indicator.model.dto.RelatedResourceDTO;
 import com.graphinsight.indicator.model.vo.ComplexMeasureBaseVO;
 import com.graphinsight.indicator.model.vo.MeasureExpBaseVO;
 import com.graphinsight.indicator.model.vo.MeasureExpUpdateVO;
-import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.CollectionUtils;
 import org.springframework.validation.annotation.Validated;
@@ -42,7 +41,6 @@ public class MeasureExpressionController {
 
     @OperateLog
     @CheckCacheVersion
-    @ApiOperation("停用一个表达式")
     @GetMapping("/disable/{measAppId}")
     public Response<List<ComplexMeasureBaseVO>> disable(@PathVariable Integer measAppId) {
         List<RelatedResourceDTO> relatedResourceDTOS = measureManager.disabledExp(measAppId);
@@ -56,7 +54,6 @@ public class MeasureExpressionController {
 
     @OperateLog
     @CheckCacheVersion
-    @ApiOperation("停用一个表达式")
     @GetMapping("/disable/check/{measAppId}")
     public Response<List<RelatedResourceDTO>> disableCheck(@PathVariable Integer measAppId) {
         List<RelatedResourceDTO> relatedResourceDTOS = measureManager.disabledExpCheck(measAppId);
@@ -65,7 +62,6 @@ public class MeasureExpressionController {
 
     @OperateLog
     @CheckCacheVersion
-    @ApiOperation("启用一个表达式")
     @GetMapping("/enable/{measAppId}")
     public Response enable(@PathVariable Integer measAppId) {
         measureManager.enableExp(measAppId);
@@ -76,7 +72,6 @@ public class MeasureExpressionController {
 
     @OperateLog
     @SyncReloadCache
-    @ApiOperation("更新指标表达式")
     @PostMapping("/update")
     public Response update(@Validated @RequestBody MeasureExpUpdateVO measureExpBaseVO) {
         checkParm(measureExpBaseVO);
@@ -85,7 +80,6 @@ public class MeasureExpressionController {
 
     @OperateLog
     @SyncReloadCache
-    @ApiOperation("新增一个指标表达式")
     @PostMapping("/create")
     public Response create(@Validated @RequestBody MeasureExpBaseVO measureExpBaseVO) {
         checkParm(measureExpBaseVO);
@@ -93,7 +87,6 @@ public class MeasureExpressionController {
     }
 
     @CheckCacheVersion
-    @ApiOperation("获取表达式列表")
     @GetMapping("/list/{id}")
     public Response<List<ComplexMeasureBaseVO>> list(@PathVariable Integer id) {
         return Response.ok(measureManager.getExpressionList(id));
@@ -101,7 +94,6 @@ public class MeasureExpressionController {
 
     @OperateLog
     @CheckCacheVersion
-    @ApiOperation("删除一个表达式")
     @GetMapping("/delete/{measAppId}")
     public Response<List<ComplexMeasureBaseVO>> delete(@PathVariable Integer measAppId) {
         List<RelatedResourceDTO> relatedResourceDTOS = measureManager.deleteExpression(measAppId);

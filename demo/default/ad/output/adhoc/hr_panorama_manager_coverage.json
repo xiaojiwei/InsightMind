@@ -1,0 +1,35 @@
+{
+  "id": "hr_panorama_manager_coverage",
+  "name": "直属经理覆盖率",
+  "summary": "具有直属经理的员工占全部在册人员的比例。",
+  "query": {
+    "measures": [
+      "ad.manager_coverage_rate"
+    ],
+    "dimensions": [],
+    "filters": [],
+    "order": {},
+    "limit": 1000
+  },
+  "view": {
+    "type": "chart",
+    "chartType": "kpi",
+    "encoding": {
+      "y": "ad.manager_coverage_rate"
+    }
+  },
+  "settings": {
+    "monitoringAlertRenderEnabled": true,
+    "anomalyFocusMode": true
+  },
+  "drill": {
+    "mode": "dynamic",
+    "path": [
+      "ad.department",
+      "ad.manager_status",
+      "ad.employee"
+    ],
+    "stack": []
+  },
+  "kind": "adhoc"
+}

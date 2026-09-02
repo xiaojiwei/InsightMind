@@ -1181,6 +1181,26 @@ class InsightAnalyzer:
                 else:
                     self._log(f"  过滤高基维度: {dc} (row_num={row_num})")
 
+        question_norm = re.sub(r"\s+", "", question or "").lower()
+        # An explicitly named dimension is a hard analysis constraint.  Search
+        # the whole semantic catalogue instead of only ``regular_dims``: some
+        # older business graphs have an incomplete DimensionApp→fact-table
+        # association even though DA can deterministically compile the metric /
+        # dimension pair.  Dropping the explicit dimension here made questions
+        # such as “在省份的贡献结构” silently fall back to 战区.
+        requested_dim_codes = []
+        for code, detail in dim_detail.items():
+            cn_name = re.sub(r"\s+", "", str(detail.get("cn_name") or "")).lower()
+            if not cn_name:
+                continue
+            if code.lower() not in question_norm and cn_name not in question_norm:
+                continue
+            hierarchy = str(detail.get("hierarchyCode") or "")
+            level = str(detail.get("levelCode") or "")
+            if hierarchy == "h_date" or level in ("day", "week", "month", "year", "quarter"):
+                continue
+            requested_dim_codes.append(code)
+
         return {
             # Keep the primary fields at top-level for older callers/tests while
             # preserving the newer multi-measure structure below.
@@ -1194,6 +1214,7 @@ class InsightAnalyzer:
             },
             "secondary":    secondary,  # [{meas_code, cn_name, table_name, score}, ...]
             "dim_codes":    regular_dims[:10],  # 最多10个业务维度
+            "requested_dim_codes": requested_dim_codes[:5],
             "time_dims":    time_dims,           # {day/week/month: dim_code}
             "semantic_mapping": {
                 "measureCandidates": [
@@ -1213,7 +1234,12 @@ class InsightAnalyzer:
         secondary  = meas_info.get("secondary", [])
         meas_code  = primary["meas_code"]
         time_dims  = meas_info.get("time_dims", {})
-        reg_dims   = self._prioritized_regular_dims(meas_info.get("dim_codes", []), intent)
+        requested_dims = meas_info.get("requested_dim_codes", [])
+        reg_dims = (
+            list(requested_dims)
+            if requested_dims
+            else self._prioritized_regular_dims(meas_info.get("dim_codes", []), intent)
+        )
         gran       = intent.get("gran", "week")
         time_start = intent.get("time_start", "")
         time_end   = intent.get("time_end", "")
@@ -1454,8 +1480,17 @@ class InsightAnalyzer:
           补充：Part1 Top3 LMDI 贡献因子 + Part3 Top3 异常点（原始数字，防止报告遗漏）
         """
         if not report_text:
-            yield "（分析报告尚未生成，无法输出直接回答）"
-            return
+            from kg_builder.analysis.analyzer import IndicatorAnalyzer
+            report_text = IndicatorAnalyzer._fallback_report(
+                all_parts.get(1, {}),
+                all_parts.get(2, {}),
+                all_parts.get(3, {}),
+                {},
+                all_parts.get(5, {}),
+                all_parts.get(4, {}),
+                "综合报告为空",
+            )
+            self._log("  ⚠ 综合报告为空，已生成本地规则化报告")
 
         # ── 补充摘要：Part1 Top3 贡献因子 ───────────────────────────────── #
         supp_lines: list[str] = []
@@ -1587,9 +1622,27 @@ class InsightAnalyzer:
             yield self._fallback_direct_answer(question, cn_name, report_text, anomaly_profile)
             return
 
+        from kg_builder.analysis.analyzer import _llm_circuit_open
+        if _llm_circuit_open(self._llm_config.get("base_url", "")):
+            self._log("  ⚠ LLM 熔断窗口生效，使用综合报告生成本地回答")
+            yield self._fallback_direct_answer(
+                question, cn_name, report_text, anomaly_profile, "LLM 暂时不可用"
+            )
+            return
+
         # 流式输出
         try:
-            yield from self._llm_stream(system, user, max_tokens=1200)
+            emitted = False
+            for chunk in self._llm_stream(system, user, max_tokens=1200):
+                if not str(chunk or ""):
+                    continue
+                emitted = True
+                yield chunk
+            if not emitted:
+                self._log("  ⚠ 直答段 LLM 返回空内容，使用综合报告生成本地回答")
+                yield self._fallback_direct_answer(
+                    question, cn_name, report_text, anomaly_profile, "LLM 返回空内容"
+                )
         except Exception as e:
             self._log(f"  ⚠ 直答段生成失败，使用综合报告生成本地回答: {e}")
             yield self._fallback_direct_answer(question, cn_name, report_text, anomaly_profile, str(e))
@@ -1605,10 +1658,48 @@ class InsightAnalyzer:
         lines = [line.strip() for line in str(report_text or "").splitlines() if line.strip()]
         bullets = [line for line in lines if line.startswith("- ")]
         conclusion = bullets[0][2:] if bullets else f"已完成「{cn_name or '目标指标'}」分析，但当前返回数据不足，需要结合明细继续确认。"
-        evidence = bullets[1:5] if len(bullets) > 1 else bullets[:1]
+        # Keep enough evidence for at least two members of a requested
+        # comparison dimension (e.g. two provinces), after the metric summary
+        # and auxiliary metrics have occupied the first few bullets.
+        evidence = bullets[1:7] if len(bullets) > 1 else bullets[:1]
+        question_text = str(question or "")
+        target_dimension = next(
+            (name for name in ("省份", "战区", "门店", "营销场景", "车型", "车系", "统计月份")
+             if name in question_text),
+            "",
+        )
+        targeted_evidence = []
+        if target_dimension:
+            for idx, bullet in enumerate(bullets):
+                if target_dimension not in bullet:
+                    continue
+                targeted_evidence.append(bullet)
+                for following in bullets[idx + 1:idx + 3]:
+                    if "其中" not in following:
+                        break
+                    targeted_evidence.append(following)
+                break
+        if targeted_evidence:
+            detail = "；".join(item[2:].rstrip("。") for item in targeted_evidence)
+            lead = "当前可确认的差异/归因线索" if "原因" in question_text else "该维度的结构证据"
+            conclusion = f"{conclusion} {target_dimension}{lead}为：{detail}。"
+            evidence = targeted_evidence + [item for item in evidence if item not in targeted_evidence]
+            evidence = evidence[:6]
+        elif "原因" in question_text:
+            driver = next(
+                (item for item in bullets[1:] if "整体变化幅度" in item or "贡献变化合计" in item),
+                "",
+            )
+            if driver:
+                conclusion = f"{conclusion} 当前可确认的驱动线索是：{driver[2:]}"
         suggestions = [line for line in bullets if any(token in line for token in ("下钻", "明细", "Trace", "扩大", "补充"))][-3:]
         if not suggestions:
             suggestions = ["- 沿关键维度继续下钻，查看变化是否集中在少数对象。", "- 补充明细样本，确认是否存在单据规则、数据质量或真实业务变化。"]
+        if target_dimension:
+            suggestions = [
+                f"- 继续沿「{target_dimension}」下钻到营销场景、门店或明细，验证差异是否集中在少数对象。",
+                *[item for item in suggestions if target_dimension not in item],
+            ][:3]
         uncertainty = ""
         if reason:
             uncertainty = f"\n\n> AI 直答暂不可用，以下回答由已生成报告规则化整理。原因：{reason}"
@@ -1711,51 +1802,64 @@ class InsightAnalyzer:
 
     def _llm_call(self, system: str, user: str, max_tokens: int = 1024) -> str:
         """同步 LLM 调用，自动适配 OpenAI/Anthropic 后端。"""
+        from kg_builder.analysis.analyzer import _llm_circuit_open, _trip_llm_circuit
+
         api_key  = self._llm_config.get("api_key", "")
         base_url = self._llm_config.get("base_url", "").rstrip("/")
         model    = self._llm_config.get("model", "GPT5.5")
         is_anthropic = "anthropic" in base_url.lower()
+        if _llm_circuit_open(base_url):
+            return ""
 
-        if is_anthropic:
-            payload = {
-                "model":      model,
-                "max_tokens": max_tokens,
-                "messages":   [{"role": "user", "content": user}],
-                "system":     system,
-            }
-            body = json.dumps(payload).encode("utf-8")
-            headers = {
-                "Content-Type":      "application/json",
-                "x-api-key":         api_key,
-                "anthropic-version": "2023-06-01",
-            }
-            req = _ureq.Request(f"{base_url}/messages", data=body, headers=headers, method="POST")
-            with _urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            if "content" in data:
-                return self._strip_reasoning(data["content"][0]["text"])
-            if "choices" in data:
-                return self._strip_reasoning(data["choices"][0]["message"]["content"])
-            return str(data)
-        else:
-            # OpenAI-compatible (MiniMax, etc.)
-            combined = system + "\n\n" + user
-            payload = {
-                "model":      model,
-                "max_tokens": max_tokens,
-                "messages":   [{"role": "user", "content": combined}],
-            }
-            body = json.dumps(payload).encode("utf-8")
-            headers = {
-                "Content-Type":  "application/json",
-                "Authorization": f"Bearer {api_key}",
-            }
-            req = _ureq.Request(f"{base_url}/chat/completions", data=body, headers=headers, method="POST")
-            with _urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            if "choices" in data:
-                return self._strip_reasoning(data["choices"][0]["message"]["content"])
-            return str(data)
+        try:
+            if is_anthropic:
+                payload = {
+                    "model":      model,
+                    "max_tokens": max_tokens,
+                    "messages":   [{"role": "user", "content": user}],
+                    "system":     system,
+                }
+                body = json.dumps(payload).encode("utf-8")
+                headers = {
+                    "Content-Type":      "application/json",
+                    "x-api-key":         api_key,
+                    "anthropic-version": "2023-06-01",
+                }
+                req = _ureq.Request(f"{base_url}/messages", data=body, headers=headers, method="POST")
+                with _urlopen(req, timeout=15) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                if "content" in data:
+                    text = self._strip_reasoning(data["content"][0]["text"])
+                elif "choices" in data:
+                    text = self._strip_reasoning(data["choices"][0]["message"]["content"])
+                else:
+                    text = ""
+            else:
+                # OpenAI-compatible (MiniMax, etc.)
+                combined = system + "\n\n" + user
+                payload = {
+                    "model":      model,
+                    "max_tokens": max_tokens,
+                    "messages":   [{"role": "user", "content": combined}],
+                }
+                body = json.dumps(payload).encode("utf-8")
+                headers = {
+                    "Content-Type":  "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                }
+                req = _ureq.Request(f"{base_url}/chat/completions", data=body, headers=headers, method="POST")
+                with _urlopen(req, timeout=15) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                text = (
+                    self._strip_reasoning(data["choices"][0]["message"]["content"])
+                    if data.get("choices") else ""
+                )
+        except Exception:
+            _trip_llm_circuit(base_url)
+            raise
+        if not str(text or "").strip():
+            _trip_llm_circuit(base_url)
+        return text
 
     @staticmethod
     def _strip_reasoning(text: str) -> str:

@@ -47,7 +47,6 @@ import com.graphinsight.indicator.model.vo.OfflineRequest;
 import com.graphinsight.indicator.model.vo.PageVO;
 import com.graphinsight.indicator.service.impl.BuildSqlServiceImpl;
 import com.graphinsight.indicator.util.IndicatorAssert;
-import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,7 +60,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import springfox.documentation.annotations.ApiIgnore;
 
 import javax.annotation.Resource;
 import java.sql.Timestamp;
@@ -106,7 +104,6 @@ public class DimensionController {
     HierarchyMapper hierarchyMapper;
 
     @OperateLog
-    @ApiOperation("维度上线")
     @SyncReloadCache
     @GetMapping("/online/{id}")
     public Response online(@PathVariable Integer id) {
@@ -116,7 +113,6 @@ public class DimensionController {
 
     @SyncReloadCache
     @PostMapping("/offline")
-    @ApiOperation("维度下线")
     public Response<List<ReferenceCheck>> offline(@RequestBody OfflineRequest request){
         List<ReferenceCheck> checks = dimensionManager.offline(request);
         if (!CollectionUtils.isEmpty(checks)){
@@ -126,14 +122,12 @@ public class DimensionController {
     }
 
     @PostMapping("/offline/check")
-    @ApiOperation("指标下线检查接口")
     public Response<List<ReferenceCheck>> offlineCheck(@RequestBody OfflineRequest request){
         List<ReferenceCheck> checks = dimensionManager.offlineCheck(request);
         return Response.ok(checks);
     }
 
     @OperateLog
-    @ApiOperation("创建维度表达式")
     @SyncReloadCache
     @PostMapping("/exp/save")
     public Response createExp(@Validated @RequestBody DimensionApplicationVO applicationVO) {
@@ -142,7 +136,6 @@ public class DimensionController {
     }
 
     @OperateLog
-    @ApiOperation("删除维度表达式")
     @SyncReloadCache
     @GetMapping("/exp/delete/{id}")
     public Response deleteExp(@PathVariable Integer id) {
@@ -151,7 +144,6 @@ public class DimensionController {
     }
 
     @OperateLog
-    @ApiOperation("启用维度表达式")
     @SyncReloadCache
     @GetMapping("/exp/enable/{id}")
     public Response enableExp(@PathVariable Integer id) {
@@ -161,7 +153,6 @@ public class DimensionController {
 
 
     @OperateLog
-    @ApiOperation("停用维度表达式")
     @SyncReloadCache
     @GetMapping("/exp/disable/{id}")
     public Response disableExp(@PathVariable Integer id) {
@@ -182,7 +173,6 @@ public class DimensionController {
         return Response.ok();
     }
 
-    @ApiOperation("获取与某个维度有相同层次的维度列表")
     @GetMapping("/list/dimensionWithSameHierarchy/{id}")
     public Response listDimensionWithSameHierarchy(@PathVariable("id") Integer dimId) {
         List<Dimension> dimensions = dimensionManager.listDimensionWithSameHierarchy(dimId);
@@ -190,7 +180,6 @@ public class DimensionController {
     }
 
     @OperateLog
-    @ApiOperation("添加映射关系")
     @ReloadCache
     @PostMapping("/values/save")
     public Response addDimensionValues(@Validated @RequestBody DimensionValuesCreateVO dimensionValuesCreateVO) {
@@ -199,7 +188,6 @@ public class DimensionController {
     }
 
 
-    @ApiOperation("获取同一维表的维度列表,创建级联维度时候下拉选项用")
     @GetMapping("/list/dimensionWithSameDimTable/{id}")
     public Response<List<Dimension>> listDimensionWithSameDimTable(@PathVariable("id") Integer dimId) {
         List<Dimension> dimensions = dimensionManager.listDimensionWithSameDimTable(dimId);
@@ -210,8 +198,7 @@ public class DimensionController {
     @OperateLog
     @ReloadCache
     @PostMapping("/create")
-    @ApiOperation("创建维度接口")
-    public Response createDimension(@ApiIgnore @CurrentUser User user, @RequestBody @Validated DimensionCreateVO dimensionVO) {
+    public Response createDimension(@CurrentUser User user, @RequestBody @Validated DimensionCreateVO dimensionVO) {
         String enName = dimensionVO.getEnName();
         Dimension dimension = dimensionMapper.selectOne(Wrappers.<Dimension>lambdaQuery().eq(Dimension::getEnName, enName));
         if (dimension != null) {
@@ -226,9 +213,8 @@ public class DimensionController {
 
     @OperateLog
     @PostMapping("/update")
-    @ApiOperation("维度更新接口")
     @SyncReloadCache
-    public Response updateDimension(@ApiIgnore @CurrentUser User user, @RequestBody @Validated DimensionUpdateVO dimensionUpdateVO) {
+    public Response updateDimension(@CurrentUser User user, @RequestBody @Validated DimensionUpdateVO dimensionUpdateVO) {
         if (Objects.equals(dimensionUpdateVO.getIsHyper(), YesNoType.YES)){
             // 检查维度是否已经关联了事实表
             List<DimensionApplication> dimensionApplications = dimensionApplicationService.list(Wrappers.<DimensionApplication>lambdaQuery().eq(DimensionApplication::getDimId, dimensionUpdateVO.getId()));
@@ -243,7 +229,6 @@ public class DimensionController {
     CacheManager cacheManager;
 
     @CheckCacheVersion
-    @ApiOperation("维度详情接口")
     @GetMapping("/detail/{id}")
     public Response<DimensionVO> fetchDimension(@PathVariable("id") Integer id, @RequestParam(value = "traceId", required = false) String traceId) {
         Dimension dimension = dimensionMapper.selectById(id);
@@ -329,7 +314,6 @@ public class DimensionController {
     private CategoryManager categoryManager;
 
     @PostMapping("/list")
-    @ApiOperation("维度列表接口")
     public Response<PageVO<DimensionVO>> listDimension(@RequestBody @Validated DimensionQueryVO dimensionQueryVO) {
         List<Integer> dimLeafCategoryIds = Optional.ofNullable(dimensionQueryVO.getCategoryId())
                 .map(id -> categoryManager.findLeafIdById(id))

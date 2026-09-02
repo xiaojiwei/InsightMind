@@ -23,11 +23,7 @@ import com.graphinsight.indicator.util.CloneUtils;
 import com.graphinsight.indicator.util.MemCacheUtils;
 import com.graphinsight.indicator.util.StringUtil;
 import com.graphinsight.indicator.util.UserThreadLocalUtil;
-import org.apache.commons.math.genetics.Fitness;
-import org.apache.directory.api.util.Strings;
-import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.codehaus.jackson.map.Serializers;
-import org.mortbay.util.ajax.JSON;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -1833,7 +1829,7 @@ public class ChartQueryServiceImpl implements ChartQueryService {
             List<Table> factTableList = dim.getFactTableList();
             for (Table table : factTableList) {
 
-                if (Strings.isNotEmpty(tableName) && tableName.equalsIgnoreCase(table.getTableName())) {
+                if (StringUtil.isNotEmpty(tableName) && tableName.equalsIgnoreCase(table.getTableName())) {
                     exist = true;
                     break;
                 }
