@@ -30,11 +30,11 @@ The current workflow is usually:
 - Optional: an OpenAI-compatible LLM gateway for translation, NLQ fallback,
   or LLM business KG generation.
 
-For the default call-quality demo used in local development, the repository
+For the default HR demo used in local development, the repository
 includes checked-in assets under `../../demo/default/ad/output`. AD restores
 them into `output/` automatically when they are missing. The database bootstrap
-creates 54 fully synthetic calls for `理想汽车`; no production
-customer, employee, transcript or store data is included.
+creates 107 fully synthetic employees, departments, jobs and job-history rows;
+no production personal or organization data is included.
 
 ## Install
 
@@ -78,8 +78,8 @@ datasources:
     type: mysql
     host: localhost
     port: 3306
-    database: tpcds
-    schema: tpcds
+    database: HRRDB
+    schema: HRRDB
     username: YOUR_DB_USER
     password: YOUR_DB_PASSWORD
 ```
@@ -323,7 +323,7 @@ Run PYTHONPATH=. pytest before committing code changes.
 
 ## Can A Fresh Clone Start?
 
-A fresh clone can install dependencies, initialize the deterministic demo
+A fresh clone can install dependencies, initialize the deterministic HR demo
 database with `scripts/init-demo-db.sh`, restore the checked-in assets, and open
-all three call-quality dashboards. These dashboard paths do not require an LLM.
+both HR dashboards. These dashboard paths do not require an LLM.
 Other LLM-dependent features still require user-provided environment variables.

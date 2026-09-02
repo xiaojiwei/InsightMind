@@ -3,8 +3,8 @@ datasources:
     type: mysql
     host: localhost
     port: 3306
-    database: "tpcds"
-    schema: "tpcds"
+    database: "HRRDB"
+    schema: "HRRDB"
     username: root
     password: "root"
     sample_limit: 1000

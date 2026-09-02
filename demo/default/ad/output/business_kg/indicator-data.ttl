@@ -3354,7 +3354,7 @@ inst:ma_total_direct_reports_origin a ind:MeasureApp ;
 
 inst:conn_mysql_localhost_hrrdb a ind:DataConnection ;
     ind:dbName "HRRDB" ;
-    ind:dbPassword "123456" ;
+    ind:dbPassword "root" ;
     ind:dbType "mysql" ;
     ind:dbUser "root" ;
     ind:host "127.0.0.1" ;
